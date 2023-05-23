@@ -376,6 +376,15 @@ func TestMakeStarFnArgumentType(t *testing.T) {
 			wantErr:     true,
 		},
 		{
+			name: "Call with non-matched slice argument",
+			funcToConvert: func(a []struct{}) int {
+				t.Logf("[Go⭐️] %v", a)
+				return len(a)
+			},
+			codeSnippet: `x = boo(["123", "456"])`,
+			wantErr:     true,
+		},
+		{
 			name: "Call for nested slice argument (not handle yet)",
 			funcToConvert: func(a [][]string) int {
 				return len(a)
@@ -435,6 +444,14 @@ func TestMakeStarFnArgumentType(t *testing.T) {
 				return len(a)
 			},
 			codeSnippet: `x = boo(set(["a", "B"]))`,
+		},
+		{
+			name: "Call with func argument",
+			funcToConvert: func(a func(int) int) int {
+				return a(10)
+			},
+			codeSnippet: `x = boo(lambda x: x * 2)`,
+			wantErr:     true,
 		},
 	}
 

@@ -124,6 +124,7 @@ func FromValue(v starlark.Value) interface{} {
 		// dunno, hope it's a custom type that the receiver knows how to deal
 		// with. This can happen with custom-written go types that implement
 		// starlark.Value.
+		// maybe it's a Starlark function.
 		return v
 	}
 }
