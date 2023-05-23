@@ -258,6 +258,13 @@ func TestMakeDict(t *testing.T) {
 	sd2 := starlark.NewDict(1)
 	_ = sd2.SetKey(starlark.String("a"), starlark.MakeInt(1))
 
+	vf3 := 2
+	sd3 := starlark.NewDict(1)
+	_ = sd3.SetKey(starlark.String("a"), starlark.Float(vf3))
+
+	sd4 := starlark.NewDict(1)
+	_ = sd4.SetKey(starlark.String("a"), NewGoSlice([]string{"b", "c"}))
+
 	//sd3 := starlark.NewDict(1)
 	//_ = sd3.SetKey(starlark.String("a"), MakeGoInterface("b"))
 
@@ -282,6 +289,16 @@ func TestMakeDict(t *testing.T) {
 		//	v:    map[string]interface{}{"a": "b"},
 		//	want: sd3,
 		//},
+		{
+			name: "map[string]float32",
+			v:    map[string]float32{"a": float32(vf3)},
+			want: sd3,
+		},
+		{
+			name: "map[string][]string",
+			v:    map[string][]string{"a": {"b", "c"}},
+			want: sd4,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -21,8 +21,8 @@ type GoSlice struct {
 	frozen bool
 }
 
-// NewGoMap wraps the given slice in a new GoSlice.  This function will panic if m
-// is not a map.
+// NewGoSlice wraps the given slice in a new GoSlice. This function will panic if m
+// is not a slice nor array.
 func NewGoSlice(slice interface{}) *GoSlice {
 	v := reflect.ValueOf(slice)
 	if v.Kind() != reflect.Slice || v.Kind() != reflect.Array {
@@ -40,6 +40,11 @@ func (g *GoSlice) String() string {
 // Type returns a short string describing the value's type.
 func (g *GoSlice) Type() string {
 	return fmt.Sprintf("starlight_slice<%T>", g.v.Interface())
+}
+
+// Value returns reflect.Value of the underlying slice
+func (g *GoSlice) Value() reflect.Value {
+	return g.v
 }
 
 // Freeze causes the value, and all values transitively
