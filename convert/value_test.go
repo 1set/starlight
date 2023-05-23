@@ -33,6 +33,24 @@ func TestToValue(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:    "starlark none value",
+			v:       starlark.None,
+			want:    starlark.None,
+			wantErr: false,
+		},
+		{
+			name:    "starlark string value",
+			v:       starlark.String("test"),
+			want:    starlark.String("test"),
+			wantErr: false,
+		},
+		{
+			name:    "starlark int value",
+			v:       starlark.MakeInt(123),
+			want:    starlark.MakeInt(123),
+			wantErr: false,
+		},
+		{
 			name:    "string to value",
 			v:       "test",
 			want:    starlark.String("test"),

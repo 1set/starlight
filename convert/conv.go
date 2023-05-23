@@ -43,7 +43,7 @@ func hasMethods(val reflect.Value) bool {
 
 func toValue(val reflect.Value) (starlark.Value, error) {
 	if hasMethods(val) {
-		// this handles all basic types with methods (numbers, strings, bools)
+		// this handles all basic types with methods (numbers, strings, booleans)
 		ifc, ok := makeGoInterface(val)
 		if ok {
 			return ifc, nil
@@ -375,7 +375,7 @@ func makeOut(out []reflect.Value) (starlark.Value, error) {
 		}
 		return v, err
 	}
-	// tuple-up multple values
+	// tuple-up multiple values
 	res := make([]starlark.Value, 0, len(out))
 	for i := range out {
 		val, err3 := toValue(out[i])
