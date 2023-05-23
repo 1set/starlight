@@ -84,7 +84,7 @@ func (g *GoMap) Type() string {
 	return fmt.Sprintf("starlight_map<%T>", g.v.Interface())
 }
 
-// Value returns reflect.Value of the underlying slice
+// Value returns reflect.Value of the underlying map
 func (g *GoMap) Value() reflect.Value {
 	return g.v
 }

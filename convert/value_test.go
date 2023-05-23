@@ -268,6 +268,9 @@ func TestMakeDict(t *testing.T) {
 	sd5 := starlark.NewDict(1)
 	_ = sd5.SetKey(starlark.String("a"), MakeGoInterface("b"))
 
+	sd6 := starlark.NewDict(1)
+	_ = sd6.SetKey(starlark.MakeInt(10), starlark.Tuple{starlark.String("a")})
+
 	tests := []struct {
 		name    string
 		v       interface{}
@@ -298,6 +301,15 @@ func TestMakeDict(t *testing.T) {
 			name: "map[string]interface{}",
 			v:    map[string]interface{}{"a": "b"},
 			want: sd5,
+		},
+		{
+			name: "map[starlark.String]starlark.String",
+			v:    map[starlark.String]starlark.String{"a": starlark.String("b")},
+			want: sd1,
+		},
+		{
+			name: "map[starlark.Int]starlark.Tuple",
+			v:    map[starlark.Int]starlark.Tuple{starlark.MakeInt(10): starlark.Tuple{starlark.String("a")}},
 		},
 	}
 	for _, tt := range tests {
