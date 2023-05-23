@@ -1,6 +1,7 @@
 package convert_test
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -159,5 +160,48 @@ func TestMakeStarFnOneRetNonErrorAndError(t *testing.T) {
 	}
 	if v, err := execStarlark(`a = boo("error")`, globals); err == nil {
 		t.Fatalf(`expected err = "error occurred", but got no err: a=%v`, v)
+	}
+}
+
+func TestMakeStarFnOneRetErrorAndNonError(t *testing.T) {
+	fn := func(s string) (error, string) {
+		if s == "" {
+			return errors.New("input is empty"), ""
+		}
+		return nil, "hi " + s
+	}
+
+	skyf := convert.MakeStarFn("boo", fn)
+
+	globals := map[string]starlark.Value{
+		"boo": skyf,
+	}
+
+	if v, err := execStarlark(`e, a = boo("")`, globals); err != nil {
+		t.Fatalf(`expected a = "", err = "input is empty", but got a=%v, err=%v`, v, err)
+	} else if e := v["e"]; e == nil {
+		t.Fatalf(`expected e = "input is empty", but got e=nil`)
+	}
+}
+
+func TestMakeStarFnOneRetTwoNonErrorAndError(t *testing.T) {
+	fn := func(s string, n int) (string, int, error) {
+		if s == "" {
+			return "", 0, errors.New("input is empty")
+		}
+		return "hi " + s, n + 5, nil
+	}
+
+	skyf := convert.MakeStarFn("boo", fn)
+
+	globals := map[string]starlark.Value{
+		"boo": skyf,
+	}
+
+	if v, err := execStarlark(`a, b = boo("", 5)`, globals); err == nil {
+		t.Fatalf(`expected a = "", b = 0, err = "input is empty", but got a=%v, b=%v, err=%v`, v["a"], v["b"], err)
+	}
+	if v, err := execStarlark(`a, b = boo("starlight", 5)`, globals); err != nil {
+		t.Fatalf(`expected a = "hi starlight", b = 10, err = nil, but got a=%v, b=%v, err=%v`, v["a"], v["b"], err)
 	}
 }
