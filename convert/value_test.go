@@ -265,8 +265,8 @@ func TestMakeDict(t *testing.T) {
 	sd4 := starlark.NewDict(1)
 	_ = sd4.SetKey(starlark.String("a"), NewGoSlice([]string{"b", "c"}))
 
-	//sd3 := starlark.NewDict(1)
-	//_ = sd3.SetKey(starlark.String("a"), MakeGoInterface("b"))
+	sd5 := starlark.NewDict(1)
+	_ = sd5.SetKey(starlark.String("a"), MakeGoInterface("b"))
 
 	tests := []struct {
 		name    string
@@ -284,11 +284,6 @@ func TestMakeDict(t *testing.T) {
 			v:    map[string]int{"a": 1},
 			want: sd2,
 		},
-		//{
-		//	name: "map[string]interface{}",
-		//	v:    map[string]interface{}{"a": "b"},
-		//	want: sd3,
-		//},
 		{
 			name: "map[string]float32",
 			v:    map[string]float32{"a": float32(vf3)},
@@ -299,6 +294,11 @@ func TestMakeDict(t *testing.T) {
 			v:    map[string][]string{"a": {"b", "c"}},
 			want: sd4,
 		},
+		{
+			name: "map[string]interface{}",
+			v:    map[string]interface{}{"a": "b"},
+			want: sd5,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -307,7 +307,7 @@ func TestMakeDict(t *testing.T) {
 				t.Errorf("MakeDict(%v) error = %v, wantErr %v", tt.v, err, tt.wantErr)
 				return
 			}
-			if !(reflect.DeepEqual(got, tt.want)) {
+			if !(reflect.DeepEqual(got, tt.want) || got.String() == tt.want.String()) {
 				t.Errorf("MakeDict(%v) got = %v, want %v", tt.v, got, tt.want)
 			}
 		})

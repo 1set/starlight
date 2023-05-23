@@ -25,7 +25,7 @@ type GoSlice struct {
 // is not a slice nor array.
 func NewGoSlice(slice interface{}) *GoSlice {
 	v := reflect.ValueOf(slice)
-	if v.Kind() != reflect.Slice || v.Kind() != reflect.Array {
+	if v.Kind() != reflect.Slice && v.Kind() != reflect.Array {
 		panic(fmt.Errorf("NewGoSlice expects a slice or array, but got %T", slice))
 	}
 	return &GoSlice{v: v}
