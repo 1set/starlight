@@ -307,10 +307,11 @@ func TestMakeDict(t *testing.T) {
 			v:    map[starlark.String]starlark.String{"a": starlark.String("b")},
 			want: sd1,
 		},
-		//{
-		//	name: "map[starlark.Int]starlark.Tuple",
-		//	v:    map[starlark.Int]starlark.Tuple{starlark.MakeInt(10): starlark.Tuple{starlark.String("a")}},
-		//},
+		{
+			name: "map[starlark.Int]starlark.Tuple",
+			v:    map[starlark.Int]starlark.Tuple{starlark.MakeInt(10): {starlark.String("a")}},
+			want: sd6,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
