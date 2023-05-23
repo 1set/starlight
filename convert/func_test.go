@@ -325,3 +325,62 @@ b = 0.1
 		t.Fatalf(`expected a = [7, "hey!"], but got %#v`, v)
 	}
 }
+
+func TestMakeStarFnMismatch(t *testing.T) {
+	type testCase struct {
+		name          string
+		funcToConvert interface{}
+		codeSnippet   string
+		shouldPanic   bool
+		wantErr       bool
+	}
+	testCases := []testCase{
+		{
+			name:          "Non-function type",
+			funcToConvert: 123,
+			codeSnippet:   `x = boo()`,
+			shouldPanic:   true,
+		},
+		{
+			name:          "Call with wrong argument count",
+			funcToConvert: func(a int, b int) {},
+			codeSnippet:   `x = boo(12)`,
+			wantErr:       true,
+		},
+		{
+			name:          "Call with wrong argument type",
+			funcToConvert: func(a int) {},
+			codeSnippet:   `x = boo("hello")`,
+			wantErr:       true,
+		},
+		// Add more cases as needed...
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					if !tc.shouldPanic {
+						err := r.(error)
+						t.Errorf("Unexpected panic: %v", err)
+					}
+				}
+			}()
+
+			starFn := convert.MakeStarFn("testFn", tc.funcToConvert)
+
+			// Use this function in a Starlark script
+			thread := &starlark.Thread{Name: "my thread"}
+			script := tc.codeSnippet
+			globals := starlark.StringDict{
+				"boo": starFn,
+			}
+			_, err := starlark.ExecFile(thread, "script.star", script, globals)
+			if tc.wantErr && err == nil {
+				t.Errorf("Expected error, but got none")
+			} else if !tc.wantErr && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+		})
+	}
+}
