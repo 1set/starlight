@@ -250,3 +250,49 @@ def double(x):
 	}
 	return globals["double"].(*starlark.Function)
 }
+
+func TestMakeDict(t *testing.T) {
+	sd1 := starlark.NewDict(1)
+	_ = sd1.SetKey(starlark.String("a"), starlark.String("b"))
+
+	sd2 := starlark.NewDict(1)
+	_ = sd2.SetKey(starlark.String("a"), starlark.MakeInt(1))
+
+	//sd3 := starlark.NewDict(1)
+	//_ = sd3.SetKey(starlark.String("a"), MakeGoInterface("b"))
+
+	tests := []struct {
+		name    string
+		v       interface{}
+		want    starlark.Value
+		wantErr bool
+	}{
+		{
+			name: "map[string]string",
+			v:    map[string]string{"a": "b"},
+			want: sd1,
+		},
+		{
+			name: "map[string]int",
+			v:    map[string]int{"a": 1},
+			want: sd2,
+		},
+		//{
+		//	name: "map[string]interface{}",
+		//	v:    map[string]interface{}{"a": "b"},
+		//	want: sd3,
+		//},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := MakeDict(tt.v)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("MakeDict(%v) error = %v, wantErr %v", tt.v, err, tt.wantErr)
+				return
+			}
+			if !(reflect.DeepEqual(got, tt.want)) {
+				t.Errorf("MakeDict(%v) got = %v, want %v", tt.v, got, tt.want)
+			}
+		})
+	}
+}
