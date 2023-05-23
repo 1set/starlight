@@ -421,6 +421,13 @@ func TestMakeStarFnArgumentType(t *testing.T) {
 			codeSnippet: `x = boo({"a": [1, 2, 3]})`,
 			wantErr:     true,
 		},
+		{
+			name: "Call with map struct{} argument",
+			funcToConvert: func(a map[string]struct{}) int {
+				return len(a)
+			},
+			codeSnippet: `x = boo(set(["a", "B"]))`,
+		},
 	}
 
 	for _, tc := range testCases {
