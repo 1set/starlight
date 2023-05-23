@@ -410,15 +410,16 @@ func updateDict(dict *GoMap, updates starlark.Tuple, kwargs []starlark.Tuple) er
 				iter2 := starlark.Iterate(pair)
 				if iter2 == nil {
 					return fmt.Errorf("dictionary update sequence element #%d is not iterable (%s)", i, pair.Type())
-
 				}
 				defer iter2.Done()
-				len := starlark.Len(pair)
-				if len < 0 {
+
+				l := starlark.Len(pair)
+				if l < 0 {
 					return fmt.Errorf("dictionary update sequence element #%d has unknown length (%s)", i, pair.Type())
-				} else if len != 2 {
-					return fmt.Errorf("dictionary update sequence element #%d has length %d, want 2", i, len)
+				} else if l != 2 {
+					return fmt.Errorf("dictionary update sequence element #%d has length %d, want 2", i, l)
 				}
+
 				var k, v starlark.Value
 				iter2.Next(&k)
 				iter2.Next(&v)
