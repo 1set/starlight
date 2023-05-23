@@ -97,16 +97,16 @@ func (g *GoSlice) SetIndex(index int, v starlark.Value) error {
 func (g *GoSlice) Slice(start, end, step int) starlark.Value {
 	// python slices are copies, so we don't just use .Slice here
 	if step == 1 {
-		copy := reflect.MakeSlice(g.v.Type(), end-start, end-start)
-		reflect.Copy(copy, g.v.Slice(start, end))
-		return &GoSlice{v: copy}
+		cp := reflect.MakeSlice(g.v.Type(), end-start, end-start)
+		reflect.Copy(cp, g.v.Slice(start, end))
+		return &GoSlice{v: cp}
 	}
-	copy := reflect.MakeSlice(g.v.Type().Elem(), 0, 0)
+	cp := reflect.MakeSlice(g.v.Type().Elem(), 0, 0)
 	sign := signOf(step)
 	for i := start; signOf(end-i) == sign; i += step {
-		copy = reflect.Append(copy, g.v.Index(i))
+		cp = reflect.Append(cp, g.v.Index(i))
 	}
-	return &GoSlice{v: copy}
+	return &GoSlice{v: cp}
 }
 
 func signOf(i int) int {
