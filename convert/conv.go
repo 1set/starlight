@@ -29,9 +29,6 @@ func ToValue(v interface{}) (starlark.Value, error) {
 }
 
 func hasMethods(val reflect.Value) bool {
-	if !val.IsValid() {
-		return false
-	}
 	if val.NumMethod() > 0 {
 		return true
 	}
@@ -42,13 +39,19 @@ func hasMethods(val reflect.Value) bool {
 }
 
 func toValue(val reflect.Value) (starlark.Value, error) {
-	if hasMethods(val) {
-		// this handles all basic types with methods (numbers, strings, booleans)
-		ifc, ok := makeGoInterface(val)
-		if ok {
-			return ifc, nil
+	if val.IsValid() {
+		if _, ok := val.Interface().(starlark.Value); ok {
+			// let starlark values pass through, if they are already
+			return val.Interface().(starlark.Value), nil
 		}
-		// TODO: maps, functions, and slices with methods
+		if hasMethods(val) {
+			// this handles all basic types with methods (numbers, strings, booleans)
+			ifc, ok := makeGoInterface(val)
+			if ok {
+				return ifc, nil
+			}
+			// TODO: maps, functions, and slices with methods
+		}
 	}
 
 	kind := val.Kind()
