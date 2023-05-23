@@ -187,16 +187,16 @@ func makeDict(val reflect.Value) (starlark.Value, error) {
 	}
 	dict := starlark.Dict{}
 	for _, k := range val.MapKeys() {
-		key, err := toValue(k)
+		vk, err := toValue(k)
 		if err != nil {
 			return nil, err
 		}
 
-		val, err := toValue(val.MapIndex(k))
+		vv, err := toValue(val.MapIndex(k))
 		if err != nil {
 			return nil, err
 		}
-		dict.SetKey(key, val)
+		dict.SetKey(vk, vv)
 	}
 	return &dict, nil
 }
