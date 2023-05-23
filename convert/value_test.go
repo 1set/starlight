@@ -109,6 +109,9 @@ func TestFromValue(t *testing.T) {
 	slSet.Insert(starlark.String("a"))
 	slSet.Insert(starlark.String("b"))
 
+	testBuiltin := makeStarFn("fn", reflect.ValueOf(func() string { return "test" }))
+	testFunction := getSimpleStarlarkFunc()
+
 	tests := []struct {
 		name string
 		v    starlark.Value
@@ -186,6 +189,16 @@ func TestFromValue(t *testing.T) {
 			// The last test case is not completed. Let's complete it.
 			want: &customType{}, // assuming FromValue returns the original value if it doesn't know how to convert it
 		},
+		{
+			name: "Builtin",
+			v:    testBuiltin,
+			want: testBuiltin,
+		},
+		{
+			name: "Function",
+			v:    testFunction,
+			want: testFunction,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -204,3 +217,18 @@ func (c *customType) Type() string          { return "customType" }
 func (c *customType) Freeze()               {}
 func (c *customType) Truth() starlark.Bool  { return starlark.True }
 func (c *customType) Hash() (uint32, error) { return 0, nil }
+
+// Generate Starlark Functions
+
+func getSimpleStarlarkFunc() *starlark.Function {
+	code := `
+def double(x):
+	return x*2
+`
+	thread := &starlark.Thread{Name: "test"}
+	globals, err := starlark.ExecFile(thread, "mock.star", code, nil)
+	if err != nil {
+		panic(err)
+	}
+	return globals["double"].(*starlark.Function)
+}
