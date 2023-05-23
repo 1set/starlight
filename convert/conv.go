@@ -454,19 +454,24 @@ func convertMap(val reflect.Value, argT reflect.Type) (reflect.Value, error) {
 func convertElemValue(val reflect.Value, targetType reflect.Type) (reflect.Value, error) {
 	if val.Type().AssignableTo(targetType) || val.Type().ConvertibleTo(targetType) {
 		return val.Convert(targetType), nil
-	} else if val.Elem().Type().ConvertibleTo(targetType) {
-		return val.Elem().Convert(targetType), nil
-	} else if val.Type().Kind() == reflect.Interface && !val.IsNil() {
-		unwrapped := val.Elem()
-		if unwrapped.Type().ConvertibleTo(targetType) {
-			return unwrapped.Convert(targetType), nil
-		} else if sv, ok := unwrapped.Interface().(starlark.Value); ok {
-			goVal := FromValue(sv)
-			goVal = convertNumericTypes(goVal, targetType)
-			if reflect.TypeOf(goVal) != targetType {
-				return reflect.Value{}, fmt.Errorf("expected type %v got %v", targetType, reflect.TypeOf(goVal))
+	} else if val.Kind() == reflect.Ptr || val.Kind() == reflect.Interface {
+		if val.IsNil() {
+			return reflect.Value{}, fmt.Errorf("nil value cannot be converted to type %v", targetType)
+		}
+		if val.Elem().Type().ConvertibleTo(targetType) {
+			return val.Elem().Convert(targetType), nil
+		} else if val.Type().Kind() == reflect.Interface {
+			unwrapped := val.Elem()
+			if unwrapped.Type().ConvertibleTo(targetType) {
+				return unwrapped.Convert(targetType), nil
+			} else if sv, ok := unwrapped.Interface().(starlark.Value); ok {
+				goVal := FromValue(sv)
+				goVal = convertNumericTypes(goVal, targetType)
+				if reflect.TypeOf(goVal) != targetType {
+					return reflect.Value{}, fmt.Errorf("expected type %v got %v", targetType, reflect.TypeOf(goVal))
+				}
+				return reflect.ValueOf(goVal), nil
 			}
-			return reflect.ValueOf(goVal), nil
 		}
 	}
 	return reflect.Value{}, fmt.Errorf("expected type %v got %v", targetType, val.Type())

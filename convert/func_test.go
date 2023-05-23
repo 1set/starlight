@@ -422,8 +422,16 @@ func TestMakeStarFnArgumentType(t *testing.T) {
 			wantErr:     true,
 		},
 		{
-			name: "Call with map struct{} argument",
+			name: "Call with mistyped set argument",
 			funcToConvert: func(a map[string]struct{}) int {
+				return len(a)
+			},
+			codeSnippet: `x = boo(set(["a", "B"]))`,
+			wantErr:     true,
+		},
+		{
+			name: "Call with mapped set argument",
+			funcToConvert: func(a map[string]bool) int {
 				return len(a)
 			},
 			codeSnippet: `x = boo(set(["a", "B"]))`,
