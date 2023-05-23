@@ -326,7 +326,7 @@ b = 0.1
 	}
 }
 
-func TestMakeStarFnMismatch(t *testing.T) {
+func TestMakeStarFnArgumentType(t *testing.T) {
 	type testCase struct {
 		name          string
 		funcToConvert interface{}
@@ -353,7 +353,74 @@ func TestMakeStarFnMismatch(t *testing.T) {
 			codeSnippet:   `x = boo("hello")`,
 			wantErr:       true,
 		},
-		// Add more cases as needed...
+		{
+			name:          "Call with wrong argument type 2",
+			funcToConvert: func(a int) int { return 0 },
+			codeSnippet:   `x = boo(["a", "b"])`,
+			wantErr:       true,
+		},
+		{
+			name: "Call with slice argument",
+			funcToConvert: func(a []string) int {
+				return len(a)
+			},
+			codeSnippet: `x = boo(["a", "b"])`,
+		},
+		{
+			name: "Call with wrong slice argument",
+			funcToConvert: func(a []int) int {
+				t.Logf("[Go⭐️] %v", a)
+				return len(a)
+			},
+			codeSnippet: `x = boo(["123", "456"])`,
+			wantErr:     true,
+		},
+		{
+			name: "Call for nested slice argument (not handle yet)",
+			funcToConvert: func(a [][]string) int {
+				return len(a)
+			},
+			codeSnippet: `x = boo([["a", "b"]])`,
+			wantErr:     true,
+		},
+		{
+			name: "Call for nested slice argument 2 (not handle yet)",
+			funcToConvert: func(a []map[int]int) int {
+				return len(a)
+			},
+			codeSnippet: `x = boo([{1: 2}])`,
+			wantErr:     true,
+		},
+		{
+			name: "Call with map interface argument",
+			funcToConvert: func(a map[string]interface{}) int {
+				return len(a)
+			},
+			codeSnippet: `x = boo({"a": 1, "b": True, "c": [1,2,3]})`,
+		},
+		{
+			name: "Call with map typed argument",
+			funcToConvert: func(a map[string]int) int {
+				return len(a)
+			},
+			codeSnippet: `x = boo({"a": 1, "b": 2})`,
+		},
+		{
+			name: "Call with nested map argument (not handle yet)",
+			funcToConvert: func(a map[string]map[string]int) int {
+				return len(a)
+			},
+			codeSnippet: `x = boo({"a": {"b": 1}})`,
+			wantErr:     true,
+		},
+		{
+			name: "Call with nested map argument 2 (not handle yet)",
+			funcToConvert: func(a map[string][]int) int {
+				return len(a)
+			},
+			codeSnippet: `x = boo({"a": [1, 2, 3]})`,
+			wantErr:     true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -370,7 +437,12 @@ func TestMakeStarFnMismatch(t *testing.T) {
 			starFn := convert.MakeStarFn("testFn", tc.funcToConvert)
 
 			// Use this function in a Starlark script
-			thread := &starlark.Thread{Name: "my thread"}
+			thread := &starlark.Thread{
+				Name: "my thread",
+				Print: func(_ *starlark.Thread, msg string) {
+					t.Log("[Starlark⭐️]", msg)
+				},
+			}
 			script := tc.codeSnippet
 			globals := starlark.StringDict{
 				"boo": starFn,
