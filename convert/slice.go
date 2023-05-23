@@ -42,7 +42,7 @@ func (g *GoSlice) Type() string {
 	return fmt.Sprintf("starlight_slice<%T>", g.v.Interface())
 }
 
-// Value returns reflect.Value of the underlying slice
+// Value returns reflect.Value of the underlying slice.
 func (g *GoSlice) Value() reflect.Value {
 	return g.v
 }

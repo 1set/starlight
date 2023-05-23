@@ -101,7 +101,7 @@ func (g *GoStruct) Type() string {
 	return fmt.Sprintf("starlight_struct<%T>", g.v.Interface())
 }
 
-// Value returns reflect.Value of the underlying struct
+// Value returns reflect.Value of the underlying struct.
 func (g *GoStruct) Value() reflect.Value {
 	return g.v
 }
