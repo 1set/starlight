@@ -453,6 +453,14 @@ func TestMakeStarFnArgumentType(t *testing.T) {
 			codeSnippet: `x = boo(lambda x: x * 2)`,
 			wantErr:     true,
 		},
+		{
+			name: "Call with slice for array argument (not handle yet)",
+			funcToConvert: func(a [5]int) int {
+				return len(a)
+			},
+			codeSnippet: `x = boo([1, 2, 3, 4, 5])`,
+			wantErr:     true,
+		},
 	}
 
 	for _, tc := range testCases {
