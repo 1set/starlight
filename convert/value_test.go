@@ -326,3 +326,74 @@ func TestMakeDict(t *testing.T) {
 		})
 	}
 }
+
+func TestFromDict(t *testing.T) {
+	sd1 := starlark.NewDict(1)
+	_ = sd1.SetKey(starlark.String("a"), starlark.String("b"))
+
+	sd2 := starlark.NewDict(1)
+	_ = sd2.SetKey(starlark.String("a"), starlark.MakeInt(1))
+
+	vf3 := 2
+	sd3 := starlark.NewDict(1)
+	_ = sd3.SetKey(starlark.String("a"), starlark.Float(vf3))
+
+	sd4 := starlark.NewDict(1)
+	_ = sd4.SetKey(starlark.String("a"), NewGoSlice([]string{"b", "c"}))
+
+	sd5 := starlark.NewDict(1)
+	_ = sd5.SetKey(starlark.String("a"), MakeGoInterface("b"))
+
+	sd6 := starlark.NewDict(1)
+	_ = sd6.SetKey(starlark.MakeInt(10), starlark.Tuple{starlark.String("a")})
+
+	tests := []struct {
+		name string
+		v    *starlark.Dict
+		want map[interface{}]interface{}
+	}{
+		{
+			name: "map[string]string",
+			v:    sd1,
+			want: map[interface{}]interface{}{"a": "b"},
+		},
+		{
+			name: "map[string]int64",
+			v:    sd2,
+			want: map[interface{}]interface{}{"a": int64(1)},
+		},
+		{
+			name: "map[string]float32",
+			v:    sd3,
+			want: map[interface{}]interface{}{"a": float64(vf3)},
+		},
+		{
+			name: "map[string][]string",
+			v:    sd4,
+			want: map[interface{}]interface{}{"a": []string{"b", "c"}},
+		},
+		{
+			name: "map[string]interface{}",
+			v:    sd5,
+			want: map[interface{}]interface{}{"a": "b"},
+		},
+		{
+			name: "map[starlark.String]starlark.String",
+			v:    sd1,
+			want: map[interface{}]interface{}{"a": "b"},
+		},
+		{
+			name: "map[starlark.Int]starlark.Tuple",
+			v:    sd6,
+			want: map[interface{}]interface{}{int64(10): []interface{}{"a"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := FromDict(tt.v)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("FromDict(%v) = %v, want %v", tt.v, got, tt.want)
+			}
+		})
+	}
+}
