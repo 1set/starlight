@@ -134,15 +134,7 @@ func toMap(m map[interface{}]interface{}) (map[string]int, error) {
 		if val, ok := v.(int64); ok {
 			out[s] = int(val)
 		} else {
-			i, ok := v.(starlark.Int)
-			if !ok {
-				return nil, fmt.Errorf("expected starlark int val, but got %#v", v)
-			}
-			val, ok := i.Int64()
-			if !ok {
-				return nil, fmt.Errorf("starlark int can't be represented as an int64: %s", i)
-			}
-			out[s] = int(val)
+			return nil, fmt.Errorf("expected int val, but got %#v", v)
 		}
 	}
 	return out, nil
