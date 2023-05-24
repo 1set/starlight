@@ -407,7 +407,7 @@ func TestMakeSet(t *testing.T) {
 	s2 := starlark.NewSet(1)
 	_ = s2.Insert(starlark.MakeInt(1))
 
-	s3 := starlark.NewSet(1)
+	s3 := starlark.NewSet(2)
 	_ = s3.Insert(starlark.String("a"))
 	_ = s3.Insert(starlark.String("b"))
 
@@ -428,7 +428,7 @@ func TestMakeSet(t *testing.T) {
 			want: s2,
 		},
 		{
-			name: "set[string, string]",
+			name: "set[string,string]",
 			s:    map[interface{}]bool{"a": true, "b": true},
 			want: s3,
 		},
@@ -454,7 +454,7 @@ func TestFromSet(t *testing.T) {
 	s2 := starlark.NewSet(1)
 	_ = s2.Insert(starlark.MakeInt(200))
 
-	s3 := starlark.NewSet(1)
+	s3 := starlark.NewSet(2)
 	_ = s3.Insert(starlark.String("a"))
 	_ = s3.Insert(starlark.String("b"))
 
@@ -474,7 +474,7 @@ func TestFromSet(t *testing.T) {
 			want: map[interface{}]bool{int64(200): true},
 		},
 		{
-			name: "set[string, string]",
+			name: "set[string,string]",
 			s:    s3,
 			want: map[interface{}]bool{"a": true, "b": true},
 		},
