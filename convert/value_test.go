@@ -397,3 +397,162 @@ func TestFromDict(t *testing.T) {
 		})
 	}
 }
+
+func TestMakeSet(t *testing.T) {
+	s1 := starlark.NewSet(1)
+	_ = s1.Insert(starlark.String("a"))
+
+	s2 := starlark.NewSet(1)
+	_ = s2.Insert(starlark.MakeInt(1))
+
+	s3 := starlark.NewSet(1)
+	_ = s3.Insert(starlark.String("a"))
+	_ = s3.Insert(starlark.String("b"))
+
+	tests := []struct {
+		name    string
+		s       map[interface{}]bool
+		want    *starlark.Set
+		wantErr bool
+	}{
+		{
+			name: "set[string]",
+			s:    map[interface{}]bool{"a": true},
+			want: s1,
+		},
+		{
+			name: "set[int]",
+			s:    map[interface{}]bool{1: true},
+			want: s2,
+		},
+		{
+			name: "set[string, string]",
+			s:    map[interface{}]bool{"a": true, "b": true},
+			want: s3,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := MakeSet(tt.s)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("MakeSet(%v) error = %v, wantErr %v", tt.s, err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("MakeSet(%v) = %v, want %v", tt.s, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFromSet(t *testing.T) {
+	s1 := starlark.NewSet(1)
+	_ = s1.Insert(starlark.String("a"))
+
+	s2 := starlark.NewSet(1)
+	_ = s2.Insert(starlark.MakeInt(1))
+
+	s3 := starlark.NewSet(1)
+	_ = s3.Insert(starlark.String("a"))
+	_ = s3.Insert(starlark.String("b"))
+
+	tests := []struct {
+		name string
+		s    *starlark.Set
+		want map[interface{}]bool
+	}{
+		{
+			name: "set[string]",
+			s:    s1,
+			want: map[interface{}]bool{"a": true},
+		},
+		{
+			name: "set[int]",
+			s:    s2,
+			want: map[interface{}]bool{1: true},
+		},
+		{
+			name: "set[string, string]",
+			s:    s3,
+			want: map[interface{}]bool{"a": true, "b": true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := FromSet(tt.s)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("FromSet(%v) = %v, want %v", tt.s, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFromTuple(t *testing.T) {
+	tuple1 := starlark.Tuple{starlark.String("a")}
+	tuple2 := starlark.Tuple{starlark.MakeInt(1)}
+	tuple3 := starlark.Tuple{starlark.String("a"), starlark.String("b")}
+	tests := []struct {
+		name string
+		v    starlark.Tuple
+		want []interface{}
+	}{
+		{
+			name: "tuple[string]",
+			v:    tuple1,
+			want: []interface{}{"a"},
+		},
+		{
+			name: "tuple[int]",
+			v:    tuple2,
+			want: []interface{}{1},
+		},
+		{
+			name: "tuple[string, string]",
+			v:    tuple3,
+			want: []interface{}{"a", "b"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := FromTuple(tt.v)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("FromTuple(%v) = %v, want %v", tt.v, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFromList(t *testing.T) {
+	l1 := starlark.NewList([]starlark.Value{starlark.String("a")})
+	l2 := starlark.NewList([]starlark.Value{starlark.MakeInt(1)})
+	l3 := starlark.NewList([]starlark.Value{starlark.String("a"), starlark.String("b")})
+	tests := []struct {
+		name string
+		l    *starlark.List
+		want []interface{}
+	}{
+		{
+			name: "list[string]",
+			l:    l1,
+			want: []interface{}{"a"},
+		},
+		{
+			name: "list[int]",
+			l:    l2,
+			want: []interface{}{1},
+		},
+		{
+			name: "list[string, string]",
+			l:    l3,
+			want: []interface{}{"a", "b"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := FromList(tt.l)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("FromList(%v) = %v, want %v", tt.l, got, tt.want)
+			}
+		})
+	}
+}
