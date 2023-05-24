@@ -1,3 +1,4 @@
+// Package convert provides functions for converting data and functions between Go and Starlark.
 package convert
 
 import (
