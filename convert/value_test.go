@@ -440,7 +440,7 @@ func TestMakeSet(t *testing.T) {
 				t.Errorf("MakeSet(%v) error = %v, wantErr %v", tt.s, err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
+			if eq, err := starlark.Equal(got, tt.want); !eq || err != nil {
 				t.Errorf("MakeSet(%v) = %v, want %v", tt.s, got, tt.want)
 			}
 		})
