@@ -165,11 +165,11 @@ func TestFromValue(t *testing.T) {
 			v:    starlark.Tuple([]starlark.Value{starlark.String("a"), starlark.String("b")}),
 			want: []interface{}{"a", "b"},
 		},
-		//{
-		//	name: "Dict",
-		//	v:    slDict,
-		//	want: map[interface{}]interface{}{"a": "b"},
-		//},
+		{
+			name: "Dict",
+			v:    slDict,
+			want: map[interface{}]interface{}{"a": "b"},
+		},
 		{
 			name: "Set",
 			v:    slSet,
@@ -204,7 +204,6 @@ func TestFromValue(t *testing.T) {
 		{
 			name: "Default",
 			v:    &customType{}, // assuming customType is a starlark.Value
-			// The last test case is not completed. Let's complete it.
 			want: &customType{}, // assuming FromValue returns the original value if it doesn't know how to convert it
 		},
 		{
@@ -235,6 +234,9 @@ func (c *customType) Type() string          { return "customType" }
 func (c *customType) Freeze()               {}
 func (c *customType) Truth() starlark.Bool  { return starlark.True }
 func (c *customType) Hash() (uint32, error) { return 0, nil }
+
+// Assuming this is a custom type that doesn't implement starlark.Callable
+type unknownType struct{}
 
 // Generate Starlark Functions
 
@@ -450,7 +452,7 @@ func TestFromSet(t *testing.T) {
 	_ = s1.Insert(starlark.String("a"))
 
 	s2 := starlark.NewSet(1)
-	_ = s2.Insert(starlark.MakeInt(1))
+	_ = s2.Insert(starlark.MakeInt(200))
 
 	s3 := starlark.NewSet(1)
 	_ = s3.Insert(starlark.String("a"))
@@ -469,7 +471,7 @@ func TestFromSet(t *testing.T) {
 		{
 			name: "set[int]",
 			s:    s2,
-			want: map[interface{}]bool{1: true},
+			want: map[interface{}]bool{int64(200): true},
 		},
 		{
 			name: "set[string, string]",
