@@ -489,7 +489,7 @@ func TestFromSet(t *testing.T) {
 
 func TestFromTuple(t *testing.T) {
 	tuple1 := starlark.Tuple{starlark.String("a")}
-	tuple2 := starlark.Tuple{starlark.MakeInt(1)}
+	tuple2 := starlark.Tuple{starlark.MakeInt(100)}
 	tuple3 := starlark.Tuple{starlark.String("a"), starlark.String("b")}
 	tests := []struct {
 		name string
@@ -504,7 +504,7 @@ func TestFromTuple(t *testing.T) {
 		{
 			name: "tuple[int]",
 			v:    tuple2,
-			want: []interface{}{1},
+			want: []interface{}{int64(100)},
 		},
 		{
 			name: "tuple[string, string]",
@@ -524,7 +524,7 @@ func TestFromTuple(t *testing.T) {
 
 func TestFromList(t *testing.T) {
 	l1 := starlark.NewList([]starlark.Value{starlark.String("a")})
-	l2 := starlark.NewList([]starlark.Value{starlark.MakeInt(1)})
+	l2 := starlark.NewList([]starlark.Value{starlark.MakeInt(200)})
 	l3 := starlark.NewList([]starlark.Value{starlark.String("a"), starlark.String("b")})
 	tests := []struct {
 		name string
@@ -539,7 +539,7 @@ func TestFromList(t *testing.T) {
 		{
 			name: "list[int]",
 			l:    l2,
-			want: []interface{}{1},
+			want: []interface{}{int64(200)},
 		},
 		{
 			name: "list[string, string]",
