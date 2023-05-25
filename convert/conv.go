@@ -100,8 +100,9 @@ func FromValue(v starlark.Value) interface{} {
 		if i, ok := v.Uint64(); ok {
 			return i
 		}
+		return v.BigInt()
 		// buh... maybe > maxint64?  Dunno
-		panic(fmt.Errorf("can't convert starlark.Int %q to int", v))
+		// panic(fmt.Errorf("can't convert starlark.Int %v to int", v))
 	case starlark.Float:
 		return float64(v)
 	case starlark.String:

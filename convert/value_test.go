@@ -1,6 +1,7 @@
 package convert
 
 import (
+	"math/big"
 	"reflect"
 	"testing"
 
@@ -130,6 +131,8 @@ func TestFromValue(t *testing.T) {
 	testBuiltin := makeStarFn("fn", reflect.ValueOf(func() string { return "test" }))
 	testFunction := getSimpleStarlarkFunc()
 
+	bigVal := big.NewInt(1).Mul(big.NewInt(100000000000000), big.NewInt(100000000000000))
+
 	tests := []struct {
 		name string
 		v    starlark.Value
@@ -144,6 +147,11 @@ func TestFromValue(t *testing.T) {
 			name: "Int",
 			v:    starlark.MakeInt(123),
 			want: int64(123),
+		},
+		{
+			name: "BigInt",
+			v:    starlark.MakeBigInt(bigVal),
+			want: bigVal,
 		},
 		{
 			name: "Float",
