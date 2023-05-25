@@ -9,6 +9,7 @@ import (
 )
 
 func TestToValue(t *testing.T) {
+	bigVal := big.NewInt(1).Mul(big.NewInt(100000000000000), big.NewInt(100000000000000))
 	tests := []struct {
 		name    string
 		v       interface{}
@@ -62,6 +63,11 @@ func TestToValue(t *testing.T) {
 			v:       123,
 			want:    starlark.MakeInt(123),
 			wantErr: false,
+		},
+		{
+			name: "big int to value",
+			v:    bigVal,
+			want: starlark.MakeBigInt(bigVal),
 		},
 		{
 			name:    "bool to value",
