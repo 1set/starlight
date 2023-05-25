@@ -65,6 +65,11 @@ func TestToValue(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "not big int to value",
+			v:    big.NewInt(123),
+			want: starlark.MakeInt(123),
+		},
+		{
 			name: "big int to value",
 			v:    bigVal,
 			want: starlark.MakeBigInt(bigVal),
@@ -79,6 +84,12 @@ func TestToValue(t *testing.T) {
 			name:    "float to value",
 			v:       123.45,
 			want:    starlark.Float(123.45),
+			wantErr: false,
+		},
+		{
+			name:    "big float to value",
+			v:       big.NewFloat(123.456),
+			want:    starlark.Float(123.456),
 			wantErr: false,
 		},
 		{
