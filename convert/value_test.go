@@ -105,13 +105,19 @@ func TestToValue(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "struct to value",
+			name:    "empty struct to value",
+			v:       struct{}{},
+			want:    &GoStruct{v: reflect.ValueOf(struct{}{})},
+			wantErr: false,
+		},
+		{
+			name:    "custom struct to value",
 			v:       struct{ Name string }{Name: "test"},
 			want:    &GoStruct{v: reflect.ValueOf(struct{ Name string }{Name: "test"})},
 			wantErr: false,
 		},
 		{
-			name:    "struct to value 2",
+			name:    "lib struct to value",
 			v:       big.NewRat(1, 3),
 			want:    &GoStruct{v: reflect.ValueOf(big.NewRat(1, 3))},
 			wantErr: false,
