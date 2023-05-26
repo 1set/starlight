@@ -111,6 +111,12 @@ func TestToValue(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:    "struct to value 2",
+			v:       big.NewRat(1, 3),
+			want:    &GoStruct{v: reflect.ValueOf(big.NewRat(1, 3))},
+			wantErr: false,
+		},
+		{
 			name:    "function to value",
 			v:       func() string { return "test" },
 			want:    makeStarFn("fn", reflect.ValueOf(func() string { return "test" })),
