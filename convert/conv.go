@@ -42,7 +42,7 @@ func hasMethods(val reflect.Value) bool {
 func toValue(val reflect.Value) (starlark.Value, error) {
 	if val.IsValid() {
 		if _, ok := val.Interface().(starlark.Value); ok {
-			// let starlark values pass through, if they are already
+			// let Starlark values pass through, no conversion needed
 			return val.Interface().(starlark.Value), nil
 		}
 		if hasMethods(val) {
