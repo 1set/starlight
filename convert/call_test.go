@@ -72,6 +72,11 @@ func TestUseGoValueInStarlark(t *testing.T) {
 	}
 	testCases := []testCase{
 		{
+			name:        "nil",
+			goValue:     nil,
+			codeSnippet: `assert.Eq(None, go_value)`,
+		},
+		{
 			name:        "int",
 			goValue:     123,
 			codeSnippet: `assert.Eq(123, go_value)`,
@@ -81,6 +86,7 @@ func TestUseGoValueInStarlark(t *testing.T) {
 			goValue:     "aloha",
 			codeSnippet: `assert.Eq('aloha', go_value)`,
 		},
+		// INSERT MORE TEST CASES HERE
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
