@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/1set/starlight/convert"
 	"go.starlark.net/starlark"
 )
 
@@ -58,5 +59,46 @@ greet_func = greet
 	// call the starlark function and expect an error
 	if _, err := starlark.Call(thread, greet, starlark.Tuple{starlark.String("null")}, nil); err == nil {
 		t.Fatalf(`expected an error while calling greet("null"), but got none`)
+	}
+}
+
+func TestUseGoValueInStarlark(t *testing.T) {
+	type testCase struct {
+		name        string
+		goValue     interface{}
+		codeSnippet string
+		wantErrConv bool
+		wantErrExec bool
+	}
+	testCases := []testCase{
+		{
+			name:        "int",
+			goValue:     123,
+			codeSnippet: `assert.Eq(123, go_value)`,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			globals := map[string]interface{}{
+				"assert":   &assert{t: t},
+				"go_value": tc.goValue,
+			}
+			env, errConv := convert.MakeStringDict(globals)
+			if errConv != nil == !tc.wantErrConv {
+				t.Fatalf(`expected no error while converting globals, but got %v`, errConv)
+			} else if errConv == nil && tc.wantErrConv {
+				t.Fatalf(`expected an error while converting globals, but got none`)
+			}
+			if errConv != nil {
+				return
+			}
+
+			_, errExec := execStarlark(tc.codeSnippet, env)
+			if errExec != nil && !tc.wantErrExec {
+				t.Fatalf(`expected no error while executing code snippet, but got %v`, errExec)
+			} else if errExec == nil && tc.wantErrExec {
+				t.Fatalf(`expected an error while executing code snippet, but got none`)
+			}
+		})
 	}
 }
