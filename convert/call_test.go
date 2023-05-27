@@ -10,6 +10,8 @@ import (
 func TestCallStarlarkFunctionInGo(t *testing.T) {
 	code := `
 def greet(name="John"):
+	if name == "null":
+		fail("name cannot be 'null'")
 	return "Hello, " + name + "!"
 
 greet_func = greet
@@ -51,5 +53,10 @@ greet_func = greet
 	// call the starlark function with extra arguments
 	if _, err := starlark.Call(thread, greet, starlark.Tuple{starlark.String("Jane"), starlark.String("Doe")}, nil); err == nil {
 		t.Fatalf(`expected an error while calling greet("Jane", "Doe"), but got none`)
+	}
+
+	// call the starlark function and expect an error
+	if _, err := starlark.Call(thread, greet, starlark.Tuple{starlark.String("null")}, nil); err == nil {
+		t.Fatalf(`expected an error while calling greet("null"), but got none`)
 	}
 }
