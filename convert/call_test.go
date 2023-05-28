@@ -583,8 +583,8 @@ set_val = set([1, 2, 3, 4, 5])
 		t.Fatalf(`expected list_val to convert to [4, 5, 6], but got %v`, list)
 	}
 
-	actualDict := globals["dict_val"].(map[string]interface{})
-	expectedDict := map[string]interface{}{"Alice": int64(1), "Bob": int64(2), "Charlie": int64(3)}
+	actualDict := globals["dict_val"].(map[interface{}]interface{})
+	expectedDict := map[interface{}]interface{}{"Alice": int64(1), "Bob": int64(2), "Charlie": int64(3)}
 	if !reflect.DeepEqual(actualDict, expectedDict) {
 		t.Fatalf(`expected actualDict to convert to %v, but got %v`, expectedDict, actualDict)
 	}
