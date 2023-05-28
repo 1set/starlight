@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"go.starlark.net/starlarkstruct"
+
 	"github.com/1set/starlight/convert"
 	"go.starlark.net/starlark"
 )
@@ -547,8 +549,12 @@ tuple_val = (1, 2, 3)
 list_val = [4, 5, 6]
 dict_val = {"Alice": 1, "Bob": 2, "Charlie": 3}
 set_val = set([1, 2, 3, 4, 5])
+person = struct(name="John Doe", age=30, tags=["tag1", "tag2", "tag3"])
 `
-	globals, err := execStarlark(code, nil)
+	envs := map[string]starlark.Value{
+		"struct": starlark.NewBuiltin("struct", starlarkstruct.Make),
+	}
+	globals, err := execStarlark(code, envs)
 	if err != nil {
 		t.Fatalf(`expected no error, but got %v`, err)
 	}
@@ -593,5 +599,15 @@ set_val = set([1, 2, 3, 4, 5])
 	expectedSet := map[interface{}]bool{int64(1): true, int64(2): true, int64(3): true, int64(4): true, int64(5): true}
 	if !reflect.DeepEqual(actualSet, expectedSet) {
 		t.Fatalf(`expected set_val to convert to %v, but got %v`, expectedSet, actualSet)
+	}
+
+	if person := globals["person"].(interface{}); person == nil {
+		t.Fatalf(`expected person to convert to a struct, but got nil`)
+	} else {
+		personStruct := person.(*starlarkstruct.Struct)
+		t.Logf(`personStruct: %v`, personStruct)
+		if name, _ := personStruct.Attr("name"); name.(starlark.String).GoString() != "John Doe" {
+			t.Fatalf(`expected person.name to be "John Doe", but got %v`, name)
+		}
 	}
 }
