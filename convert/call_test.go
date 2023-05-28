@@ -1,6 +1,7 @@
 package convert_test
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -298,6 +299,15 @@ func TestCallGoFunctionInStarlark(t *testing.T) {
 	}
 	testCases := []testCase{
 		{
+			name: "func() string",
+			goFunc: func() string {
+				return "Aloha!"
+			},
+			codeSnippet:  `sl_value = go_func()`,
+			expectResult: "Aloha!",
+			wantEqual:    true,
+		},
+		{
 			name: "func(string) string",
 			goFunc: func(name string) string {
 				return "Hello " + name + "!"
@@ -315,6 +325,49 @@ func TestCallGoFunctionInStarlark(t *testing.T) {
 			expectResult: int64(5),
 			wantEqual:    true,
 		},
+		{
+			name: "func(string) (string, error)",
+			goFunc: func(name string) (string, error) {
+				return "Hello " + name + "!", nil
+			},
+			codeSnippet:  `sl_value = go_func("World")`,
+			expectResult: "Hello World!",
+			wantEqual:    true,
+		},
+		{
+			name: "func(string) (error, error)",
+			goFunc: func(name string) (error, error) {
+				return fmt.Errorf("need %s", name), nil
+			},
+			codeSnippet:  `sl_value = go_func("attention")`,
+			expectResult: errors.New("need attention"),
+			wantEqual:    true,
+		},
+		{
+			name: "unsupported func(chan) int",
+			goFunc: func(ch chan int) int {
+				return <-ch
+			},
+			codeSnippet: `sl_value = go_func(42)`,
+			wantErrExec: true,
+		},
+		{
+			name: "mismatched func(int) string",
+			goFunc: func(name int) string {
+				return fmt.Sprintf("Hello %d!", name)
+			},
+			codeSnippet: `sl_value = go_func("42")`,
+			wantErrExec: true,
+		},
+		{
+			name: "fuzzy func(string) int",
+			goFunc: func(name string) int {
+				return len(name)
+			},
+			codeSnippet:  `sl_value = go_func(42)`,
+			expectResult: int64(1),
+			wantEqual:    true,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -325,7 +378,7 @@ func TestCallGoFunctionInStarlark(t *testing.T) {
 			// convert go functions to Starlark values as predefined globals
 			env, errConv := convert.MakeStringDict(globals)
 			if errConv != nil {
-				t.Fatalf(`expected no error while converting globals, but got %v`, errConv)
+				t.Fatalf(`expected no error while converting funcs, but got %v`, errConv)
 			}
 
 			// run the Starlark code to test the converted globals
