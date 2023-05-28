@@ -72,9 +72,15 @@ func TestUseGoValueInStarlark(t *testing.T) {
 	}
 	testCases := []testCase{
 		{
-			name:        "nil",
-			goValue:     nil,
-			codeSnippet: `assert.Equal(None, go_value)`,
+			name:    "nil",
+			goValue: nil,
+			codeSnippet: `
+assert.Equal(None, go_value)
+def test():
+	if go_value != None:
+		fail('go_value is not None')
+test()
+`,
 		},
 		{
 			name:        "int",
@@ -85,6 +91,12 @@ func TestUseGoValueInStarlark(t *testing.T) {
 			name:        "string",
 			goValue:     "aloha",
 			codeSnippet: `assert.Equal('aloha', go_value)`,
+		},
+		{
+			name:        "slice",
+			goValue:     []interface{}{123, "aloha"},
+			codeSnippet: `assert.Equal([123, 'aloha'], go_value)`,
+			wantErrExec: true,
 		},
 		{
 			name:        "array",

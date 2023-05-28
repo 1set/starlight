@@ -99,6 +99,12 @@ func TestToValue(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:    "array to value",
+			v:       [3]int{1, 2, 3},
+			want:    &GoSlice{v: reflect.ValueOf([]int{1, 2, 3})},
+			wantErr: false,
+		},
+		{
 			name:    "map to value",
 			v:       map[string]int{"one": 1, "two": 2},
 			want:    &GoMap{v: reflect.ValueOf(map[string]int{"one": 1, "two": 2})},
@@ -129,7 +135,7 @@ func TestToValue(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "unsupported type",
+			name:    "unsupported type: channel",
 			v:       make(chan int),
 			want:    nil,
 			wantErr: true,
