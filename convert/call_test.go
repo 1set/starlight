@@ -2,6 +2,7 @@ package convert_test
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/1set/starlight/convert"
@@ -273,4 +274,65 @@ print('※ go_value: {}({})'.format(go_value, type(go_value)))
 			}
 		})
 	}
+}
+
+func TestCallGoFunctionInStarlark(t *testing.T) {
+	type testCase struct {
+		name         string
+		goFunc       interface{}
+		codeSnippet  string
+		expectResult interface{}
+		wantErrExec  bool
+		wantEqual    bool
+	}
+	testCases := []testCase{
+		{
+			name: "func(string) string",
+			goFunc: func(name string) string {
+				return "Hello " + name + "!"
+			},
+			codeSnippet:  `sl_value = go_func("World")`,
+			expectResult: "Hello World!",
+			wantEqual:    true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			globals := map[string]interface{}{
+				"go_func": tc.goFunc,
+			}
+
+			// convert go functions to Starlark values as predefined globals
+			env, errConv := convert.MakeStringDict(globals)
+			if errConv != nil {
+				t.Fatalf(`expected no error while converting globals, but got %v`, errConv)
+			}
+
+			// run the Starlark code to test the converted globals
+			res, errExec := execStarlark(tc.codeSnippet, env)
+			if errExec != nil && !tc.wantErrExec {
+				t.Fatalf(`expected no error while executing code snippet, but got %v`, errExec)
+			} else if errExec == nil && tc.wantErrExec {
+				t.Fatalf(`expected an error while executing code snippet, but got none`)
+			}
+			if errExec != nil {
+				return
+			}
+
+			// result value
+			slValue, found := res["sl_value"]
+			if !found {
+				t.Fatalf(`expected sl_value in globals, but got none`)
+			}
+
+			// compare the result
+			if gotEqual := reflect.DeepEqual(slValue, tc.expectResult); gotEqual != tc.wantEqual {
+				t.Fatalf(`expected sl_value to be %v, but got %v, want equal: %v`, tc.expectResult, slValue, tc.wantEqual)
+			}
+		})
+	}
+
+}
+
+func TestUseStarlarkValueInGo(t *testing.T) {
 }
