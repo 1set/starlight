@@ -9,6 +9,7 @@ import (
 	"go.starlark.net/starlark"
 )
 
+// TestCallStarlarkFunctionInGo tests calling a Starlark function in Go with various arguments.
 func TestCallStarlarkFunctionInGo(t *testing.T) {
 	code := `
 def greet(name="John"):
@@ -44,7 +45,8 @@ greet_func = greet
 	}
 
 	// call the starlark function with one argument
-	if res, err := starlark.Call(thread, greet, starlark.Tuple{starlark.String("Jane")}, nil); err != nil {
+	jane, _ := convert.ToValue("Jane")
+	if res, err := starlark.Call(thread, greet, starlark.Tuple{jane}, nil); err != nil {
 		t.Fatalf(`expected no error while calling greet("Jane"), but got %v`, err)
 	} else if resStr, ok := res.(starlark.String); !ok {
 		t.Fatalf(`expected greet("Jane") to return a starlark.String, but got %T`, resStr)
@@ -53,7 +55,8 @@ greet_func = greet
 	}
 
 	// call the starlark function with extra arguments
-	if _, err := starlark.Call(thread, greet, starlark.Tuple{starlark.String("Jane"), starlark.String("Doe")}, nil); err == nil {
+	doe, _ := convert.ToValue("Doe")
+	if _, err := starlark.Call(thread, greet, starlark.Tuple{jane, doe}, nil); err == nil {
 		t.Fatalf(`expected an error while calling greet("Jane", "Doe"), but got none`)
 	}
 
@@ -63,6 +66,9 @@ greet_func = greet
 	}
 }
 
+// TestUseGoValueInStarlark tests using various Go values in Starlark. It verifies:
+// 1. the Go value can be converted to Starlark values as input;
+// 2. the converted Starlark values can be used in Starlark code;
 func TestUseGoValueInStarlark(t *testing.T) {
 	// for common go values, convert them to starlark values and run the starlark code with go assert and starlark test assert
 	codeCompareList := `
@@ -276,6 +282,11 @@ print('※ go_value: {}({})'.format(go_value, type(go_value)))
 	}
 }
 
+// TestCallGoFunctionInStarlark tests calling Go functions in Starlark with various types of arguments and return values.
+// It verifies:
+// 1. Go functions can be converted to Starlark functions;
+// 2. Return values of Go functions can be converted to Starlark values;
+// 3. Starlark values can be converted to Go values;
 func TestCallGoFunctionInStarlark(t *testing.T) {
 	type testCase struct {
 		name         string
@@ -340,8 +351,10 @@ func TestCallGoFunctionInStarlark(t *testing.T) {
 			}
 		})
 	}
-
 }
 
+// TestUseStarlarkValueInGo tests using various Starlark values in Go. It verifies:
+// 1. the Starlark values can be converted to Go values as output;
+// 2. the converted Go value can be used in Go code;
 func TestUseStarlarkValueInGo(t *testing.T) {
 }
