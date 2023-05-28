@@ -3,6 +3,7 @@ package convert_test
 import (
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"strings"
 	"testing"
@@ -533,4 +534,71 @@ print('※ sl_value: {}({})'.format(sl_value, type(sl_value)))
 // 1. the Starlark values can be converted to Go values as output;
 // 2. the converted Go value can be used in Go code;
 func TestUseStarlarkValueInGo(t *testing.T) {
+	code := `
+def generate_values():
+    # Basic types
+    none = None
+    boolean = True
+    integer = 42
+    floatNum = 3.14159
+    string = "Hello, Starlark!"
+    
+    # Containers
+    tuple_val = (1, 2, 3)
+    list_val = [4, 5, 6]
+    actualDict = {"Alice": 1, "Bob": 2, "Charlie": 3}
+    set_val = set([1, 2, 3, 4, 5])
+    
+    return none, boolean, integer, floatNum, string, tuple_val, list_val, actualDict, set_val
+
+values = generate_values()
+`
+	globals, err := execStarlark(code, nil)
+	if err != nil {
+		t.Fatalf(`expected no error, but got %v`, err)
+	}
+
+	values := globals["values"].(*starlark.Tuple)
+
+	// Basic types
+	if none := convert.FromValue(values.Index(0)); none != nil {
+		t.Fatalf(`expected None to convert to nil, but got %v`, none)
+	}
+
+	if boolean := convert.FromValue(values.Index(1)).(bool); !boolean {
+		t.Fatalf(`expected boolean to convert to true, but got %v`, boolean)
+	}
+
+	if integer := convert.FromValue(values.Index(2)).(int64); integer != 42 {
+		t.Fatalf(`expected integer to convert to 42, but got %v`, integer)
+	}
+
+	if floatNum := convert.FromValue(values.Index(3)).(float64); math.Abs(floatNum-3.14159) > 1e-5 {
+		t.Fatalf(`expected float_num to convert to 3.14159, but got %v`, floatNum)
+	}
+
+	if str := convert.FromValue(values.Index(4)).(string); str != "Hello, Starlark!" {
+		t.Fatalf(`expected string to convert to "Hello, Starlark!", but got %s`, str)
+	}
+
+	// Containers
+	if tup := convert.FromValue(values.Index(5)).([]interface{}); !reflect.DeepEqual(tup, []interface{}{int64(1), int64(2), int64(3)}) {
+		t.Fatalf(`expected tuple_val to convert to [1, 2, 3], but got %v`, tup)
+	}
+
+	if list := convert.FromValue(values.Index(6)).([]interface{}); !reflect.DeepEqual(list, []interface{}{int64(4), int64(5), int64(6)}) {
+		t.Fatalf(`expected list_val to convert to [4, 5, 6], but got %v`, list)
+	}
+
+	actualDict := convert.FromValue(values.Index(7)).(map[string]interface{})
+	expectedDict := map[string]interface{}{"Alice": int64(1), "Bob": int64(2), "Charlie": int64(3)}
+	if !reflect.DeepEqual(actualDict, expectedDict) {
+		t.Fatalf(`expected actualDict to convert to %v, but got %v`, expectedDict, actualDict)
+	}
+
+	actualSet := convert.FromValue(values.Index(8)).(map[interface{}]bool)
+	expectedSet := map[interface{}]bool{int64(1): true, int64(2): true, int64(3): true, int64(4): true, int64(5): true}
+	if !reflect.DeepEqual(actualSet, expectedSet) {
+		t.Fatalf(`expected set_val to convert to %v, but got %v`, expectedSet, actualSet)
+	}
 }
