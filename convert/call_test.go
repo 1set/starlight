@@ -99,7 +99,7 @@ def test():
 			codeSnippet: `
 assert.Equal(None, go_value)
 
-print('go_value: {}({})'.format(go_value, type(go_value)))
+print('※ go_value: {}({})'.format(go_value, type(go_value)))
 def test():
 	if go_value != None:
 		fail('go_value is not None')
@@ -112,7 +112,7 @@ test()
 			codeSnippet: `
 assert.Equal(123, go_value)
 
-print('go_value: {}({})'.format(go_value, type(go_value)))
+print('※ go_value: {}({})'.format(go_value, type(go_value)))
 def test():
 	if go_value != 123:
 		fail('go_value is not 123')
@@ -125,7 +125,7 @@ test()
 			codeSnippet: `
 assert.Equal('aloha', go_value)
 
-print('go_value: {}({})'.format(go_value, type(go_value)))
+print('※ go_value: {}({})'.format(go_value, type(go_value)))
 def test():
 	if go_value != 'aloha':
 		fail('go_value is not "aloha"')
@@ -200,6 +200,29 @@ test()
 			name:        "map of string to slice of int",
 			goValue:     map[string][]int{"one": {1, 2}, "two": {3, 4}},
 			codeSnippet: `exp = {"one": [1, 2], "two": [3, 4]}` + codeCompareMapDict,
+		},
+		{
+			name:    "empty struct",
+			goValue: struct{}{},
+			codeSnippet: `
+print('※ go_value: {}({})'.format(go_value, type(go_value)))
+assert.Equal({}, go_value)
+`,
+			wantErrExec: true,
+		},
+		{
+			name: "custom struct",
+			goValue: struct {
+				Name  string
+				Value int
+			}{Name: "Hello", Value: 42},
+			codeSnippet: `
+print('※ go_value: {}({})'.format(go_value, type(go_value)))
+def test():
+	if go_value.Name != 'Hello' or go_value.Value != 42:
+		fail('go_value is not "aloha"')
+test()
+`,
 		},
 		// INSERT MORE TEST CASES HERE
 		// ...
