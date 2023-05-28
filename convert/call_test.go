@@ -290,6 +290,10 @@ print('※ go_value: {}({})'.format(go_value, type(go_value)))
 // 2. Return values of Go functions can be converted to Starlark values;
 // 3. Starlark values can be converted to Go values;
 func TestCallGoFunctionInStarlark(t *testing.T) {
+	type customStruct struct {
+		Name  string
+		Value int
+	}
 	type testCase struct {
 		name         string
 		goFunc       interface{}
@@ -468,6 +472,24 @@ print('※ sl_value: {}({})'.format(sl_value, type(sl_value)))
 			},
 			codeSnippet: `sl_value = go_func({"a": {"x": 1, "y": 2, "z": 3}, "b": {"x": 4, "y": 5, "z": 6}})`,
 			wantErrExec: true, // TODO: support nested map as input
+		},
+		{
+			name: "func(string) custom",
+			goFunc: func(name string) customStruct {
+				return customStruct{Name: name, Value: 42}
+			},
+			codeSnippet:  `sl_value = go_func("Alice")`,
+			expectResult: customStruct{Name: "Alice", Value: 42},
+			wantEqual:    true,
+		},
+		{
+			name: "func(string) *custom",
+			goFunc: func(name string) *customStruct {
+				return &customStruct{Name: name, Value: 36}
+			},
+			codeSnippet:  `sl_value = go_func("Bob")`,
+			expectResult: &customStruct{Name: "Bob", Value: 36},
+			wantEqual:    true,
 		},
 	}
 	for _, tc := range testCases {
