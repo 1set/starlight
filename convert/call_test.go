@@ -64,7 +64,9 @@ greet_func = greet
 
 func TestUseGoValueInStarlark(t *testing.T) {
 	// for common go values, convert them to starlark values and run the starlark code with go assert and starlark test assert
-	codeCompareSlice := `
+	codeCompareList := `
+
+print('go_value: {}({})'.format(go_value, type(go_value)))
 def test():
 	for i in range(len(exp)):
 		if go_value[i] != exp[i]:
@@ -87,6 +89,8 @@ test()
 			goValue: nil,
 			codeSnippet: `
 assert.Equal(None, go_value)
+
+print('go_value: {}({})'.format(go_value, type(go_value)))
 def test():
 	if go_value != None:
 		fail('go_value is not None')
@@ -98,6 +102,8 @@ test()
 			goValue: 123,
 			codeSnippet: `
 assert.Equal(123, go_value)
+
+print('go_value: {}({})'.format(go_value, type(go_value)))
 def test():
 	if go_value != 123:
 		fail('go_value is not 123')
@@ -109,6 +115,8 @@ test()
 			goValue: "aloha",
 			codeSnippet: `
 assert.Equal('aloha', go_value)
+
+print('go_value: {}({})'.format(go_value, type(go_value)))
 def test():
 	if go_value != 'aloha':
 		fail('go_value is not "aloha"')
@@ -118,34 +126,34 @@ test()
 		{
 			name:        "slice of interface",
 			goValue:     []interface{}{123, "world"},
-			codeSnippet: `exp = [123, "world"]` + codeCompareSlice,
+			codeSnippet: `exp = [123, "world"]` + codeCompareList,
 			wantErrExec: true, // for []interface{}, convert to GoSlice+GoInterface
 		},
 		{
 			name:        "slice of int",
 			goValue:     []int{123, 456},
-			codeSnippet: `exp = [123, 456]` + codeCompareSlice,
+			codeSnippet: `exp = [123, 456]` + codeCompareList,
 		},
 		{
 			name:        "slice of string",
 			goValue:     []string{"hello", "world"},
-			codeSnippet: `exp = ["hello", "world"]` + codeCompareSlice,
+			codeSnippet: `exp = ["hello", "world"]` + codeCompareList,
 		},
 		{
 			name:        "array of interface",
 			goValue:     [2]interface{}{123, "world"},
-			codeSnippet: `exp = [123, "world"]` + codeCompareSlice,
+			codeSnippet: `exp = [123, "world"]` + codeCompareList,
 			wantErrExec: true, // for [2]interface{}, convert to GoSlice+GoInterface
 		},
 		{
 			name:        "array of int",
 			goValue:     [2]int{123, 456},
-			codeSnippet: `exp = [123, 456]` + codeCompareSlice,
+			codeSnippet: `exp = [123, 456]` + codeCompareList,
 		},
 		{
 			name:        "array of string",
 			goValue:     [2]string{"hello", "world"},
-			codeSnippet: `exp = ["hello", "world"]` + codeCompareSlice,
+			codeSnippet: `exp = ["hello", "world"]` + codeCompareList,
 		},
 		// INSERT MORE TEST CASES HERE
 	}
