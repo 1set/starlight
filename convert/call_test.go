@@ -66,7 +66,7 @@ func TestUseGoValueInStarlark(t *testing.T) {
 	// for common go values, convert them to starlark values and run the starlark code with go assert and starlark test assert
 	codeCompareList := `
 
-print('go_value: {}({})'.format(go_value, type(go_value)))
+print('※ go_value: {}({})'.format(go_value, type(go_value)))
 def test():
 	for i in range(len(exp)):
 		if go_value[i] != exp[i]:
@@ -74,6 +74,15 @@ def test():
 		else:
 			print('go_value[{}] {}({}) == {}({})'.format(i, go_value[i],type(go_value[i]), exp[i],type(exp[i])))
 test()
+`
+	codeCompareMapDict := `
+
+print('※ go_value: {}({})'.format(go_value, type(go_value)))
+def test():
+	el = sorted(list(exp.items()))
+	al = sorted(list(go_value.items()))
+	if el != al:
+		fail('go_value {}({}) is not equal to {}({})'.format(go_value,type(go_value), exp,type(exp)))
 `
 
 	type testCase struct {
@@ -140,6 +149,11 @@ test()
 			codeSnippet: `exp = ["hello", "world"]` + codeCompareList,
 		},
 		{
+			name:        "slice of bool",
+			goValue:     []bool{true, false},
+			codeSnippet: `exp = [True, False]` + codeCompareList,
+		},
+		{
 			name:        "array of interface",
 			goValue:     [2]interface{}{123, "world"},
 			codeSnippet: `exp = [123, "world"]` + codeCompareList,
@@ -155,7 +169,28 @@ test()
 			goValue:     [2]string{"hello", "world"},
 			codeSnippet: `exp = ["hello", "world"]` + codeCompareList,
 		},
+		{
+			name:        "array of bool",
+			goValue:     [2]bool{true, false},
+			codeSnippet: `exp = [True, False]` + codeCompareList,
+		},
+		{
+			name:        "map of string to int",
+			goValue:     map[string]int{"one": 1, "two": 2},
+			codeSnippet: `exp = {"one": 1, "two": 2}` + codeCompareMapDict,
+		},
+		{
+			name:        "map of int to string",
+			goValue:     map[int]string{1: "one", 2: "two"},
+			codeSnippet: `exp = {1: "one", 2: "two"}` + codeCompareMapDict,
+		},
+		{
+			name:        "map of string to slice of int",
+			goValue:     map[string][]int{"one": {1, 2}, "two": {3, 4}},
+			codeSnippet: `exp = {"one": [1, 2], "two": [3, 4]}` + codeCompareMapDict,
+		},
 		// INSERT MORE TEST CASES HERE
+		// ...
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

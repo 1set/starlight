@@ -111,6 +111,12 @@ func TestToValue(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:    "map slice to value",
+			v:       map[string][]int{"one": {1, 2}, "two": {3, 4}},
+			want:    &GoMap{v: reflect.ValueOf(map[string][]int{"one": {1, 2}, "two": {3, 4}})},
+			wantErr: false,
+		},
+		{
 			name:    "empty struct to value",
 			v:       struct{}{},
 			want:    &GoStruct{v: reflect.ValueOf(struct{}{})},
