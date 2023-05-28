@@ -368,6 +368,27 @@ func TestCallGoFunctionInStarlark(t *testing.T) {
 			expectResult: int64(1),
 			wantEqual:    true,
 		},
+		{
+			name: "invalid pointer: func(*string) string",
+			goFunc: func(name *string) string {
+				if name == nil {
+					return "Hello World!"
+				}
+				return "Hello " + *name + "!"
+			},
+			codeSnippet: `sl_value = go_func("World")`,
+			wantErrExec: true,
+		},
+		{
+			name: "invalid pointer: func(string) *string",
+			goFunc: func(name string) *string {
+				return &name
+			},
+			codeSnippet: `
+sl_value = go_func("World")
+print('※ sl_value: {}({})'.format(sl_value, type(sl_value)))
+`,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
