@@ -63,6 +63,17 @@ greet_func = greet
 }
 
 func TestUseGoValueInStarlark(t *testing.T) {
+	// for common go values, convert them to starlark values and run the starlark code with go assert and starlark test assert
+	codeCompareSlice := `
+def test():
+	for i in range(len(exp)):
+		if go_value[i] != exp[i]:
+			fail('go_value[{}] {}({}) is not equal to {}({})'.format(i, go_value[i],type(go_value[i]), exp[i],type(exp[i])))
+		else:
+			print('go_value[{}] {}({}) == {}({})'.format(i, go_value[i],type(go_value[i]), exp[i],type(exp[i])))
+test()
+`
+
 	type testCase struct {
 		name        string
 		goValue     interface{}
@@ -83,20 +94,42 @@ test()
 `,
 		},
 		{
-			name:        "int",
-			goValue:     123,
-			codeSnippet: `assert.Equal(123, go_value)`,
+			name:    "int",
+			goValue: 123,
+			codeSnippet: `
+assert.Equal(123, go_value)
+def test():
+	if go_value != 123:
+		fail('go_value is not 123')
+test()
+`,
 		},
 		{
-			name:        "string",
-			goValue:     "aloha",
-			codeSnippet: `assert.Equal('aloha', go_value)`,
+			name:    "string",
+			goValue: "aloha",
+			codeSnippet: `
+assert.Equal('aloha', go_value)
+def test():
+	if go_value != 'aloha':
+		fail('go_value is not "aloha"')
+test()
+`,
 		},
 		{
-			name:        "slice",
-			goValue:     []interface{}{123, "aloha"},
-			codeSnippet: `assert.Equal([123, 'aloha'], go_value)`,
-			wantErrExec: true,
+			name:        "slice of interface",
+			goValue:     []interface{}{123, "world"},
+			codeSnippet: `exp = [123, "world"]` + codeCompareSlice,
+			wantErrExec: true, // for []interface{}, convert to GoSlice+GoInterface
+		},
+		{
+			name:        "slice of int",
+			goValue:     []int{123, 456},
+			codeSnippet: `exp = [123, 456]` + codeCompareSlice,
+		},
+		{
+			name:        "slice of string",
+			goValue:     []string{"hello", "world"},
+			codeSnippet: `exp = ["hello", "world"]` + codeCompareSlice,
 		},
 		{
 			name:        "array",
