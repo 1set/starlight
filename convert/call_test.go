@@ -224,8 +224,27 @@ def test():
 test()
 `,
 		},
-		// INSERT MORE TEST CASES HERE
-		// ...
+		{
+			name: "custom function",
+			goValue: func(name string) string {
+				return "Hello " + name
+			},
+			codeSnippet: `
+print('※ go_value: {}({})'.format(go_value, type(go_value)))
+def test():
+	if go_value("World") != 'Hello World':
+		fail('go_value is not "Hello"')
+test()
+`,
+		},
+		{
+			name:    "unsupported type",
+			goValue: make(chan bool),
+			codeSnippet: `
+print('※ go_value: {}({})'.format(go_value, type(go_value)))
+`,
+			wantErrConv: true,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
