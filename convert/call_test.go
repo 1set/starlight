@@ -132,10 +132,20 @@ test()
 			codeSnippet: `exp = ["hello", "world"]` + codeCompareSlice,
 		},
 		{
-			name:        "array",
-			goValue:     [2]interface{}{123, "aloha"},
-			codeSnippet: `assert.Equal([123, 'aloha'], go_value)`,
-			wantErrExec: true,
+			name:        "array of interface",
+			goValue:     [2]interface{}{123, "world"},
+			codeSnippet: `exp = [123, "world"]` + codeCompareSlice,
+			wantErrExec: true, // for [2]interface{}, convert to GoSlice+GoInterface
+		},
+		{
+			name:        "array of int",
+			goValue:     [2]int{123, 456},
+			codeSnippet: `exp = [123, 456]` + codeCompareSlice,
+		},
+		{
+			name:        "array of string",
+			goValue:     [2]string{"hello", "world"},
+			codeSnippet: `exp = ["hello", "world"]` + codeCompareSlice,
 		},
 		// INSERT MORE TEST CASES HERE
 	}
