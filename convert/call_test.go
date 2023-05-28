@@ -139,6 +139,12 @@ test()
 			wantErrExec: true, // for []interface{}, convert to GoSlice+GoInterface
 		},
 		{
+			name:        "complex slice of interface",
+			goValue:     []interface{}{123, "world", []int{1, 2, 3}, []string{"hello", "world"}},
+			codeSnippet: `exp = [123, "world", [1, 2, 3], ["hello", "world"]]` + codeCompareList,
+			wantErrExec: true, // for complex []interface{}, convert to GoSlice+GoInterface
+		},
+		{
 			name:        "slice of int",
 			goValue:     []int{123, 456},
 			codeSnippet: `exp = [123, 456]` + codeCompareList,
@@ -158,6 +164,12 @@ test()
 			goValue:     [2]interface{}{123, "world"},
 			codeSnippet: `exp = [123, "world"]` + codeCompareList,
 			wantErrExec: true, // for [2]interface{}, convert to GoSlice+GoInterface
+		},
+		{
+			name:        "complex array of interface",
+			goValue:     [4]interface{}{123, "world", []int{1, 2, 3}, []string{"hello", "world"}},
+			codeSnippet: `exp = [123, "world", [1, 2, 3], ["hello", "world"]]` + codeCompareList,
+			wantErrExec: true, // for complex [4]interface{}, convert to GoSlice+GoInterface
 		},
 		{
 			name:        "array of int",
