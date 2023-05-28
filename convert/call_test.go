@@ -74,17 +74,23 @@ func TestUseGoValueInStarlark(t *testing.T) {
 		{
 			name:        "nil",
 			goValue:     nil,
-			codeSnippet: `assert.Eq(None, go_value)`,
+			codeSnippet: `assert.Equal(None, go_value)`,
 		},
 		{
 			name:        "int",
 			goValue:     123,
-			codeSnippet: `assert.Eq(123, go_value)`,
+			codeSnippet: `assert.Equal(123, go_value)`,
 		},
 		{
 			name:        "string",
 			goValue:     "aloha",
-			codeSnippet: `assert.Eq('aloha', go_value)`,
+			codeSnippet: `assert.Equal('aloha', go_value)`,
+		},
+		{
+			name:        "array",
+			goValue:     [2]interface{}{123, "aloha"},
+			codeSnippet: `assert.Equal([123, 'aloha'], go_value)`,
+			wantErrExec: true,
 		},
 		// INSERT MORE TEST CASES HERE
 	}
@@ -95,7 +101,7 @@ func TestUseGoValueInStarlark(t *testing.T) {
 				"go_value": tc.goValue,
 			}
 
-			// convert go values to starlark values as predefined globals
+			// convert go values to Starlark values as predefined globals
 			env, errConv := convert.MakeStringDict(globals)
 			if errConv != nil == !tc.wantErrConv {
 				t.Fatalf(`expected no error while converting globals, but got %v`, errConv)
@@ -106,7 +112,7 @@ func TestUseGoValueInStarlark(t *testing.T) {
 				return
 			}
 
-			// run the starlark code to test the converted globals
+			// run the Starlark code to test the converted globals
 			_, errExec := execStarlark(tc.codeSnippet, env)
 			if errExec != nil && !tc.wantErrExec {
 				t.Fatalf(`expected no error while executing code snippet, but got %v`, errExec)

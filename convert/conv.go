@@ -148,8 +148,8 @@ func MakeStringDict(m map[string]interface{}) (starlark.StringDict, error) {
 	return dict, nil
 }
 
-// FromStringDict makes a map[string]interface{} from the given arg.  Any
-// unconvertible values are ignored.
+// FromStringDict makes a map[string]interface{} from the given arg. Any
+// inconvertible values are ignored.
 func FromStringDict(m starlark.StringDict) map[string]interface{} {
 	ret := make(map[string]interface{}, len(m))
 	for k, v := range m {
