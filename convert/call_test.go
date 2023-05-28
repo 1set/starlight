@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/1set/starlight/convert"
@@ -352,6 +353,14 @@ func TestCallGoFunctionInStarlark(t *testing.T) {
 			wantErrExec: true,
 		},
 		{
+			name: "unsupported func(int) chan",
+			goFunc: func(size int) chan int {
+				return make(chan int, size)
+			},
+			codeSnippet: `sl_value = go_func(42)`,
+			wantErrExec: true,
+		},
+		{
 			name: "mismatched func(int) string",
 			goFunc: func(name int) string {
 				return fmt.Sprintf("Hello %d!", name)
@@ -388,6 +397,77 @@ func TestCallGoFunctionInStarlark(t *testing.T) {
 sl_value = go_func("World")
 print('※ sl_value: {}({})'.format(sl_value, type(sl_value)))
 `,
+		},
+		{
+			name: "func([]string) (string)",
+			goFunc: func(names []string) string {
+				return strings.Join(names, ", ")
+			},
+			codeSnippet:  `sl_value = go_func(["Alice", "Bob", "Carol"])`,
+			expectResult: "Alice, Bob, Carol",
+			wantEqual:    true,
+		},
+		{
+			name: "func([]int) string",
+			goFunc: func(numbers []int8) int16 {
+				x := int16(0)
+				for _, n := range numbers {
+					x += int16(n)
+				}
+				return x
+			},
+			codeSnippet:  `sl_value = go_func([1, 2, 3, 4, 5])`,
+			expectResult: int64(15),
+			wantEqual:    true,
+		},
+		{
+			name: "func([5]int) int",
+			goFunc: func(numbers [5]int) int {
+				return numbers[0] + numbers[1] + numbers[2] + numbers[3] + numbers[4]
+			},
+			codeSnippet: `sl_value = go_func([1, 2, 3, 4, 5])`,
+			wantErrExec: true, // TODO: support array as input
+		},
+		{
+			name: "func([][]int) int",
+			goFunc: func(numbers [][]int) int {
+				x := 0
+				for _, row := range numbers {
+					for _, n := range row {
+						x += n
+					}
+				}
+				return x
+			},
+			codeSnippet: `sl_value = go_func([[1, 2, 3], [4, 5, 6]])`,
+			wantErrExec: true, // TODO: support nested slice as input
+		},
+		{
+			name: "func(map[string]int) int",
+			goFunc: func(numbers map[string]int) int {
+				x := 0
+				for _, n := range numbers {
+					x += n
+				}
+				return x
+			},
+			codeSnippet:  `sl_value = go_func({"a": 1, "b": 2, "c": 3})`,
+			expectResult: int64(6),
+			wantEqual:    true,
+		},
+		{
+			name: "func(map[string]map[string]int) string",
+			goFunc: func(numbers map[string]map[string]int) string {
+				x := 0
+				for _, row := range numbers {
+					for _, n := range row {
+						x += n
+					}
+				}
+				return fmt.Sprintf("%d", x)
+			},
+			codeSnippet: `sl_value = go_func({"a": {"x": 1, "y": 2, "z": 3}, "b": {"x": 4, "y": 5, "z": 6}})`,
+			wantErrExec: true, // TODO: support nested map as input
 		},
 	}
 	for _, tc := range testCases {
