@@ -295,6 +295,15 @@ func TestCallGoFunctionInStarlark(t *testing.T) {
 			expectResult: "Hello World!",
 			wantEqual:    true,
 		},
+		{
+			name: "func(string) int",
+			goFunc: func(name string) int {
+				return len(name)
+			},
+			codeSnippet:  `sl_value = go_func("World")`,
+			expectResult: int64(5),
+			wantEqual:    true,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -327,7 +336,7 @@ func TestCallGoFunctionInStarlark(t *testing.T) {
 
 			// compare the result
 			if gotEqual := reflect.DeepEqual(slValue, tc.expectResult); gotEqual != tc.wantEqual {
-				t.Fatalf(`expected sl_value to be %v, but got %v, want equal: %v`, tc.expectResult, slValue, tc.wantEqual)
+				t.Fatalf(`expected sl_value to be %v (%T), but got %v (%T), want equal: %v`, tc.expectResult, tc.expectResult, slValue, slValue, tc.wantEqual)
 			}
 		})
 	}
