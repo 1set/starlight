@@ -660,6 +660,17 @@ nested_list = [[1, 2, 3], [4, 5, 6]]
 
 // TestCustomStruct tests that custom struct can be operated in Starlark.
 func TestCustomStructInStarlark(t *testing.T) {
+	code := `
+print(pn)
+print(dir(pn))
+pn.Aging()
+# pn.NumberChan
+# pn.Parent = 88
+# pn.secretKey = "okay"
+pn.Name = "Whoever"
+out = pn
+`
+
 	person := &personStruct{
 		Name:   "John Doe",
 		Age:    30,
@@ -685,11 +696,6 @@ func TestCustomStructInStarlark(t *testing.T) {
 		MessageReader: strings.NewReader("Hello, World!"),
 		NumberChan:    make(chan int, 10),
 	}
-
-	code := `
-print(pn)
-out = pn
-`
 
 	// Prepare the environment.
 	envs, err := convert.MakeStringDict(map[string]interface{}{
