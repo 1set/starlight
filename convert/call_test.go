@@ -223,6 +223,11 @@ test()
 			codeSnippet: `exp = {"one": ["1", "2"], "two": ["3", "4"]}` + codeCompareMapDict,
 		},
 		{
+			name:        "map of string to slice of slice",
+			goValue:     map[string][][]int{"one": {{1, 2}, {3, 4}}, "two": {{5, 6}, {7, 8}}},
+			codeSnippet: `exp = {"one": [[1, 2], [3, 4]], "two": [[5, 6], [7, 8]]}` + codeCompareMapDict,
+		},
+		{
 			name: "map of custom struct",
 			goValue: map[string]customStruct{
 				"one": {Name: "John", Value: 42},
@@ -326,7 +331,7 @@ print('※ go_value: {}({})'.format(go_value, type(go_value)))
 
 // TestCallGoFunctionInStarlark tests calling Go functions in Starlark with various types of arguments and return values.
 // It verifies:
-// 1. Go functions can be converted to Starlark functions;
+// 1. Go functions can be converted to Starlark functions, underlying Starlark values will be converted to Go values with specified types;
 // 2. Return values of Go functions can be converted to Starlark values;
 // 3. Starlark values can be converted to Go values;
 func TestCallGoFunctionInStarlark(t *testing.T) {
