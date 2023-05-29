@@ -705,7 +705,19 @@ func TestCustomStructInStarlark(t *testing.T) {
 		},
 		{
 			name:        "access private field",
-			codeSnippet: `sec = pn.secretKey ; out = pn`,
+			codeSnippet: `foo = pn.secretKey`,
+			checkEqual:  noCheck,
+			wantErrExec: true,
+		},
+		{
+			name:        "access unsupported field",
+			codeSnippet: `foo = pn.NumberChan`,
+			checkEqual:  noCheck,
+			wantErrExec: true,
+		},
+		{
+			name:        "assign mismatched type",
+			codeSnippet: `pn.Parent = 88`,
 			checkEqual:  noCheck,
 			wantErrExec: true,
 		},
