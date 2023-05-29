@@ -762,11 +762,33 @@ func TestCustomStructInStarlark(t *testing.T) {
 			},
 		},
 		{
+			name:        "list fields",
+			codeSnippet: `fields = dir(pn); out = pn`,
+			checkEqual: func(pn *personStruct, res map[string]interface{}) error {
+				if fields, ok := res["fields"]; !ok {
+					return fmt.Errorf(`expected "fields" to be in globals, but not found`)
+				} else if fs, ok := fields.([]interface{}); !ok {
+					return fmt.Errorf(`expected "fields" to be a list, but got %v`, fields)
+				} else {
+					expFs := []string{
+						"Age", "Aging", "Customer", "CustomerPtr", "GetSecretKey", "Labels", "MessageReader", "Name", "NumberChan", "Parent", "Profile", "SetCustomer", "SetSecretKey", "String", "secretKey",
+					}
+					for i, f := range fs {
+						if s, ok := f.(string); !ok {
+							return fmt.Errorf(`expected "fields" to be a list of string, but got %v`, fs)
+						} else if s != expFs[i] {
+							return fmt.Errorf(`expected "fields"[%d] to be %q, but got %q`, i, expFs[i], s)
+						}
+					}
+					return nil
+				}
+			},
+		},
+		{
 			name: "print",
 			codeSnippet: `
 print(pn)
 print(dir(pn))
-pn.Aging()
 out = pn
 `,
 			checkEqual: func(pn *personStruct, _ map[string]interface{}) error {
