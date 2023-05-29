@@ -705,7 +705,7 @@ out = pn
 	}
 
 	// Check the result.
-	if pn := globals["out"].(*customStruct); pn == nil {
+	if pn := globals["out"].(*personStruct); pn == nil {
 		t.Fatalf(`expected pn to convert to a struct, but got nil`)
 	} else {
 		t.Logf(`person: %v`, pn)
