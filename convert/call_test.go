@@ -8,11 +8,15 @@ import (
 	"strings"
 	"testing"
 
-	"go.starlark.net/starlarkstruct"
-
 	"github.com/1set/starlight/convert"
 	"go.starlark.net/starlark"
+	"go.starlark.net/starlarkstruct"
 )
+
+type customStruct struct {
+	Name  string
+	Value int
+}
 
 // TestCallStarlarkFunctionInGo tests calling a Starlark function in Go with various arguments.
 func TestCallStarlarkFunctionInGo(t *testing.T) {
@@ -214,6 +218,39 @@ test()
 			codeSnippet: `exp = {"one": [1, 2], "two": [3, 4]}` + codeCompareMapDict,
 		},
 		{
+			name:        "map of string to slice of string",
+			goValue:     map[string][]string{"one": {"1", "2"}, "two": {"3", "4"}},
+			codeSnippet: `exp = {"one": ["1", "2"], "two": ["3", "4"]}` + codeCompareMapDict,
+		},
+		{
+			name: "map of custom struct",
+			goValue: map[string]customStruct{
+				"one": {Name: "John", Value: 42},
+			},
+			codeSnippet: `
+print('※ go_value: {}({})'.format(go_value, type(go_value)))
+def test():
+	if go_value['one'].Name != 'John' or go_value['one'].Value != 42:
+		fail('go_value is not "John"/42')
+test()
+`,
+		},
+		{
+			name: "map of slice of custom struct",
+			goValue: map[string][]customStruct{
+				"one": {{Name: "John", Value: 42}, {Name: "Jane", Value: 43}},
+			},
+			codeSnippet: `
+print('※ go_value: {}({})'.format(go_value, type(go_value)))
+def test():
+	if go_value['one'][0].Name != 'John' or go_value['one'][0].Value != 42:
+		fail('go_value is not "John"/42')
+	if go_value['one'][1].Name != 'Jane' or go_value['one'][1].Value != 43:
+		fail('go_value is not "Jane"/43')
+test()
+`,
+		},
+		{
 			name:    "empty struct",
 			goValue: struct{}{},
 			codeSnippet: `
@@ -293,10 +330,6 @@ print('※ go_value: {}({})'.format(go_value, type(go_value)))
 // 2. Return values of Go functions can be converted to Starlark values;
 // 3. Starlark values can be converted to Go values;
 func TestCallGoFunctionInStarlark(t *testing.T) {
-	type customStruct struct {
-		Name  string
-		Value int
-	}
 	type testCase struct {
 		name         string
 		goFunc       interface{}
