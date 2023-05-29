@@ -660,7 +660,58 @@ nested_list = [[1, 2, 3], [4, 5, 6]]
 
 // TestCustomStruct tests that custom struct can be operated in Starlark.
 func TestCustomStructInStarlark(t *testing.T) {
-	code := `
+	getNewPerson := func() *personStruct {
+		return &personStruct{
+			Name:   "John Doe",
+			Age:    30,
+			Labels: []string{"tag1", "tag2", "tag3"},
+			Profile: map[string]interface{}{
+				"email": "john@doe.me",
+				"phone": 1234567890,
+			},
+			Parent: &personStruct{
+				Name:      "Jane Doe",
+				Age:       58,
+				secretKey: "secret_root",
+			},
+			secretKey: "secret_child",
+			Customer: customStruct{
+				Name:  "ACME",
+				Value: 100,
+			},
+			CustomerPtr: &customStruct{
+				Name:  "BDX",
+				Value: 200,
+			},
+			MessageReader: strings.NewReader("Hello, World!"),
+			NumberChan:    make(chan int, 10),
+		}
+	}
+	noCheck := func(_ *personStruct, _ map[string]interface{}) error {
+		return nil
+	}
+
+	type testCase struct {
+		name        string
+		codeSnippet string
+		wantErrExec bool
+		checkEqual  func(*personStruct, map[string]interface{}) error
+	}
+	testCases := []testCase{
+		{
+			name:        "noop",
+			codeSnippet: `out = pn`,
+			checkEqual:  noCheck,
+		},
+		{
+			name:        "access private field",
+			codeSnippet: `sec = pn.secretKey ; out = pn`,
+			checkEqual:  noCheck,
+			wantErrExec: true,
+		},
+		{
+			name: "print",
+			codeSnippet: `
 print(pn)
 print(dir(pn))
 pn.Aging()
@@ -669,53 +720,39 @@ pn.Aging()
 # pn.secretKey = "okay"
 pn.Name = "Whoever"
 out = pn
-`
-
-	person := &personStruct{
-		Name:   "John Doe",
-		Age:    30,
-		Labels: []string{"tag1", "tag2", "tag3"},
-		Profile: map[string]interface{}{
-			"email": "john@doe.me",
-			"phone": 1234567890,
+`,
+			checkEqual: func(pn *personStruct, _ map[string]interface{}) error {
+				return nil
+			},
 		},
-		Parent: &personStruct{
-			Name:      "Jane Doe",
-			Age:       58,
-			secretKey: "secret_root",
-		},
-		secretKey: "secret_child",
-		Customer: customStruct{
-			Name:  "ACME",
-			Value: 100,
-		},
-		CustomerPtr: &customStruct{
-			Name:  "BDX",
-			Value: 200,
-		},
-		MessageReader: strings.NewReader("Hello, World!"),
-		NumberChan:    make(chan int, 10),
 	}
 
-	// Prepare the environment.
-	envs, err := convert.MakeStringDict(map[string]interface{}{
-		"pn": person,
-	})
-	if err != nil {
-		t.Fatalf(`failed to make string dict: %v`, err)
-	}
-	// Execute the code.
-	globals, err := execStarlark(code, envs)
-	if err != nil {
-		t.Fatalf(`failed to exec starlark: %v`, err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Prepare the environment.
+			envs, err := convert.MakeStringDict(map[string]interface{}{
+				"pn": getNewPerson(),
+			})
+			if err != nil {
+				t.Fatalf(`failed to make string dict: %v`, err)
+			}
+			// Execute the code.
+			globals, err := execStarlark(tc.codeSnippet, envs)
+			if err != nil {
+				t.Fatalf(`failed to exec starlark: %v`, err)
+			}
+
+			// Check the result.
+			if pn := globals["out"].(*personStruct); pn == nil {
+				t.Fatalf(`expected pn to convert to a struct, but got nil`)
+			} else {
+				if err := tc.checkEqual(pn, globals); err != nil {
+					t.Fatalf(`expected pn to be equal to the original personStruct, but got error: %v`, err)
+				}
+			}
+		})
 	}
 
-	// Check the result.
-	if pn := globals["out"].(*personStruct); pn == nil {
-		t.Fatalf(`expected pn to convert to a struct, but got nil`)
-	} else {
-		t.Logf(`person: %v`, pn)
-	}
 }
 
 type customStruct struct {
