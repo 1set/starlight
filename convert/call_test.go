@@ -3,6 +3,7 @@ package convert_test
 import (
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"reflect"
 	"strings"
@@ -12,11 +13,6 @@ import (
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
-
-type customStruct struct {
-	Name  string
-	Value int
-}
 
 // TestCallStarlarkFunctionInGo tests calling a Starlark function in Go with various arguments.
 func TestCallStarlarkFunctionInGo(t *testing.T) {
@@ -660,4 +656,100 @@ nested_list = [[1, 2, 3], [4, 5, 6]]
 	if nestedList := globals["nested_list"].([]interface{}); !reflect.DeepEqual(nestedList, []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}) {
 		t.Fatalf(`expected nested_list to convert to [[1, 2, 3], [4, 5, 6]], but got %v`, nestedList)
 	}
+}
+
+// TestCustomStruct tests that custom struct can be operated in Starlark.
+func TestCustomStructInStarlark(t *testing.T) {
+	person := &personStruct{
+		Name:   "John Doe",
+		Age:    30,
+		Labels: []string{"tag1", "tag2", "tag3"},
+		Profile: map[string]interface{}{
+			"email": "john@doe.me",
+			"phone": 1234567890,
+		},
+		Parent: &personStruct{
+			Name:      "Jane Doe",
+			Age:       58,
+			secretKey: "secret_root",
+		},
+		secretKey: "secret_child",
+		Customer: customStruct{
+			Name:  "ACME",
+			Value: 100,
+		},
+		CustomerPtr: &customStruct{
+			Name:  "BDX",
+			Value: 200,
+		},
+		MessageReader: strings.NewReader("Hello, World!"),
+		NumberChan:    make(chan int, 10),
+	}
+
+	code := `
+print(pn)
+out = pn
+`
+
+	// Prepare the environment.
+	envs, err := convert.MakeStringDict(map[string]interface{}{
+		"pn": person,
+	})
+	if err != nil {
+		t.Fatalf(`failed to make string dict: %v`, err)
+	}
+	// Execute the code.
+	globals, err := execStarlark(code, envs)
+	if err != nil {
+		t.Fatalf(`failed to exec starlark: %v`, err)
+	}
+
+	// Check the result.
+	if pn := globals["out"].(*customStruct); pn == nil {
+		t.Fatalf(`expected pn to convert to a struct, but got nil`)
+	} else {
+		t.Logf(`person: %v`, pn)
+	}
+}
+
+type customStruct struct {
+	Name  string
+	Value int
+}
+
+type personStruct struct {
+	Name          string                 `starlark:"name"`
+	Age           int                    `starlark:"age"`
+	Labels        []string               `starlark:"tags"`
+	Profile       map[string]interface{} `starlark:"profile"`
+	Parent        *personStruct          `starlark:"parent"`
+	secretKey     string                 // unexported field
+	Customer      customStruct           `starlark:"customer"`
+	CustomerPtr   *customStruct          `starlark:"customer_ptr"`
+	MessageReader io.Reader              `starlark:"message_reader"`
+	NumberChan    chan int               `starlark:"number_chan"`
+}
+
+func (p *personStruct) String() string {
+	return fmt.Sprintf("Person[%s,%d]<%s>", p.Name, p.Age, p.secretKey)
+}
+
+func (p *personStruct) secretMethod() string {
+	return p.secretKey
+}
+
+func (p *personStruct) SetSecretKey(key string) {
+	p.secretKey = key
+}
+
+func (p *personStruct) GetSecretKey() string {
+	return p.secretKey
+}
+
+func (p *personStruct) SetCustomer(customer customStruct) {
+	p.Customer = customer
+}
+
+func (p *personStruct) Aging() {
+	p.Age++
 }
