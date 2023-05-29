@@ -39,7 +39,13 @@ func hasMethods(val reflect.Value) bool {
 	return false
 }
 
-func toValue(val reflect.Value) (starlark.Value, error) {
+func toValue(val reflect.Value) (result starlark.Value, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic recovered: %v", r)
+		}
+	}()
+
 	if val.IsValid() {
 		if _, ok := val.Interface().(starlark.Value); ok {
 			// let Starlark values pass through, no conversion needed

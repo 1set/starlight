@@ -729,20 +729,27 @@ out = pn
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Prepare the environment.
+			// Prepare the environment
 			envs, err := convert.MakeStringDict(map[string]interface{}{
 				"pn": getNewPerson(),
 			})
 			if err != nil {
 				t.Fatalf(`failed to make string dict: %v`, err)
 			}
-			// Execute the code.
+
+			// Execute the code and check error
 			globals, err := execStarlark(tc.codeSnippet, envs)
+			if tc.wantErrExec {
+				if err == nil {
+					t.Fatalf(`expected error, but got nil`)
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf(`failed to exec starlark: %v`, err)
 			}
 
-			// Check the result.
+			// Check the result
 			if pn := globals["out"].(*personStruct); pn == nil {
 				t.Fatalf(`expected pn to convert to a struct, but got nil`)
 			} else {
