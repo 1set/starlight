@@ -550,6 +550,10 @@ list_val = [4, 5, 6]
 dict_val = {"Alice": 1, "Bob": 2, "Charlie": 3}
 set_val = set([1, 2, 3, 4, 5])
 person = struct(name="John Doe", age=30, tags=["tag1", "tag2", "tag3"])
+
+# Nested
+nested_map = {"a": {"x": 1, "y": 2, "z": 3}, "b": {"x": 4, "y": 5, "z": 6}}
+nested_list = [[1, 2, 3], [4, 5, 6]]
 `
 	envs := map[string]starlark.Value{
 		"struct": starlark.NewBuiltin("struct", starlarkstruct.Make),
@@ -609,5 +613,13 @@ person = struct(name="John Doe", age=30, tags=["tag1", "tag2", "tag3"])
 		if name, _ := personStruct.Attr("name"); name.(starlark.String).GoString() != "John Doe" {
 			t.Fatalf(`expected person.name to be "John Doe", but got %v`, name)
 		}
+	}
+
+	if nestedMap := globals["nested_map"].(map[interface{}]interface{}); !reflect.DeepEqual(nestedMap, map[interface{}]interface{}{"a": map[interface{}]interface{}{"x": int64(1), "y": int64(2), "z": int64(3)}, "b": map[interface{}]interface{}{"x": int64(4), "y": int64(5), "z": int64(6)}}) {
+		t.Fatalf(`expected nested_map to convert to {"a": {"x": 1, "y": 2, "z": 3}, "b": {"x": 4, "y": 5, "z": 6}}, but got %v`, nestedMap)
+	}
+
+	if nestedList := globals["nested_list"].([]interface{}); !reflect.DeepEqual(nestedList, []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}) {
+		t.Fatalf(`expected nested_list to convert to [[1, 2, 3], [4, 5, 6]], but got %v`, nestedList)
 	}
 }
