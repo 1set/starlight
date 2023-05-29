@@ -704,8 +704,14 @@ func TestCustomStructInStarlark(t *testing.T) {
 			checkEqual:  noCheck,
 		},
 		{
-			name:        "access private field",
+			name:        "read private field",
 			codeSnippet: `foo = pn.secretKey`,
+			checkEqual:  noCheck,
+			wantErrExec: true,
+		},
+		{
+			name:        "write private field",
+			codeSnippet: `pn.secretKey = "whatever"`,
 			checkEqual:  noCheck,
 			wantErrExec: true,
 		},
@@ -722,15 +728,45 @@ func TestCustomStructInStarlark(t *testing.T) {
 			wantErrExec: true,
 		},
 		{
+			name:        "read public field",
+			codeSnippet: `val = pn.Name ; out = pn`,
+			checkEqual: func(pn *personStruct, res map[string]interface{}) error {
+				if sec, ok := res["val"]; !ok {
+					return fmt.Errorf(`expected "val" to be in globals, but not found`)
+				} else if s, ok := sec.(string); !ok {
+					return fmt.Errorf(`expected "val" to be a string, but got %v`, sec)
+				} else if s != "John Doe" {
+					return fmt.Errorf(`expected "val" to be "John Doe", but got %q`, s)
+				}
+				return nil
+			},
+		},
+		{
+			name:        "write public field",
+			codeSnippet: `pn.Name = "Whoever"; out = pn`,
+			checkEqual: func(pn *personStruct, _ map[string]interface{}) error {
+				if pn.Name != "Whoever" {
+					return fmt.Errorf(`expected pn.Name to be "Whoever", but got %q`, pn.Name)
+				}
+				return nil
+			},
+		},
+		{
+			name:        "use public method",
+			codeSnippet: `pn.Aging(); out = pn`,
+			checkEqual: func(pn *personStruct, _ map[string]interface{}) error {
+				if pn.Age != 31 {
+					return fmt.Errorf(`expected pn.Age to be 31, but got %v`, pn.Age)
+				}
+				return nil
+			},
+		},
+		{
 			name: "print",
 			codeSnippet: `
 print(pn)
 print(dir(pn))
 pn.Aging()
-# pn.NumberChan
-# pn.Parent = 88
-# pn.secretKey = "okay"
-pn.Name = "Whoever"
 out = pn
 `,
 			checkEqual: func(pn *personStruct, _ map[string]interface{}) error {
