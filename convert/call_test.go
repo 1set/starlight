@@ -937,6 +937,36 @@ out = pn
 			},
 		},
 		{
+			name:        "change map field",
+			codeSnippet: `pn.Profile["name"] = "Jane"; out = pn`,
+			checkEqual: func(p *personStruct, _ map[string]interface{}) error {
+				if v, ok := p.Profile["name"]; !ok {
+					return fmt.Errorf(`expected "name" to be in Profile, but not found`)
+				} else if n, ok := v.(string); !ok {
+					return fmt.Errorf(`expected "name" to be a string, but got %T`, v)
+				} else if n != "Jane" {
+					return fmt.Errorf(`expected "name" to be "Jane", but got %v`, n)
+				}
+				return nil
+			},
+		},
+		{
+			name:        "delete map field",
+			codeSnippet: `pn.Profile.pop("email"); out = pn`,
+			checkEqual: func(p *personStruct, _ map[string]interface{}) error {
+				if _, ok := p.Profile["email"]; ok {
+					return fmt.Errorf(`expected "email" to be deleted from Profile, but still found`)
+				}
+				return nil
+			},
+		},
+		{
+			name:        "delete non-exist map field",
+			codeSnippet: `pn.Profile.pop("name"); out = pn`,
+			checkEqual:  noCheck,
+			wantErrExec: true,
+		},
+		{
 			name: "Test",
 			codeSnippet: `
 print(pn)
