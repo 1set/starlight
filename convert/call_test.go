@@ -672,7 +672,7 @@ func TestCustomStructInStarlark(t *testing.T) {
 				"phone": int16(12345),
 			},
 			Parent: &personStruct{
-				Name:      "Jane Doe",
+				Name:      "Old John",
 				Age:       58,
 				secretKey: "secret_root",
 			},
@@ -746,6 +746,18 @@ func TestCustomStructInStarlark(t *testing.T) {
 			}
 		}
 	}
+	getStringCompare := func(fieldName string, want string) func(*personStruct, map[string]interface{}) error {
+		return func(_ *personStruct, m map[string]interface{}) error {
+			if v, ok := m[fieldName]; !ok {
+				return fmt.Errorf(`expected %q to be in globals, but not found`, fieldName)
+			} else if n, ok := v.(string); !ok {
+				return fmt.Errorf(`expected %q to be a string, but got %T`, fieldName, v)
+			} else if n != want {
+				return fmt.Errorf(`expected %q to be "%q, but got %q`, fieldName, want, n)
+			}
+			return nil
+		}
+	}
 
 	type testCase struct {
 		name        string
@@ -792,16 +804,7 @@ func TestCustomStructInStarlark(t *testing.T) {
 		{
 			name:        "read public field",
 			codeSnippet: `val = pn.Name ; out = pn`,
-			checkEqual: func(pn *personStruct, res map[string]interface{}) error {
-				if sec, ok := res["val"]; !ok {
-					return fmt.Errorf(`expected "val" to be in globals, but not found`)
-				} else if s, ok := sec.(string); !ok {
-					return fmt.Errorf(`expected "val" to be a string, but got %v`, sec)
-				} else if s != "John Doe" {
-					return fmt.Errorf(`expected "val" to be "John Doe", but got %q`, s)
-				}
-				return nil
-			},
+			checkEqual:  getStringCompare("val", "John Doe"),
 		},
 		{
 			name:        "write public field",
@@ -836,16 +839,7 @@ func TestCustomStructInStarlark(t *testing.T) {
 		{
 			name:        "read element of slice of string",
 			codeSnippet: `foo = pn.Labels[1]; out = pn`,
-			checkEqual: func(_ *personStruct, res map[string]interface{}) error {
-				if v, ok := res["foo"]; !ok {
-					return fmt.Errorf(`expected "foo" to be in Profile, but not found`)
-				} else if n, ok := v.(string); !ok {
-					return fmt.Errorf(`expected "foo" to be a string, but got %T`, v)
-				} else if n != "tag2" {
-					return fmt.Errorf(`expected "foo" to be "tag2", but got %v`, n)
-				}
-				return nil
-			},
+			checkEqual:  getStringCompare("foo", "tag2"),
 		},
 		{
 			name:        "set slice of string for wrong type", // It fails for []interface{} vs []string
@@ -861,16 +855,7 @@ func TestCustomStructInStarlark(t *testing.T) {
 		{
 			name:        "read element of slice of interface",
 			codeSnippet: `foo = pn.Anything[3]; out = pn`,
-			checkEqual: func(_ *personStruct, res map[string]interface{}) error {
-				if v, ok := res["foo"]; !ok {
-					return fmt.Errorf(`expected "foo" to be in Profile, but not found`)
-				} else if n, ok := v.(string); !ok {
-					return fmt.Errorf(`expected "foo" to be a string, but got %T`, v)
-				} else if n != "3" {
-					return fmt.Errorf(`expected "foo" to be "3", but got %v`, n)
-				}
-				return nil
-			},
+			checkEqual:  getStringCompare("foo", "3"),
 		},
 		{
 			name:        "change slice field",
@@ -939,16 +924,7 @@ out = pn
 		{
 			name:        "read string map field",
 			codeSnippet: `foo = pn.Profile["email"]; out = pn`,
-			checkEqual: func(_ *personStruct, m map[string]interface{}) error {
-				if v, ok := m["foo"]; !ok {
-					return fmt.Errorf(`expected "foo" to be in globals, but not found`)
-				} else if n, ok := v.(string); !ok {
-					return fmt.Errorf(`expected "foo" to be an int16, but got %T`, v)
-				} else if n != "john@doe.me" {
-					return fmt.Errorf(`expected "foo" to be 12345, but got %v`, n)
-				}
-				return nil
-			},
+			checkEqual:  getStringCompare("foo", "john@doe.me"),
 		},
 		{
 			name:        "add new map field",
@@ -1048,7 +1024,12 @@ out = pn
 			wantErrExec: true,
 		},
 		{
-			name: "Test",
+			name:        "read nested struct",
+			codeSnippet: `out = pn; val = pn.Parent.Name`,
+			checkEqual:  getStringCompare("val", "Old John"),
+		},
+		{
+			name: "Test!!!!",
 			codeSnippet: `
 print(pn)
 print(dir(pn))
