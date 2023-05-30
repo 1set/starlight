@@ -1099,7 +1099,7 @@ out = pn
 			name:        "invalid access to person nil field method",
 			codeSnippet: `out = pn; val = pn.NilPerson.Name`,
 			checkEqual:  noCheck,
-			//wantErrExec: true,
+			wantErrExec: true,
 		},
 		//{
 		//	name:        "invalid access to nested struct nil field", // panic for interface
@@ -1161,6 +1161,10 @@ out = pn
 type customStruct struct {
 	Name  string
 	Value int
+}
+
+func (c *customStruct) String() string {
+	return fmt.Sprintf("Custom[%s|%d]", c.Name, c.Value)
 }
 
 type personStruct struct {
