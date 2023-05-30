@@ -711,6 +711,9 @@ func TestCustomStructInStarlark(t *testing.T) {
 			} else if fs, ok := foo.([]interface{}); !ok {
 				return fmt.Errorf(`expected %q to be a interface list, but got %v`, fieldName, foo)
 			} else {
+				if len(fs) != len(want) {
+					return fmt.Errorf(`expected %q to be a list of %d, but got %d`, fieldName, len(want), len(fs))
+				}
 				for i, f := range fs {
 					if s, ok := f.(string); !ok {
 						return fmt.Errorf(`expected %q to be a list of string, but got %v`, fieldName, fs)
@@ -729,6 +732,9 @@ func TestCustomStructInStarlark(t *testing.T) {
 			} else if fs, ok := foo.([]string); !ok {
 				return fmt.Errorf(`expected %q to be a string list, but got %v`, fieldName, foo)
 			} else {
+				if len(fs) != len(want) {
+					return fmt.Errorf(`expected %q to be %d elements, but got %d`, fieldName, len(want), len(fs))
+				}
 				for i, s := range fs {
 					if s != want[i] {
 						return fmt.Errorf(`expected %q[%d] to be %q, but got %q`, fieldName, i, want[i], s)
@@ -824,6 +830,56 @@ func TestCustomStructInStarlark(t *testing.T) {
 			name:        "read slice field",
 			codeSnippet: `foo = pn.Labels; out = pn`,
 			checkEqual:  getStringSliceCompare("foo", []string{"tag1", "tag2", "tag3"}),
+		},
+		{
+			name:        "set slice field",
+			codeSnippet: `pn.Labels = ["foo", "bar"]; out = pn`,
+			checkEqual:  noCheck,
+			wantErrExec: true,
+		},
+		{
+			name:        "change slice field",
+			codeSnippet: `pn.Labels[0] = "bird"; out = pn`,
+			checkEqual: func(p *personStruct, _ map[string]interface{}) error {
+				fieldName := ".Labels"
+				want := []string{"bird", "tag2", "tag3"}
+				if len(p.Labels) != len(want) {
+					return fmt.Errorf(`expected %q to have %d elements, but got %d`, fieldName, len(want), len(p.Labels))
+				}
+				for i, s := range p.Labels {
+					if s != want[i] {
+						return fmt.Errorf(`expected %q[%d] to be %q, but got %q`, fieldName, i, want[i], s)
+					}
+				}
+				return nil
+			},
+		},
+		{
+			name: "append slice field", // It's a known issue that append() ops doesn't work on original slice field, since the new slice struct won't be set back.
+			codeSnippet: `
+l = pn.Labels
+l.append("cat")
+l.extend(["dog", "fish"])
+l.pop()
+l[0] = "bird"
+l.insert(2, "whale")
+pn.Labels = l
+
+out = pn
+`,
+			checkEqual: func(p *personStruct, _ map[string]interface{}) error {
+				fieldName := ".Labels"
+				want := []string{"bird", "tag2", "whale", "tag3", "cat", "dog"}
+				if len(p.Labels) != len(want) {
+					return fmt.Errorf(`expected %q to have %d elements, but got %d`, fieldName, len(want), len(p.Labels))
+				}
+				for i, s := range p.Labels {
+					if s != want[i] {
+						return fmt.Errorf(`expected %q[%d] to be %q, but got %q`, fieldName, i, want[i], s)
+					}
+				}
+				return nil
+			},
 		},
 		{
 			name: "Test",
