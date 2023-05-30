@@ -889,7 +889,7 @@ out = pn
 			},
 		},
 		{
-			name:        "read non-exist map field",
+			name:        "read non-exist map field -- cannot",
 			codeSnippet: `foo = pn.Profile["name"]; out = pn`,
 			checkEqual:  noCheck,
 			wantErrExec: true,
