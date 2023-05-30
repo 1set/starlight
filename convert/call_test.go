@@ -701,7 +701,7 @@ func TestCustomStructInStarlark(t *testing.T) {
 			},
 			MessageReader: strings.NewReader("Hello, World!"),
 			NumberChan:    make(chan int, 10),
-			NilCustomer:   (*customStruct)(nil),
+			//NilCustomer:   (*customStruct)(nil),
 		}
 	}
 	noCheck := func(_ *personStruct, _ map[string]interface{}) error {
@@ -860,7 +860,7 @@ func TestCustomStructInStarlark(t *testing.T) {
 		{
 			name:        "list fields",
 			codeSnippet: `fields = dir(pn); out = pn`,
-			checkEqual:  getInterfaceStringSliceCompare("fields", []string{"Age", "Aging", "Anything", "Customer", "CustomerPtr", "GetSecretKey", "Labels", "MessageReader", "Name", "NestedValues", "NilCustomer", "NilString", "NumberChan", "Parent", "Profile", "SetCustomer", "SetSecretKey", "String", "secretKey"}),
+			checkEqual:  getInterfaceStringSliceCompare("fields", []string{"Age", "Aging", "Anything", "Customer", "CustomerPtr", "GetSecretKey", "Labels", "MessageReader", "Name", "NestedValues", "NilCustomer", "NilPerson", "NilString", "NumberChan", "Parent", "Profile", "SetCustomer", "SetSecretKey", "String", "secretKey"}),
 		},
 		{
 			name:        "read slice of string",
@@ -1083,24 +1083,24 @@ out = pn
 				return nil
 			},
 		},
-		//{
-		//	name:        "invalid access to nested struct nil field",
-		//	codeSnippet: `out = pn; val = pn.Parent.Parent.Name`,
-		//	checkEqual:  noCheck,
-		//	wantErrExec: true,
-		//},
-		//{
-		//	name:        "invalid access to nil field method",
-		//	codeSnippet: `out = pn; val = pn.NilString.String()`,
-		//	checkEqual:  noCheck,
-		//	wantErrExec: true,
-		//},
-		//{
-		//	name:        "invalid access to custom nil field method",
-		//	codeSnippet: `out = pn; val = pn.NilCustomer.String()`,
-		//	checkEqual:  noCheck,
-		//	wantErrExec: true,
-		//},
+		{
+			name:        "invalid access to nil field method",
+			codeSnippet: `out = pn; val = pn.NilString.String()`,
+			checkEqual:  noCheck,
+			wantErrExec: true,
+		},
+		{
+			name:        "invalid access to custom nil field method",
+			codeSnippet: `out = pn; val = pn.NilCustomer.Name`,
+			checkEqual:  noCheck,
+			wantErrExec: true,
+		},
+		{
+			name:        "invalid access to nested struct nil field", // panic for interface
+			codeSnippet: `out = pn; val = pn.NilPerson.Name`,
+			checkEqual:  noCheck,
+			wantErrExec: true,
+		},
 		{
 			name: "Test!!!!",
 			codeSnippet: `
@@ -1172,6 +1172,7 @@ type personStruct struct {
 	NumberChan    chan int                     `starlark:"number_chan"`
 	NilString     *string                      `starlark:"nil_string"`
 	NilCustomer   *customStruct                `starlark:"nil_custom"`
+	NilPerson     *personStruct                `starlark:"nil_person"`
 }
 
 func (p *personStruct) String() string {
