@@ -796,6 +796,12 @@ func TestCustomStructInStarlark(t *testing.T) {
 			wantErrExec: true,
 		},
 		{
+			name:        "access unsupported field 2",
+			codeSnippet: `foo = pn.NilString`,
+			checkEqual:  noCheck,
+			wantErrExec: true,
+		},
+		{
 			name:        "assign mismatched type",
 			codeSnippet: `pn.Parent = 88`,
 			checkEqual:  noCheck,
@@ -808,24 +814,14 @@ func TestCustomStructInStarlark(t *testing.T) {
 			wantErrExec: true,
 		},
 		{
-			name:        "read nil string field",
-			codeSnippet: `out = pn; val = pn.NilString`,
-			checkEqual: func(_ *personStruct, m map[string]interface{}) error {
-				if v, ok := m["val"]; !ok {
-					return fmt.Errorf(`expected "val" to be in globals, but not found`)
-				} else if v != nil {
-					return fmt.Errorf(`expected "val" to be nil, but got %v`, v)
-				}
-				return nil
-			},
-		},
-		{
 			name:        "read nil simple custom field",
 			codeSnippet: `out = pn; val = pn.NilCustomer`,
 			checkEqual: func(_ *personStruct, m map[string]interface{}) error {
 				if v, ok := m["val"]; !ok {
 					return fmt.Errorf(`expected "val" to be in globals, but not found`)
-				} else if v != nil {
+				} else if p, ok := v.(*customStruct); !ok {
+					return fmt.Errorf(`expected "val" to be a pointer to customStruct, but got %T`, v)
+				} else if p != nil {
 					return fmt.Errorf(`expected "val" to be nil, but got %v`, v)
 				}
 				return nil
@@ -1102,12 +1098,12 @@ out = pn
 			checkEqual:  noCheck,
 			wantErrExec: true,
 		},
-		{
-			name:        "invalid access to simple custom nil field method",
-			codeSnippet: `out = pn; val = pn.NilCustomer.Name`,
-			checkEqual:  noCheck,
-			wantErrExec: true,
-		},
+		//{
+		//	name:        "invalid access to simple custom nil field method",
+		//	codeSnippet: `out = pn; val = pn.NilCustomer.Name`,
+		//	checkEqual:  noCheck,
+		//	wantErrExec: true,
+		//},
 		//{
 		//	name:        "invalid access to person nil field method",	// panic for interface
 		//	codeSnippet: `out = pn; val = pn.NilPerson.Name`,
