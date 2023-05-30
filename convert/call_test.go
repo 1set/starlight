@@ -667,7 +667,7 @@ func TestCustomStructInStarlark(t *testing.T) {
 			Labels: []string{"tag1", "tag2", "tag3"},
 			Profile: map[string]interface{}{
 				"email": "john@doe.me",
-				"phone": 1234567890,
+				"phone": int16(12345),
 			},
 			Parent: &personStruct{
 				Name:      "Jane Doe",
@@ -877,6 +877,40 @@ out = pn
 					if s != want[i] {
 						return fmt.Errorf(`expected %q[%d] to be %q, but got %q`, fieldName, i, want[i], s)
 					}
+				}
+				return nil
+			},
+		},
+		{
+			name:        "read non-exist map field",
+			codeSnippet: `foo = pn.Profile["name"]; out = pn`,
+			checkEqual:  noCheck,
+			wantErrExec: true,
+		},
+		{
+			name:        "read number map field",
+			codeSnippet: `foo = pn.Profile["phone"]; out = pn`,
+			checkEqual: func(_ *personStruct, m map[string]interface{}) error {
+				if v, ok := m["foo"]; !ok {
+					return fmt.Errorf(`expected "foo" to be in globals, but not found`)
+				} else if n, ok := v.(int16); !ok {
+					return fmt.Errorf(`expected "foo" to be an int16, but got %T`, v)
+				} else if n != 12345 {
+					return fmt.Errorf(`expected "foo" to be 12345, but got %v`, n)
+				}
+				return nil
+			},
+		},
+		{
+			name:        "read string map field",
+			codeSnippet: `foo = pn.Profile["email"]; out = pn`,
+			checkEqual: func(_ *personStruct, m map[string]interface{}) error {
+				if v, ok := m["foo"]; !ok {
+					return fmt.Errorf(`expected "foo" to be in globals, but not found`)
+				} else if n, ok := v.(string); !ok {
+					return fmt.Errorf(`expected "foo" to be an int16, but got %T`, v)
+				} else if n != "john@doe.me" {
+					return fmt.Errorf(`expected "foo" to be 12345, but got %v`, n)
 				}
 				return nil
 			},
