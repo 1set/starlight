@@ -848,7 +848,7 @@ func TestCustomStructInStarlark(t *testing.T) {
 			},
 		},
 		{
-			name:        "set slice of string -- cannot", // It fails for []interface{} vs []string
+			name:        "set slice of string for wrong type", // It fails for []interface{} vs []string
 			codeSnippet: `pn.Labels = ["foo", "bar"]; out = pn`,
 			checkEqual:  noCheck,
 			wantErrExec: true,
@@ -917,7 +917,7 @@ out = pn
 			},
 		},
 		{
-			name:        "read non-exist map field -- cannot",
+			name:        "read non-exist map field",
 			codeSnippet: `foo = pn.Profile["name"]; out = pn`,
 			checkEqual:  noCheck,
 			wantErrExec: true,
@@ -1024,6 +1024,28 @@ out = pn
 				}
 				return nil
 			},
+		},
+		{
+			name: "append nested map field workaround",
+			codeSnippet: `
+nv = pn.NestedValues["foo"][1]
+nv.append(123)
+pn.NestedValues["foo"][1] = nv
+out = pn
+`,
+			checkEqual: func(p *personStruct, _ map[string]interface{}) error {
+				v := p.NestedValues["foo"][1][3]
+				if math.Abs(float64(v-123)) > 0.0001 {
+					return fmt.Errorf(`expected "foo" to be 111, but got %v`, v)
+				}
+				return nil
+			},
+		},
+		{
+			name:        "set nested map field for wrong type",
+			codeSnippet: `pn.NestedValues["foo"][1] = [1, 2, 3]; out = pn`,
+			checkEqual:  noCheck,
+			wantErrExec: true,
 		},
 		{
 			name: "Test",
