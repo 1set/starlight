@@ -834,6 +834,20 @@ func TestCustomStructInStarlark(t *testing.T) {
 			checkEqual:  getStringSliceCompare("foo", []string{"tag1", "tag2", "tag3"}),
 		},
 		{
+			name:        "read element of slice of string",
+			codeSnippet: `foo = pn.Labels[1]; out = pn`,
+			checkEqual: func(_ *personStruct, res map[string]interface{}) error {
+				if v, ok := res["foo"]; !ok {
+					return fmt.Errorf(`expected "foo" to be in Profile, but not found`)
+				} else if n, ok := v.(string); !ok {
+					return fmt.Errorf(`expected "foo" to be a string, but got %T`, v)
+				} else if n != "tag2" {
+					return fmt.Errorf(`expected "foo" to be "tag2", but got %v`, n)
+				}
+				return nil
+			},
+		},
+		{
 			name:        "set slice of string -- cannot", // It fails for []interface{} vs []string
 			codeSnippet: `pn.Labels = ["foo", "bar"]; out = pn`,
 			checkEqual:  noCheck,
@@ -843,6 +857,20 @@ func TestCustomStructInStarlark(t *testing.T) {
 			name:        "set slice of interface",
 			codeSnippet: `pn.Anything = ["foo", "bar"]; out = pn; sl = pn.Anything`,
 			checkEqual:  getInterfaceStringSliceCompare("sl", []string{"foo", "bar"}),
+		},
+		{
+			name:        "read element of slice of interface",
+			codeSnippet: `foo = pn.Anything[3]; out = pn`,
+			checkEqual: func(_ *personStruct, res map[string]interface{}) error {
+				if v, ok := res["foo"]; !ok {
+					return fmt.Errorf(`expected "foo" to be in Profile, but not found`)
+				} else if n, ok := v.(string); !ok {
+					return fmt.Errorf(`expected "foo" to be a string, but got %T`, v)
+				} else if n != "3" {
+					return fmt.Errorf(`expected "foo" to be "3", but got %v`, n)
+				}
+				return nil
+			},
 		},
 		{
 			name:        "change slice field",
@@ -963,6 +991,12 @@ out = pn
 		{
 			name:        "delete non-exist map field",
 			codeSnippet: `pn.Profile.pop("name"); out = pn`,
+			checkEqual:  noCheck,
+			wantErrExec: true,
+		},
+		{
+			name:        "read like javascript",
+			codeSnippet: `out = pn; val = pn.Profile.email`,
 			checkEqual:  noCheck,
 			wantErrExec: true,
 		},
