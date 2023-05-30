@@ -1015,6 +1015,17 @@ out = pn
 			},
 		},
 		{
+			name:        "change nested map field",
+			codeSnippet: `out = pn; pn.NestedValues["foo"][1][1] = 111`,
+			checkEqual: func(p *personStruct, _ map[string]interface{}) error {
+				v := p.NestedValues["foo"][1][1]
+				if math.Abs(float64(v-111)) > 0.0001 {
+					return fmt.Errorf(`expected "foo" to be 111, but got %v`, v)
+				}
+				return nil
+			},
+		},
+		{
 			name: "Test",
 			codeSnippet: `
 print(pn)
@@ -1030,8 +1041,9 @@ out = pn
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Prepare the environment
+			raw := getNewPerson()
 			envs, err := convert.MakeStringDict(map[string]interface{}{
-				"pn": getNewPerson(),
+				"pn": raw,
 			})
 			if err != nil {
 				t.Fatalf(`failed to make string dict: %v`, err)
@@ -1053,6 +1065,9 @@ out = pn
 			if pn := globals["out"].(*personStruct); pn == nil {
 				t.Fatalf(`expected pn to convert to a struct, but got nil`)
 			} else {
+				if pn != raw {
+					t.Fatalf(`expected pn to be equal to the original personStruct`)
+				}
 				if err := tc.checkEqual(pn, globals); err != nil {
 					t.Fatalf(`expected pn to be equal to the original personStruct, but got error: %v`, err)
 				}
