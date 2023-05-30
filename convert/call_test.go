@@ -661,10 +661,12 @@ nested_list = [[1, 2, 3], [4, 5, 6]]
 // TestCustomStruct tests that custom struct can be operated in Starlark.
 func TestCustomStructInStarlark(t *testing.T) {
 	getNewPerson := func() *personStruct {
+		a := "aloha"
 		return &personStruct{
-			Name:   "John Doe",
-			Age:    30,
-			Labels: []string{"tag1", "tag2", "tag3"},
+			Name:     "John Doe",
+			Age:      30,
+			Anything: []interface{}{false, 1, 2.0, "3", []int{1, 2, 3}, &a},
+			Labels:   []string{"tag1", "tag2", "tag3"},
 			Profile: map[string]interface{}{
 				"email": "john@doe.me",
 				"phone": int16(12345),
@@ -824,18 +826,23 @@ func TestCustomStructInStarlark(t *testing.T) {
 		{
 			name:        "list fields",
 			codeSnippet: `fields = dir(pn); out = pn`,
-			checkEqual:  getInterfaceStringSliceCompare("fields", []string{"Age", "Aging", "Customer", "CustomerPtr", "GetSecretKey", "Labels", "MessageReader", "Name", "NestedValues", "NumberChan", "Parent", "Profile", "SetCustomer", "SetSecretKey", "String", "secretKey"}),
+			checkEqual:  getInterfaceStringSliceCompare("fields", []string{"Age", "Aging", "Anything", "Customer", "CustomerPtr", "GetSecretKey", "Labels", "MessageReader", "Name", "NestedValues", "NumberChan", "Parent", "Profile", "SetCustomer", "SetSecretKey", "String", "secretKey"}),
 		},
 		{
-			name:        "read slice field",
+			name:        "read slice of string",
 			codeSnippet: `foo = pn.Labels; out = pn`,
 			checkEqual:  getStringSliceCompare("foo", []string{"tag1", "tag2", "tag3"}),
 		},
 		{
-			name:        "set slice field",
+			name:        "set slice of string -- cannot", // It fails for []interface{} vs []string
 			codeSnippet: `pn.Labels = ["foo", "bar"]; out = pn`,
 			checkEqual:  noCheck,
 			wantErrExec: true,
+		},
+		{
+			name:        "set slice of interface",
+			codeSnippet: `pn.Anything = ["foo", "bar"]; out = pn; sl = pn.Anything`,
+			checkEqual:  getInterfaceStringSliceCompare("sl", []string{"foo", "bar"}),
 		},
 		{
 			name:        "change slice field",
@@ -855,7 +862,7 @@ func TestCustomStructInStarlark(t *testing.T) {
 			},
 		},
 		{
-			name: "append slice field", // It's a known issue that append() ops doesn't work on original slice field, since the new slice struct won't be set back.
+			name: "append slice field -- workaround", // It's a known issue that append() ops doesn't work on original slice field, since the new slice struct won't be set back.
 			codeSnippet: `
 l = pn.Labels
 l.append("cat")
@@ -916,6 +923,20 @@ out = pn
 			},
 		},
 		{
+			name:        "add new map field",
+			codeSnippet: `pn.Profile["foo"] = "bar"; out = pn`,
+			checkEqual: func(p *personStruct, _ map[string]interface{}) error {
+				if v, ok := p.Profile["foo"]; !ok {
+					return fmt.Errorf(`expected "foo" to be in Profile, but not found`)
+				} else if n, ok := v.(string); !ok {
+					return fmt.Errorf(`expected "foo" to be a string, but got %T`, v)
+				} else if n != "bar" {
+					return fmt.Errorf(`expected "foo" to be "bar", but got %v`, n)
+				}
+				return nil
+			},
+		},
+		{
 			name: "Test",
 			codeSnippet: `
 print(pn)
@@ -970,6 +991,7 @@ type customStruct struct {
 type personStruct struct {
 	Name          string                       `starlark:"name"`
 	Age           int                          `starlark:"age"`
+	Anything      []interface{}                `starlark:"anything"`
 	Labels        []string                     `starlark:"tags"`
 	Profile       map[string]interface{}       `starlark:"profile"`
 	Parent        *personStruct                `starlark:"parent"`
