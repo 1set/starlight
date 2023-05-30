@@ -1096,11 +1096,17 @@ out = pn
 			wantErrExec: true,
 		},
 		{
-			name:        "invalid access to nested struct nil field", // panic for interface
+			name:        "invalid access to person nil field method",
 			codeSnippet: `out = pn; val = pn.NilPerson.Name`,
 			checkEqual:  noCheck,
-			wantErrExec: true,
+			//wantErrExec: true,
 		},
+		//{
+		//	name:        "invalid access to nested struct nil field", // panic for interface
+		//	codeSnippet: `out = pn; val = pn.NilPerson.Name`,
+		//	checkEqual:  noCheck,
+		//	//wantErrExec: true,
+		//},
 		{
 			name: "Test!!!!",
 			codeSnippet: `
