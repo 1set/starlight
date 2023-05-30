@@ -701,6 +701,7 @@ func TestCustomStructInStarlark(t *testing.T) {
 			},
 			MessageReader: strings.NewReader("Hello, World!"),
 			NumberChan:    make(chan int, 10),
+			NilCustomer:   (*customStruct)(nil),
 		}
 	}
 	noCheck := func(_ *personStruct, _ map[string]interface{}) error {
@@ -772,6 +773,12 @@ func TestCustomStructInStarlark(t *testing.T) {
 			checkEqual:  noCheck,
 		},
 		{
+			name:        "read non-exist field",
+			codeSnippet: `foo = pn.NonExist`,
+			checkEqual:  noCheck,
+			wantErrExec: true,
+		},
+		{
 			name:        "read private field",
 			codeSnippet: `foo = pn.secretKey`,
 			checkEqual:  noCheck,
@@ -802,6 +809,30 @@ func TestCustomStructInStarlark(t *testing.T) {
 			wantErrExec: true,
 		},
 		{
+			name:        "read nil string field",
+			codeSnippet: `out = pn; val = pn.NilString`,
+			checkEqual: func(_ *personStruct, m map[string]interface{}) error {
+				if v, ok := m["val"]; !ok {
+					return fmt.Errorf(`expected "val" to be in globals, but not found`)
+				} else if v != nil {
+					return fmt.Errorf(`expected "val" to be nil, but got %v`, v)
+				}
+				return nil
+			},
+		},
+		{
+			name:        "read nil custom field",
+			codeSnippet: `out = pn; val = pn.NilCustomer`,
+			checkEqual: func(_ *personStruct, m map[string]interface{}) error {
+				if v, ok := m["val"]; !ok {
+					return fmt.Errorf(`expected "val" to be in globals, but not found`)
+				} else if v != nil {
+					return fmt.Errorf(`expected "val" to be nil, but got %v`, v)
+				}
+				return nil
+			},
+		},
+		{
 			name:        "read public field",
 			codeSnippet: `val = pn.Name ; out = pn`,
 			checkEqual:  getStringCompare("val", "John Doe"),
@@ -829,7 +860,7 @@ func TestCustomStructInStarlark(t *testing.T) {
 		{
 			name:        "list fields",
 			codeSnippet: `fields = dir(pn); out = pn`,
-			checkEqual:  getInterfaceStringSliceCompare("fields", []string{"Age", "Aging", "Anything", "Customer", "CustomerPtr", "GetSecretKey", "Labels", "MessageReader", "Name", "NestedValues", "NumberChan", "Parent", "Profile", "SetCustomer", "SetSecretKey", "String", "secretKey"}),
+			checkEqual:  getInterfaceStringSliceCompare("fields", []string{"Age", "Aging", "Anything", "Customer", "CustomerPtr", "GetSecretKey", "Labels", "MessageReader", "Name", "NestedValues", "NilCustomer", "NilString", "NumberChan", "Parent", "Profile", "SetCustomer", "SetSecretKey", "String", "secretKey"}),
 		},
 		{
 			name:        "read slice of string",
@@ -1029,6 +1060,48 @@ out = pn
 			checkEqual:  getStringCompare("val", "Old John"),
 		},
 		{
+			name:        "change nested struct",
+			codeSnippet: `out = pn; pn.Parent.Name = "New John"`,
+			checkEqual: func(p *personStruct, _ map[string]interface{}) error {
+				if p.Parent.Name != "New John" {
+					return fmt.Errorf(`expected "Name" to be "New John", but got %v`, p.Parent.Name)
+				}
+				return nil
+			},
+		},
+		{
+			name:        "read nested struct nil field",
+			codeSnippet: `out = pn; val = pn.Parent.Parent`,
+			checkEqual: func(_ *personStruct, m map[string]interface{}) error {
+				if v, ok := m["val"]; !ok {
+					return fmt.Errorf(`expected "val" to be in globals, but not found`)
+				} else if p, ok := v.(*personStruct); !ok {
+					return fmt.Errorf(`expected "val" to be a *personStruct, but got %T`, v)
+				} else if p != nil {
+					return fmt.Errorf(`expected "val" to be nil, but got %v`, p)
+				}
+				return nil
+			},
+		},
+		//{
+		//	name:        "invalid access to nested struct nil field",
+		//	codeSnippet: `out = pn; val = pn.Parent.Parent.Name`,
+		//	checkEqual:  noCheck,
+		//	wantErrExec: true,
+		//},
+		//{
+		//	name:        "invalid access to nil field method",
+		//	codeSnippet: `out = pn; val = pn.NilString.String()`,
+		//	checkEqual:  noCheck,
+		//	wantErrExec: true,
+		//},
+		//{
+		//	name:        "invalid access to custom nil field method",
+		//	codeSnippet: `out = pn; val = pn.NilCustomer.String()`,
+		//	checkEqual:  noCheck,
+		//	wantErrExec: true,
+		//},
+		{
 			name: "Test!!!!",
 			codeSnippet: `
 print(pn)
@@ -1097,6 +1170,8 @@ type personStruct struct {
 	CustomerPtr   *customStruct                `starlark:"customer_ptr"`
 	MessageReader io.Reader                    `starlark:"message_reader"`
 	NumberChan    chan int                     `starlark:"number_chan"`
+	NilString     *string                      `starlark:"nil_string"`
+	NilCustomer   *customStruct                `starlark:"nil_custom"`
 }
 
 func (p *personStruct) String() string {
