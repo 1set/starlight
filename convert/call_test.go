@@ -674,6 +674,20 @@ func TestCustomStructInStarlark(t *testing.T) {
 				Age:       58,
 				secretKey: "secret_root",
 			},
+			NestedValues: map[string]map[int][]float32{
+				"foo": {
+					1: {1.1, 1.2, 1.3},
+				},
+				"bar": {
+					2: {2.1, 2.2, 2.3},
+				},
+				"baz": {
+					3: {3.1, 3.2, 3.3},
+				},
+				"das": {
+					4: {4.1, 4.2, 4.3},
+				},
+			},
 			secretKey: "secret_child",
 			Customer: customStruct{
 				Name:  "ACME",
@@ -771,7 +785,7 @@ func TestCustomStructInStarlark(t *testing.T) {
 					return fmt.Errorf(`expected "fields" to be a list, but got %v`, fields)
 				} else {
 					expFs := []string{
-						"Age", "Aging", "Customer", "CustomerPtr", "GetSecretKey", "Labels", "MessageReader", "Name", "NumberChan", "Parent", "Profile", "SetCustomer", "SetSecretKey", "String", "secretKey",
+						"Age", "Aging", "Customer", "CustomerPtr", "GetSecretKey", "Labels", "MessageReader", "Name", "NestedValues", "NumberChan", "Parent", "Profile", "SetCustomer", "SetSecretKey", "String", "secretKey",
 					}
 					for i, f := range fs {
 						if s, ok := f.(string); !ok {
@@ -829,7 +843,6 @@ out = pn
 			}
 		})
 	}
-
 }
 
 type customStruct struct {
@@ -838,16 +851,17 @@ type customStruct struct {
 }
 
 type personStruct struct {
-	Name          string                 `starlark:"name"`
-	Age           int                    `starlark:"age"`
-	Labels        []string               `starlark:"tags"`
-	Profile       map[string]interface{} `starlark:"profile"`
-	Parent        *personStruct          `starlark:"parent"`
-	secretKey     string                 // unexported field
-	Customer      customStruct           `starlark:"customer"`
-	CustomerPtr   *customStruct          `starlark:"customer_ptr"`
-	MessageReader io.Reader              `starlark:"message_reader"`
-	NumberChan    chan int               `starlark:"number_chan"`
+	Name          string                       `starlark:"name"`
+	Age           int                          `starlark:"age"`
+	Labels        []string                     `starlark:"tags"`
+	Profile       map[string]interface{}       `starlark:"profile"`
+	Parent        *personStruct                `starlark:"parent"`
+	NestedValues  map[string]map[int][]float32 `starlark:"nested_values"`
+	secretKey     string                       // unexported field
+	Customer      customStruct                 `starlark:"customer"`
+	CustomerPtr   *customStruct                `starlark:"customer_ptr"`
+	MessageReader io.Reader                    `starlark:"message_reader"`
+	NumberChan    chan int                     `starlark:"number_chan"`
 }
 
 func (p *personStruct) String() string {
