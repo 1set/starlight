@@ -869,7 +869,7 @@ func TestCustomStructInStarlark(t *testing.T) {
 		{
 			name:        "list fields",
 			codeSnippet: `fields = dir(pn); out = pn`,
-			checkEqual:  getInterfaceStringSliceCompare("fields", []string{"Age", "Aging", "Anything", "Customer", "CustomerPtr", "GetSecretKey", "Labels", "MessageReader", "Name", "NestedValues", "NilCustomer", "NilPerson", "NilString", "NumberChan", "Parent", "Profile", "SetCustomer", "SetSecretKey", "String", "secretKey"}),
+			checkEqual:  getInterfaceStringSliceCompare("fields", []string{"Age", "Aging", "Anything", "Customer", "CustomerPtr", "GetSecretKey", "Labels", "MessageReader", "Name", "NestedValues", "NilCustomer", "NilPerson", "NilString", "Nothing", "NumberChan", "Parent", "Profile", "SetCustomer", "SetSecretKey", "String", "secretKey"}),
 		},
 		{
 			name:        "read slice of string",
@@ -1093,29 +1093,34 @@ out = pn
 			},
 		},
 		{
-			name:        "invalid access to nil field method",
-			codeSnippet: `out = pn; val = pn.NilString.String()`,
+			name:        "access to nil person method",
+			codeSnippet: `out = pn; val = pn.NilPerson.Nothing()`,
+			checkEqual:  getStringCompare("val", "nothing"),
+		},
+		//{
+		//	name:        "invalid to nil person method",
+		//	codeSnippet: `out = pn; val = pn.NilPerson.Aging()`,
+		//	checkEqual:  noCheck,
+		//	wantErrExec: true,
+		//},
+		{
+			name:        "invalid access to nil simple custom field",
+			codeSnippet: `out = pn; val = pn.NilCustomer.Name`,
 			checkEqual:  noCheck,
 			wantErrExec: true,
 		},
-		//{
-		//	name:        "invalid access to simple custom nil field method",
-		//	codeSnippet: `out = pn; val = pn.NilCustomer.Name`,
-		//	checkEqual:  noCheck,
-		//	wantErrExec: true,
-		//},
-		//{
-		//	name:        "invalid access to person nil field method",	// panic for interface
-		//	codeSnippet: `out = pn; val = pn.NilPerson.Name`,
-		//	checkEqual:  noCheck,
-		//	wantErrExec: true,
-		//},
-		//{
-		//	name:        "invalid access to nested struct nil field", // panic for interface
-		//	codeSnippet: `out = pn; val = pn.NilPerson.Name`,
-		//	checkEqual:  noCheck,
-		//	//wantErrExec: true,
-		//},
+		{
+			name:        "invalid access to nil person field",
+			codeSnippet: `out = pn; val = pn.NilPerson.Name`,
+			checkEqual:  noCheck,
+			wantErrExec: true,
+		},
+		{
+			name:        "invalid access to nested struct nil field",
+			codeSnippet: `out = pn; val = pn.NilPerson.Name`,
+			checkEqual:  noCheck,
+			wantErrExec: true,
+		},
 		{
 			name: "Test!!!!",
 			codeSnippet: `
@@ -1216,4 +1221,8 @@ func (p *personStruct) SetCustomer(customer customStruct) {
 
 func (p *personStruct) Aging() {
 	p.Age++
+}
+
+func (p *personStruct) Nothing() string {
+	return "nothing"
 }
