@@ -704,6 +704,40 @@ func TestCustomStructInStarlark(t *testing.T) {
 	noCheck := func(_ *personStruct, _ map[string]interface{}) error {
 		return nil
 	}
+	getInterfaceStringSliceCompare := func(fieldName string, want []string) func(*personStruct, map[string]interface{}) error {
+		return func(pn *personStruct, res map[string]interface{}) error {
+			if foo, ok := res[fieldName]; !ok {
+				return fmt.Errorf(`expected %q to be in globals, but not found`, fieldName)
+			} else if fs, ok := foo.([]interface{}); !ok {
+				return fmt.Errorf(`expected %q to be a interface list, but got %v`, fieldName, foo)
+			} else {
+				for i, f := range fs {
+					if s, ok := f.(string); !ok {
+						return fmt.Errorf(`expected %q to be a list of string, but got %v`, fieldName, fs)
+					} else if s != want[i] {
+						return fmt.Errorf(`expected %q[%d] to be %q, but got %q`, fieldName, i, want[i], s)
+					}
+				}
+				return nil
+			}
+		}
+	}
+	getStringSliceCompare := func(fieldName string, want []string) func(*personStruct, map[string]interface{}) error {
+		return func(pn *personStruct, res map[string]interface{}) error {
+			if foo, ok := res[fieldName]; !ok {
+				return fmt.Errorf(`expected %q to be in globals, but not found`, fieldName)
+			} else if fs, ok := foo.([]string); !ok {
+				return fmt.Errorf(`expected %q to be a string list, but got %v`, fieldName, foo)
+			} else {
+				for i, s := range fs {
+					if s != want[i] {
+						return fmt.Errorf(`expected %q[%d] to be %q, but got %q`, fieldName, i, want[i], s)
+					}
+				}
+				return nil
+			}
+		}
+	}
 
 	type testCase struct {
 		name        string
@@ -738,6 +772,12 @@ func TestCustomStructInStarlark(t *testing.T) {
 		{
 			name:        "assign mismatched type",
 			codeSnippet: `pn.Parent = 88`,
+			checkEqual:  noCheck,
+			wantErrExec: true,
+		},
+		{
+			name:        "assign mismatched type 2",
+			codeSnippet: `pn.Age = "number"`,
 			checkEqual:  noCheck,
 			wantErrExec: true,
 		},
@@ -778,28 +818,15 @@ func TestCustomStructInStarlark(t *testing.T) {
 		{
 			name:        "list fields",
 			codeSnippet: `fields = dir(pn); out = pn`,
-			checkEqual: func(pn *personStruct, res map[string]interface{}) error {
-				if fields, ok := res["fields"]; !ok {
-					return fmt.Errorf(`expected "fields" to be in globals, but not found`)
-				} else if fs, ok := fields.([]interface{}); !ok {
-					return fmt.Errorf(`expected "fields" to be a list, but got %v`, fields)
-				} else {
-					expFs := []string{
-						"Age", "Aging", "Customer", "CustomerPtr", "GetSecretKey", "Labels", "MessageReader", "Name", "NestedValues", "NumberChan", "Parent", "Profile", "SetCustomer", "SetSecretKey", "String", "secretKey",
-					}
-					for i, f := range fs {
-						if s, ok := f.(string); !ok {
-							return fmt.Errorf(`expected "fields" to be a list of string, but got %v`, fs)
-						} else if s != expFs[i] {
-							return fmt.Errorf(`expected "fields"[%d] to be %q, but got %q`, i, expFs[i], s)
-						}
-					}
-					return nil
-				}
-			},
+			checkEqual:  getInterfaceStringSliceCompare("fields", []string{"Age", "Aging", "Customer", "CustomerPtr", "GetSecretKey", "Labels", "MessageReader", "Name", "NestedValues", "NumberChan", "Parent", "Profile", "SetCustomer", "SetSecretKey", "String", "secretKey"}),
 		},
 		{
-			name: "print",
+			name:        "read slice field",
+			codeSnippet: `foo = pn.Labels; out = pn`,
+			checkEqual:  getStringSliceCompare("foo", []string{"tag1", "tag2", "tag3"}),
+		},
+		{
+			name: "Test",
 			codeSnippet: `
 print(pn)
 print(dir(pn))
