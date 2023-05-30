@@ -309,10 +309,18 @@ func makeStarFn(name string, gofn reflect.Value) *starlark.Builtin {
 	if gofn.Type().IsVariadic() {
 		return makeVariadicStarFn(name, gofn)
 	}
-	return starlark.NewBuiltin(name, func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	return starlark.NewBuiltin(name, func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (sv starlark.Value, ef error) {
+		defer func() {
+			if r := recover(); r != nil {
+				sv = starlark.None
+				ef = fmt.Errorf("panic in %s: %v", name, r)
+			}
+		}()
+
 		if len(args) != gofn.Type().NumIn() {
 			return starlark.None, fmt.Errorf("expected %d args but got %d", gofn.Type().NumIn(), len(args))
 		}
+
 		vals := FromTuple(args)
 		rvs := make([]reflect.Value, 0, len(vals))
 		for i, v := range vals {
@@ -327,13 +335,21 @@ func makeStarFn(name string, gofn reflect.Value) *starlark.Builtin {
 
 			rvs = append(rvs, val)
 		}
+
 		out := gofn.Call(rvs)
 		return makeOut(out)
 	})
 }
 
 func makeVariadicStarFn(name string, gofn reflect.Value) *starlark.Builtin {
-	return starlark.NewBuiltin(name, func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	return starlark.NewBuiltin(name, func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (sv starlark.Value, ef error) {
+		defer func() {
+			if r := recover(); r != nil {
+				sv = starlark.None
+				ef = fmt.Errorf("panic in %s: %v", name, r)
+			}
+		}()
+
 		minArgs := gofn.Type().NumIn() - 1
 		if len(args) < minArgs {
 			return starlark.None, fmt.Errorf("expected at least %d args but got %d", minArgs, len(args))
@@ -537,9 +553,8 @@ func tryConv(v starlark.Value, t reflect.Type) (reflect.Value, error) {
 	if !out.Type().AssignableTo(t) {
 		if out.Type().ConvertibleTo(t) {
 			return out.Convert(t), nil
-		} else {
-			return reflect.Value{}, fmt.Errorf("value of type %s cannot be converted to type %s", out.Type(), t)
 		}
+		return reflect.Value{}, fmt.Errorf("value of type %s cannot be converted to type %s", out.Type(), t)
 	}
 	return out, nil
 }

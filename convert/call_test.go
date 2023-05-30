@@ -1097,12 +1097,12 @@ out = pn
 			codeSnippet: `out = pn; val = pn.NilPerson.Nothing()`,
 			checkEqual:  getStringCompare("val", "nothing"),
 		},
-		//{
-		//	name:        "invalid to nil person method",
-		//	codeSnippet: `out = pn; val = pn.NilPerson.Aging()`,
-		//	checkEqual:  noCheck,
-		//	wantErrExec: true,
-		//},
+		{
+			name:        "invalid access to nil person method",
+			codeSnippet: `out = pn; val = pn.NilPerson.Aging()`,
+			checkEqual:  noCheck,
+			wantErrExec: true,
+		},
 		{
 			name:        "invalid access to nil simple custom field",
 			codeSnippet: `out = pn; val = pn.NilCustomer.Name`,
@@ -1117,7 +1117,7 @@ out = pn
 		},
 		{
 			name:        "invalid access to nested struct nil field",
-			codeSnippet: `out = pn; val = pn.NilPerson.Name`,
+			codeSnippet: `out = pn; val = pn.Parent.Parent.Name`,
 			checkEqual:  noCheck,
 			wantErrExec: true,
 		},
