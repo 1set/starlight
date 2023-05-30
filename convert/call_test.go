@@ -1001,6 +1001,20 @@ out = pn
 			wantErrExec: true,
 		},
 		{
+			name:        "read nested map field",
+			codeSnippet: `out = pn; val = pn.NestedValues["foo"][1][2]`,
+			checkEqual: func(_ *personStruct, m map[string]interface{}) error {
+				if v, ok := m["val"]; !ok {
+					return fmt.Errorf(`expected "val" to be in globals, but not found`)
+				} else if n, ok := v.(float64); !ok {
+					return fmt.Errorf(`expected "val" to be a float32, but got %T`, v)
+				} else if math.Abs(n-1.3) > 0.0001 {
+					return fmt.Errorf(`expected "val" to be 1.3, but got %v`, n)
+				}
+				return nil
+			},
+		},
+		{
 			name: "Test",
 			codeSnippet: `
 print(pn)
