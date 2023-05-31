@@ -54,13 +54,13 @@ jobs:
         uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage.txt
+          files: coverage.txt
       - name: Upload Coverage Reports to Codacy
         if: ${{ fromJSON(env.CI_REPORT) }}
         env:
           CODACY_PROJECT_TOKEN: ${{ secrets.CODACY_PROJECT_TOKEN }}
         run:
-          bash <(curl -Ls https://coverage.codacy.com/get.sh) report --force-coverage-parser go -r ./coverage.txt
+          bash <(curl -Ls https://coverage.codacy.com/get.sh) report --force-coverage-parser go -r coverage.txt
       - name: Analyze
         if: ${{ runner.os == 'Linux' }}
         run: |
