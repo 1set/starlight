@@ -1,6 +1,7 @@
 package convert_test
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -661,8 +662,9 @@ nested_list = [[1, 2, 3], [4, 5, 6]]
 // TestCustomStruct tests that custom struct can be operated in Starlark.
 func TestCustomStructInStarlark(t *testing.T) {
 	getNewPerson := func() *personStruct {
-		a := "aloha"
-		return &personStruct{
+		a := "Aloha!"
+		b := bytes.NewBuffer(nil)
+		p := &personStruct{
 			Name:     "John Doe",
 			Age:      30,
 			Anything: []interface{}{false, 1, 2.0, "3", []int{1, 2, 3}, &a},
@@ -699,9 +701,11 @@ func TestCustomStructInStarlark(t *testing.T) {
 				Name:  "BDX",
 				Value: 200,
 			},
-			MessageReader: strings.NewReader("Hello, World!"),
+			MessageWriter: b,
+			ReadMessage:   b.String,
 			NumberChan:    make(chan int, 10),
 		}
+		return p
 	}
 	noCheck := func(_ *personStruct, _ map[string]interface{}) error {
 		return nil
@@ -869,7 +873,7 @@ func TestCustomStructInStarlark(t *testing.T) {
 		{
 			name:        "list fields",
 			codeSnippet: `fields = dir(pn); out = pn`,
-			checkEqual:  getInterfaceStringSliceCompare("fields", []string{"Age", "Aging", "Anything", "Customer", "CustomerPtr", "GetSecretKey", "Labels", "MessageReader", "Name", "NestedValues", "NilCustomer", "NilPerson", "NilString", "Nothing", "NumberChan", "Parent", "Profile", "SetCustomer", "SetSecretKey", "String", "secretKey"}),
+			checkEqual:  getInterfaceStringSliceCompare("fields", []string{"Age", "Aging", "Anything", "Customer", "CustomerPtr", "GetSecretKey", "Labels", "MessageWriter", "Name", "NestedValues", "NilCustomer", "NilPerson", "NilString", "Nothing", "NumberChan", "Parent", "Profile", "ReadMessage", "SetCustomer", "SetSecretKey", "String", "buffer", "secretKey"}),
 		},
 		{
 			name:        "read slice of string",
@@ -1122,6 +1126,16 @@ out = pn
 			wantErrExec: true,
 		},
 		{
+			name: "call interface method",
+			codeSnippet: `
+out = pn
+num = pn.MessageWriter.Write("Mahalo!")
+print("wrote", num, "bytes")
+val = pn.ReadMessage()
+`,
+			checkEqual: getStringCompare("val", "Mahalo!"),
+		},
+		{
 			name: "Test!!!!",
 			codeSnippet: `
 print(pn)
@@ -1192,11 +1206,13 @@ type personStruct struct {
 	secretKey     string                       // unexported field
 	Customer      customStruct                 `starlark:"customer"`
 	CustomerPtr   *customStruct                `starlark:"customer_ptr"`
-	MessageReader io.Reader                    `starlark:"message_reader"`
+	MessageWriter io.Writer                    `starlark:"message_writer"`
+	ReadMessage   func() string                `starlark:"read_message"`
 	NumberChan    chan int                     `starlark:"number_chan"`
 	NilString     *string                      `starlark:"nil_string"`
 	NilCustomer   *customStruct                `starlark:"nil_custom"`
 	NilPerson     *personStruct                `starlark:"nil_person"`
+	buffer        bytes.Buffer                 `starlark:"-"`
 }
 
 func (p *personStruct) String() string {

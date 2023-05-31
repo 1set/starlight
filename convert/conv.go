@@ -313,7 +313,7 @@ func makeStarFn(name string, gofn reflect.Value) *starlark.Builtin {
 		defer func() {
 			if r := recover(); r != nil {
 				sv = starlark.None
-				ef = fmt.Errorf("panic in %s: %v", name, r)
+				ef = fmt.Errorf("panic in func %s: %v", name, r)
 			}
 		}()
 
@@ -346,7 +346,7 @@ func makeVariadicStarFn(name string, gofn reflect.Value) *starlark.Builtin {
 		defer func() {
 			if r := recover(); r != nil {
 				sv = starlark.None
-				ef = fmt.Errorf("panic in %s: %v", name, r)
+				ef = fmt.Errorf("panic in func %s: %v", name, r)
 			}
 		}()
 
