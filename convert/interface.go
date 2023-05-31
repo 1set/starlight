@@ -68,25 +68,23 @@ func (g *GoInterface) Attr(name string) (starlark.Value, error) {
 
 // AttrNames returns the list of all fields and methods on this struct.
 func (g *GoInterface) AttrNames() []string {
-	count := 0
-	if g.v.IsValid() {
-		count = g.v.NumMethod()
-		if g.v.Kind() == reflect.Ptr && !g.v.IsNil() {
-			elem := g.v.Elem()
-			count += elem.NumMethod()
-		}
+	if !g.v.IsValid() {
+		return nil
+	}
+
+	count := g.v.NumMethod()
+	if g.v.Kind() == reflect.Ptr && !g.v.IsNil() {
+		count += g.v.Elem().NumMethod()
 	}
 
 	names := make([]string, 0, count)
-	if g.v.IsValid() {
-		for i := 0; i < g.v.NumMethod(); i++ {
-			names = append(names, g.v.Type().Method(i).Name)
-		}
-		if g.v.Kind() == reflect.Ptr && !g.v.IsNil() {
-			t := g.v.Elem().Type()
-			for i := 0; i < t.NumMethod(); i++ {
-				names = append(names, t.Method(i).Name)
-			}
+	for i := 0; i < g.v.NumMethod(); i++ {
+		names = append(names, g.v.Type().Method(i).Name)
+	}
+	if g.v.Kind() == reflect.Ptr && !g.v.IsNil() {
+		t := g.v.Elem().Type()
+		for i := 0; i < t.NumMethod(); i++ {
+			names = append(names, t.Method(i).Name)
 		}
 	}
 	return names
