@@ -335,6 +335,7 @@ func TestMakeStarFnArgumentType(t *testing.T) {
 	type testCase struct {
 		name          string
 		funcToConvert interface{}
+		valToPass     interface{}
 		codeSnippet   string
 		shouldPanic   bool
 		wantErr       bool
@@ -420,6 +421,14 @@ func TestMakeStarFnArgumentType(t *testing.T) {
 			codeSnippet: `x = boo({"a": 1, "b": 2})`,
 		},
 		{
+			name: "Call with map typed argument using starlark.Value",
+			funcToConvert: func(a map[string]int) int {
+				return len(a)
+			},
+			valToPass:   100,
+			codeSnippet: `x = boo({"a": val, "b": val})`,
+		},
+		{
 			name: "Call with map starlark interface argument",
 			funcToConvert: func(a map[string]starlark.Value) int {
 				return len(a)
@@ -454,6 +463,14 @@ func TestMakeStarFnArgumentType(t *testing.T) {
 		{
 			name: "Call with nested map argument 2 (not handle yet)",
 			funcToConvert: func(a map[string][]int) int {
+				return len(a)
+			},
+			codeSnippet: `x = boo({"a": [1, 2, 3]})`,
+			wantErr:     true,
+		},
+		{
+			name: "Call with mistyped map argument",
+			funcToConvert: func(a map[string]string) int {
 				return len(a)
 			},
 			codeSnippet: `x = boo({"a": [1, 2, 3]})`,
@@ -516,11 +533,22 @@ func TestMakeStarFnArgumentType(t *testing.T) {
 			globals := starlark.StringDict{
 				"boo": starFn,
 			}
+
+			// For additional values
+			if tc.valToPass != nil {
+				sv, err := convert.ToValue(tc.valToPass)
+				if err != nil {
+					t.Errorf("Unexpected error for conversion: %v", err)
+					return
+				}
+				globals["val"] = sv
+			}
+
 			_, err := starlark.ExecFile(thread, "script.star", script, globals)
 			if tc.wantErr && err == nil {
 				t.Errorf("Expected error, but got none")
 			} else if !tc.wantErr && err != nil {
-				t.Errorf("Unexpected error: %v", err)
+				t.Errorf("Unexpected error for runtime: %v", err)
 			}
 		})
 	}
