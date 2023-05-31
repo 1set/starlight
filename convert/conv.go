@@ -268,7 +268,7 @@ type Kwarg struct {
 	Value interface{}
 }
 
-// FromKwargs converts a python style name=val, name2=val2 list of tuples into a
+// FromKwargs converts a Python style name=val, name2=val2 list of tuples into a
 // []Kwarg.  It is an error if any tuple is not exactly 2 values,
 // or if the first one is not a string.
 func FromKwargs(kwargs []starlark.Tuple) ([]Kwarg, error) {

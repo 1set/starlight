@@ -420,6 +420,30 @@ func TestMakeStarFnArgumentType(t *testing.T) {
 			codeSnippet: `x = boo({"a": 1, "b": 2})`,
 		},
 		{
+			name: "Call with map starlark interface argument",
+			funcToConvert: func(a map[string]starlark.Value) int {
+				return len(a)
+			},
+			codeSnippet: `x = boo({"a": 1, "b": 2})`,
+			wantErr:     true,
+		},
+		{
+			name: "Call with map starlark int argument",
+			funcToConvert: func(a map[string]starlark.Int) int {
+				return len(a)
+			},
+			codeSnippet: `x = boo({"a": 1, "b": 2})`,
+			wantErr:     true,
+		},
+		{
+			name: "Call with nested map argument (not handle yet)",
+			funcToConvert: func(a map[string]map[string]int) int {
+				return len(a)
+			},
+			codeSnippet: `x = boo({"a": {"b": 1}})`,
+			wantErr:     true,
+		},
+		{
 			name: "Call with nested map argument (not handle yet)",
 			funcToConvert: func(a map[string]map[string]int) int {
 				return len(a)
