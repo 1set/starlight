@@ -14,6 +14,8 @@ jobs:
   build:
     name: Test with ${{ matrix.go-version }} on ${{ matrix.vm-os }}
     runs-on: ${{ matrix.vm-os }}
+    env:
+      CI_REPORT: ${{ matrix.vm-os == 'ubuntu-20.04' && matrix.go-version == '1.18.10' }}
     strategy:
       max-parallel: 10
       fail-fast: false
@@ -47,6 +49,11 @@ jobs:
       - name: Test
         run: |
           go test -v -race -cover -covermode=atomic -count 1 ./...
+      - name: Upload Coverage Reports to Codecov
+        if: ${{ fromJSON(env.CI_REPORT) }}
+        uses: codecov/codecov-action@v3
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       - name: Analyze
         if: ${{ runner.os == 'Linux' }}
         run: |
