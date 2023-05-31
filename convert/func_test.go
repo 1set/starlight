@@ -469,6 +469,23 @@ func TestMakeStarFnArgumentType(t *testing.T) {
 			wantErr:     true,
 		},
 		{
+			name: "Call with nested map argument 3 (not handle yet)",
+			funcToConvert: func(a map[string][]int) int {
+				return len(a)
+			},
+			valToPass:   starlark.NewList([]starlark.Value{starlark.MakeInt(1), starlark.MakeInt(2), starlark.MakeInt(3)}),
+			codeSnippet: `x = boo({"a": val})`,
+			wantErr:     true,
+		},
+		{
+			name: "Call with nested map argument with goslice",
+			funcToConvert: func(a map[string][]int) int {
+				return len(a)
+			},
+			valToPass:   []int{1, 2, 3},
+			codeSnippet: `x = boo({"a": val})`,
+		},
+		{
 			name: "Call with mistyped map argument",
 			funcToConvert: func(a map[string]string) int {
 				return len(a)
