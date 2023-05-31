@@ -52,8 +52,9 @@ jobs:
       - name: Upload Coverage Reports to Codecov
         if: ${{ fromJSON(env.CI_REPORT) }}
         uses: codecov/codecov-action@v3
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.txt
       - name: Analyze
         if: ${{ runner.os == 'Linux' }}
         run: |
