@@ -82,7 +82,7 @@ func TestToValue(t *testing.T) {
 			want: &GoStruct{v: reflect.ValueOf(bigVal)},
 		},
 		{
-			name: "bigint pointer to value",
+			name: "pointer of bigint",
 			v:    &bigVal,
 			want: &GoInterface{v: reflect.ValueOf(&bigVal)},
 		},
