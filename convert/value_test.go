@@ -188,6 +188,11 @@ func TestFromValue(t *testing.T) {
 			want: int64(123),
 		},
 		{
+			name: "Uint",
+			v:    starlark.MakeUint64(uint64(18446744073709551615)),
+			want: uint64(18446744073709551615),
+		},
+		{
 			name: "BigInt",
 			v:    starlark.MakeBigInt(bigVal),
 			want: bigVal,
