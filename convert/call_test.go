@@ -463,6 +463,14 @@ print('※ sl_value: {}({})'.format(sl_value, type(sl_value)))
 			wantEqual:    true,
 		},
 		{
+			name: "pointer as return for nil: func(string) *string",
+			goFunc: func(name string) *string {
+				return nil
+			},
+			codeSnippet: `sl_value = go_func("World")`,
+			wantErrExec: true,
+		},
+		{
 			name: "func([]string) (string)",
 			goFunc: func(names []string) string {
 				return strings.Join(names, ", ")
