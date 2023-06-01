@@ -321,6 +321,7 @@ func makeStarFn(name string, gofn reflect.Value) *starlark.Builtin {
 			return starlark.None, fmt.Errorf("expected %d args but got %d", gofn.Type().NumIn(), len(args))
 		}
 
+		// convert all the args, but kwargs are ignored
 		vals := FromTuple(args)
 		rvs := make([]reflect.Value, 0, len(vals))
 		for i, v := range vals {
@@ -354,6 +355,8 @@ func makeVariadicStarFn(name string, gofn reflect.Value) *starlark.Builtin {
 		if len(args) < minArgs {
 			return starlark.None, fmt.Errorf("expected at least %d args but got %d", minArgs, len(args))
 		}
+
+		// convert all the args, but kwargs are ignored
 		vals := FromTuple(args)
 		rvs := make([]reflect.Value, 0, len(args))
 
@@ -502,6 +505,7 @@ func convertElemValue(val reflect.Value, targetType reflect.Type) (reflect.Value
 			if unwrapped.Type().ConvertibleTo(targetType) {
 				return unwrapped.Convert(targetType), nil
 			} else if sv, ok := unwrapped.Interface().(starlark.Value); ok {
+				// TODO: this path is not reachable in the current test, maybe we can remove it?
 				goVal := FromValue(sv)
 				goVal = convertNumericTypes(goVal, targetType)
 				if reflect.TypeOf(goVal) != targetType {
