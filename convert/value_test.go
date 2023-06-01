@@ -201,6 +201,36 @@ func TestToValue(t *testing.T) {
 			want: &customType{},
 		},
 		{
+			name: "unknown struct",
+			v:    unknownType{},
+			want: &GoStruct{v: reflect.ValueOf(unknownType{})},
+		},
+		{
+			name: "pointer of unknown struct",
+			v:    &unknownType{},
+			want: &GoStruct{v: reflect.ValueOf(&unknownType{})},
+		},
+		{
+			name: "simple struct",
+			v:    simpleType{},
+			want: &GoStruct{v: reflect.ValueOf(simpleType{})},
+		},
+		{
+			name: "pointer of simple struct",
+			v:    &simpleType{},
+			want: &GoStruct{v: reflect.ValueOf(&simpleType{})},
+		},
+		{
+			name: "naive struct",
+			v:    naiveType{},
+			want: &GoStruct{v: reflect.ValueOf(naiveType{})},
+		},
+		{
+			name: "pointer of naive struct",
+			v:    &naiveType{},
+			want: &GoStruct{v: reflect.ValueOf(&naiveType{})},
+		},
+		{
 			name:    "unsupported type: channel",
 			v:       make(chan int),
 			want:    nil,
@@ -321,6 +351,11 @@ func TestFromValue(t *testing.T) {
 			want: &customType{}, // assuming FromValue returns the original value if it doesn't know how to convert it
 		},
 		{
+			name: "Custom",
+			v:    &customType{},
+			want: &customType{},
+		},
+		{
 			name: "Builtin",
 			v:    testBuiltin,
 			want: testBuiltin,
@@ -351,6 +386,22 @@ func (c *customType) Hash() (uint32, error) { return 0, nil }
 
 // Assuming this is a custom type that doesn't implement starlark.Callable
 type unknownType struct{}
+
+// Assuming this is a custom type that doesn't implement starlark.Callable but its pointer has methods.
+type simpleType struct{}
+
+func (s *simpleType) Double(x int) int {
+	return x * 2
+}
+
+// Assuming this is a custom type that doesn't implement starlark.Callable but has methods.
+type naiveType struct {
+	Runner string
+}
+
+func (s naiveType) Triple(x int) int {
+	return x * 3
+}
 
 // Generate Starlark Functions
 
