@@ -107,7 +107,13 @@ func TestToValue(t *testing.T) {
 		{
 			name:    "slice to value",
 			v:       []int{1, 2, 3},
-			want:    &GoSlice{v: reflect.ValueOf([]int{1, 2, 3})},
+			want:    NewGoSlice([]int{1, 2, 3}),
+			wantErr: false,
+		},
+		{
+			name:    "slice pointer",
+			v:       &[]int{1, 2, 3},
+			want:    NewGoSlice([]int{1, 2, 3}),
 			wantErr: false,
 		},
 		{

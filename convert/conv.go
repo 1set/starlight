@@ -71,7 +71,8 @@ func toValue(val reflect.Value) (result starlark.Value, err error) {
 				reflect.String,
 				reflect.Float32, reflect.Float64,
 				reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-				reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+				reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+				reflect.Slice, reflect.Array, reflect.Map:
 				val = val.Elem()
 			}
 		} else {
