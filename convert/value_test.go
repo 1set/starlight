@@ -111,7 +111,7 @@ func TestToValue(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "slice pointer",
+			name:    "pointer of slice",
 			v:       &[]int{1, 2, 3},
 			want:    NewGoSlice([]int{1, 2, 3}),
 			wantErr: false,
@@ -123,8 +123,20 @@ func TestToValue(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:    "pointer of array",
+			v:       &[3]int{1, 2, 3},
+			want:    NewGoSlice([]int{1, 2, 3}),
+			wantErr: false,
+		},
+		{
 			name:    "map to value",
 			v:       map[string]int{"one": 1, "two": 2},
+			want:    &GoMap{v: reflect.ValueOf(map[string]int{"one": 1, "two": 2})},
+			wantErr: false,
+		},
+		{
+			name:    "pointer of map",
+			v:       &map[string]int{"one": 1, "two": 2},
 			want:    &GoMap{v: reflect.ValueOf(map[string]int{"one": 1, "two": 2})},
 			wantErr: false,
 		},
