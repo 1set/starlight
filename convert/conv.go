@@ -65,6 +65,7 @@ func toValue(val reflect.Value) (result starlark.Value, err error) {
 	if kind == reflect.Ptr {
 		if val.Elem().IsValid() {
 			kind = val.Elem().Kind()
+			val = val.Elem()
 		} else {
 			// If the pointer is nil and points to a struct, make a GoInterface for it
 			if val.Type().Elem().Kind() == reflect.Struct {

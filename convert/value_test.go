@@ -10,6 +10,7 @@ import (
 
 func TestToValue(t *testing.T) {
 	aloha := "aloha!"
+	number := 2023
 	bigVal := big.NewInt(1).Mul(big.NewInt(100000000000000), big.NewInt(100000000000000))
 	tests := []struct {
 		name    string
@@ -152,9 +153,13 @@ func TestToValue(t *testing.T) {
 		{
 			name: "string pointer to value",
 			v:    &aloha,
-			want: starlark.String("<*string Value>"),
+			want: starlark.String(aloha),
 		},
-
+		{
+			name: "int pointer to value",
+			v:    &number,
+			want: starlark.MakeInt(123),
+		},
 		{
 			name:    "unsupported type: channel",
 			v:       make(chan int),
