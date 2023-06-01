@@ -422,7 +422,7 @@ func TestMakeStarFnArgumentType(t *testing.T) {
 		},
 		{
 			name: "Call with map typed argument using starlark.Value",
-			funcToConvert: func(a map[string]int) int {
+			funcToConvert: func(a map[string]int8) int {
 				return len(a)
 			},
 			valToPass:   100,
@@ -523,6 +523,21 @@ func TestMakeStarFnArgumentType(t *testing.T) {
 			},
 			codeSnippet: `x = boo([1, 2, 3, 4, 5])`,
 			wantErr:     true,
+		},
+		{
+			name: "Call with various arguments",
+			funcToConvert: func(s string, i int64, b bool, f float64, ss []string, m map[string]int) (int, string, error) {
+				if len(ss) != 2 || ss[0] != "slice" || ss[1] != "test" {
+					return 0, "", errors.New("incorrect slice input")
+				}
+
+				if len(m) != 1 || m["key"] != 10 {
+					return 0, "", errors.New("incorrect map input")
+				}
+
+				return 5, "hi!", nil
+			},
+			codeSnippet: `x = boo("a", 1, True, 0.1, ["slice", "test"], {"key": 10})`,
 		},
 	}
 
