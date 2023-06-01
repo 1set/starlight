@@ -440,7 +440,7 @@ func TestCallGoFunctionInStarlark(t *testing.T) {
 			wantEqual:    true,
 		},
 		{
-			name: "invalid pointer: func(*string) string",
+			name: "pointer as invalid argument: func(*string) string",
 			goFunc: func(name *string) string {
 				if name == nil {
 					return "Hello World!"
@@ -451,7 +451,7 @@ func TestCallGoFunctionInStarlark(t *testing.T) {
 			wantErrExec: true,
 		},
 		{
-			name: "invalid pointer: func(string) *string",
+			name: "pointer as return: func(string) *string",
 			goFunc: func(name string) *string {
 				return &name
 			},
@@ -459,6 +459,8 @@ func TestCallGoFunctionInStarlark(t *testing.T) {
 sl_value = go_func("World")
 print('※ sl_value: {}({})'.format(sl_value, type(sl_value)))
 `,
+			expectResult: "World",
+			wantEqual:    true,
 		},
 		{
 			name: "func([]string) (string)",
