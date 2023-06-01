@@ -387,6 +387,26 @@ func TestCallGoFunctionInStarlark(t *testing.T) {
 			wantEqual:    true,
 		},
 		{
+			name:        "fmt.Errorf",
+			goFunc:      fmt.Errorf,
+			codeSnippet: `sl_value = go_func("maybe an error")`,
+			wantErrExec: true,
+		},
+		{
+			name:         "fmt.Sprintf",
+			goFunc:       fmt.Sprintf,
+			codeSnippet:  `sl_value = go_func("Hello %s! #%d", "World", 42)`,
+			expectResult: `Hello World! #42`,
+			wantEqual:    true,
+		},
+		{
+			name:         "strings.Repeat",
+			goFunc:       strings.Repeat,
+			codeSnippet:  `sl_value = go_func("Hello ", 3)`,
+			expectResult: `Hello Hello Hello `,
+			wantEqual:    true,
+		},
+		{
 			name: "unsupported func(chan) int",
 			goFunc: func(ch chan int) int {
 				return <-ch
