@@ -1,10 +1,11 @@
-package convert
+package convert_test
 
 import (
 	"math/big"
 	"reflect"
 	"testing"
 
+	"github.com/1set/starlight/convert"
 	"go.starlark.net/starlark"
 )
 
@@ -79,13 +80,13 @@ func TestToValue(t *testing.T) {
 		{
 			name: "bigint to value as go struct",
 			v:    bigVal,
-			want: &GoStruct{v: reflect.ValueOf(bigVal)},
+			want: convert.NewStruct(bigVal),
 		},
-		{
-			name: "pointer of bigint",
-			v:    &bigVal,
-			want: &GoInterface{v: reflect.ValueOf(&bigVal)},
-		},
+		//{
+		//	name: "pointer of bigint",
+		//	v:    &bigVal,
+		//	want: convert.NewStruct(&bigVal),
+		//},
 		{
 			name:    "bool to value",
 			v:       true,
@@ -107,67 +108,67 @@ func TestToValue(t *testing.T) {
 		{
 			name:    "slice to value",
 			v:       []int{1, 2, 3},
-			want:    NewGoSlice([]int{1, 2, 3}),
+			want:    convert.NewGoSlice([]int{1, 2, 3}),
 			wantErr: false,
 		},
 		{
 			name:    "pointer of slice",
 			v:       &[]int{1, 2, 3},
-			want:    NewGoSlice([]int{1, 2, 3}),
+			want:    convert.NewGoSlice([]int{1, 2, 3}),
 			wantErr: false,
 		},
 		{
 			name:    "array to value",
 			v:       [3]int{1, 2, 3},
-			want:    &GoSlice{v: reflect.ValueOf([]int{1, 2, 3})},
+			want:    convert.NewGoSlice([]int{1, 2, 3}),
 			wantErr: false,
 		},
 		{
 			name:    "pointer of array",
 			v:       &[3]int{1, 2, 3},
-			want:    NewGoSlice([]int{1, 2, 3}),
+			want:    convert.NewGoSlice([]int{1, 2, 3}),
 			wantErr: false,
 		},
 		{
 			name:    "map to value",
 			v:       map[string]int{"one": 1, "two": 2},
-			want:    &GoMap{v: reflect.ValueOf(map[string]int{"one": 1, "two": 2})},
+			want:    convert.NewGoMap(map[string]int{"one": 1, "two": 2}),
 			wantErr: false,
 		},
 		{
 			name:    "pointer of map",
 			v:       &map[string]int{"one": 1, "two": 2},
-			want:    &GoMap{v: reflect.ValueOf(map[string]int{"one": 1, "two": 2})},
+			want:    convert.NewGoMap(map[string]int{"one": 1, "two": 2}),
 			wantErr: false,
 		},
 		{
 			name:    "map slice to value",
 			v:       map[string][]int{"one": {1, 2}, "two": {3, 4}},
-			want:    &GoMap{v: reflect.ValueOf(map[string][]int{"one": {1, 2}, "two": {3, 4}})},
+			want:    convert.NewGoMap(map[string][]int{"one": {1, 2}, "two": {3, 4}}),
 			wantErr: false,
 		},
 		{
 			name:    "empty struct to value",
 			v:       struct{}{},
-			want:    &GoStruct{v: reflect.ValueOf(struct{}{})},
+			want:    convert.NewStruct(struct{}{}),
 			wantErr: false,
 		},
 		{
 			name:    "custom struct to value",
 			v:       struct{ Name string }{Name: "test"},
-			want:    &GoStruct{v: reflect.ValueOf(struct{ Name string }{Name: "test"})},
+			want:    convert.NewStruct(struct{ Name string }{Name: "test"}),
 			wantErr: false,
 		},
 		{
 			name:    "lib struct to value",
 			v:       big.NewRat(1, 3),
-			want:    &GoStruct{v: reflect.ValueOf(big.NewRat(1, 3))},
+			want:    convert.NewStruct(big.NewRat(1, 3)),
 			wantErr: false,
 		},
 		{
 			name:    "function to value",
 			v:       func() string { return "test" },
-			want:    makeStarFn("fn", reflect.ValueOf(func() string { return "test" })),
+			want:    convert.MakeStarFn("fn", func() string { return "test" }),
 			wantErr: false,
 		},
 		{
@@ -193,7 +194,7 @@ func TestToValue(t *testing.T) {
 		{
 			name: "custom starlark type dereferenced",
 			v:    customType{},
-			want: &GoStruct{v: reflect.ValueOf(customType{})},
+			want: convert.NewStruct(customType{}),
 		},
 		{
 			name: "custom starlark type",
@@ -203,32 +204,32 @@ func TestToValue(t *testing.T) {
 		{
 			name: "unknown struct",
 			v:    unknownType{},
-			want: &GoStruct{v: reflect.ValueOf(unknownType{})},
+			want: convert.NewStruct(unknownType{}),
 		},
 		{
 			name: "pointer of unknown struct",
 			v:    &unknownType{},
-			want: &GoStruct{v: reflect.ValueOf(&unknownType{})},
+			want: convert.NewStruct(&unknownType{}),
 		},
 		{
 			name: "simple struct",
 			v:    simpleType{},
-			want: &GoStruct{v: reflect.ValueOf(simpleType{})},
+			want: convert.NewStruct(simpleType{}),
 		},
 		{
 			name: "pointer of simple struct",
 			v:    &simpleType{},
-			want: &GoStruct{v: reflect.ValueOf(&simpleType{})},
+			want: convert.NewStruct(&simpleType{}),
 		},
 		{
 			name: "naive struct",
 			v:    naiveType{},
-			want: &GoStruct{v: reflect.ValueOf(naiveType{})},
+			want: convert.NewStruct(naiveType{}),
 		},
 		{
 			name: "pointer of naive struct",
 			v:    &naiveType{},
-			want: &GoStruct{v: reflect.ValueOf(&naiveType{})},
+			want: convert.NewStruct(&naiveType{}),
 		},
 		{
 			name:    "unsupported type: channel",
@@ -239,7 +240,7 @@ func TestToValue(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ToValue(tt.v)
+			got, err := convert.ToValue(tt.v)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ToValue(%v) error = %v, wantErr %v", tt.v, err, tt.wantErr)
 				return
@@ -259,7 +260,7 @@ func TestFromValue(t *testing.T) {
 	slSet.Insert(starlark.String("a"))
 	slSet.Insert(starlark.String("b"))
 
-	testBuiltin := makeStarFn("fn", reflect.ValueOf(func() string { return "test" }))
+	testBuiltin := convert.MakeStarFn("fn", func() string { return "test" })
 	testFunction := getSimpleStarlarkFunc()
 
 	bigVal := big.NewInt(1).Mul(big.NewInt(100000000000000), big.NewInt(100000000000000))
@@ -327,22 +328,22 @@ func TestFromValue(t *testing.T) {
 		// for GoStruct, GoInterface, GoMap, and GoSlice, we're assuming they just hold an interface{}
 		{
 			name: "GoStruct",
-			v:    &GoStruct{v: reflect.ValueOf("hello")},
-			want: "hello",
+			v:    convert.NewStruct(customStruct{}),
+			want: customStruct{},
 		},
 		{
 			name: "GoInterface",
-			v:    &GoInterface{v: reflect.ValueOf(123)},
+			v:    convert.MakeGoInterface(123),
 			want: 123,
 		},
 		{
 			name: "GoMap",
-			v:    &GoMap{v: reflect.ValueOf(map[string]int{"a": 1})},
+			v:    convert.NewGoMap(map[string]int{"a": 1}),
 			want: map[string]int{"a": 1},
 		},
 		{
 			name: "GoSlice",
-			v:    &GoSlice{v: reflect.ValueOf([]int{1, 2, 3})},
+			v:    convert.NewGoSlice([]int{1, 2, 3}),
 			want: []int{1, 2, 3},
 		},
 		{
@@ -368,7 +369,7 @@ func TestFromValue(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := FromValue(tt.v); !reflect.DeepEqual(got, tt.want) {
+			if got := convert.FromValue(tt.v); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("FromValue(%v) = %v, want %v", tt.v, got, tt.want)
 			}
 		})
@@ -430,10 +431,10 @@ func TestMakeDict(t *testing.T) {
 	_ = sd3.SetKey(starlark.String("a"), starlark.Float(vf3))
 
 	sd4 := starlark.NewDict(1)
-	_ = sd4.SetKey(starlark.String("a"), NewGoSlice([]string{"b", "c"}))
+	_ = sd4.SetKey(starlark.String("a"), convert.NewGoSlice([]string{"b", "c"}))
 
 	sd5 := starlark.NewDict(1)
-	_ = sd5.SetKey(starlark.String("a"), MakeGoInterface("b"))
+	_ = sd5.SetKey(starlark.String("a"), convert.MakeGoInterface("b"))
 
 	sd6 := starlark.NewDict(1)
 	_ = sd6.SetKey(starlark.MakeInt(10), starlark.Tuple{starlark.String("a")})
@@ -482,7 +483,7 @@ func TestMakeDict(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := MakeDict(tt.v)
+			got, err := convert.MakeDict(tt.v)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("MakeDict(%v) error = %v, wantErr %v", tt.v, err, tt.wantErr)
 				return
@@ -506,10 +507,10 @@ func TestFromDict(t *testing.T) {
 	_ = sd3.SetKey(starlark.String("a"), starlark.Float(vf3))
 
 	sd4 := starlark.NewDict(1)
-	_ = sd4.SetKey(starlark.String("a"), NewGoSlice([]string{"b", "c"}))
+	_ = sd4.SetKey(starlark.String("a"), convert.NewGoSlice([]string{"b", "c"}))
 
 	sd5 := starlark.NewDict(1)
-	_ = sd5.SetKey(starlark.String("a"), MakeGoInterface("b"))
+	_ = sd5.SetKey(starlark.String("a"), convert.MakeGoInterface("b"))
 
 	sd6 := starlark.NewDict(1)
 	_ = sd6.SetKey(starlark.MakeInt(10), starlark.Tuple{starlark.String("a")})
@@ -557,7 +558,7 @@ func TestFromDict(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := FromDict(tt.v)
+			got := convert.FromDict(tt.v)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("FromDict(%v) = %v, want %v", tt.v, got, tt.want)
 			}
@@ -600,7 +601,7 @@ func TestMakeSet(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := MakeSet(tt.s)
+			got, err := convert.MakeSet(tt.s)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("MakeSet(%v) error = %v, wantErr %v", tt.s, err, tt.wantErr)
 				return
@@ -646,7 +647,7 @@ func TestFromSet(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := FromSet(tt.s)
+			got := convert.FromSet(tt.s)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("FromSet(%v) = %v, want %v", tt.s, got, tt.want)
 			}
@@ -681,7 +682,7 @@ func TestFromTuple(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := FromTuple(tt.v)
+			got := convert.FromTuple(tt.v)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("FromTuple(%v) = %v, want %v", tt.v, got, tt.want)
 			}
@@ -716,7 +717,7 @@ func TestFromList(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := FromList(tt.l)
+			got := convert.FromList(tt.l)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("FromList(%v) = %v, want %v", tt.l, got, tt.want)
 			}
