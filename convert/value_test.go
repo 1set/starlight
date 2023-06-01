@@ -16,10 +16,11 @@ func TestToValue(t *testing.T) {
 	yes := true
 	bigVal := big.NewInt(1).Mul(big.NewInt(100000000000000), big.NewInt(100000000000000))
 	tests := []struct {
-		name    string
-		v       interface{}
-		want    starlark.Value
-		wantErr bool
+		name     string
+		v        interface{}
+		want     starlark.Value
+		wantErr  bool
+		strMatch bool
 	}{
 		{
 			name:    "nil to none",
@@ -68,25 +69,27 @@ func TestToValue(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "not big int to value",
-			v:    big.NewInt(123),
-			want: starlark.MakeInt(123),
+			name:     "not big int to value",
+			v:        big.NewInt(123),
+			want:     starlark.MakeInt(123),
+			strMatch: true,
 		},
 		{
-			name: "bigint to value",
-			v:    bigVal,
-			want: starlark.MakeBigInt(bigVal),
+			name:     "bigint to value",
+			v:        bigVal,
+			want:     starlark.MakeBigInt(bigVal),
+			strMatch: true,
 		},
 		{
 			name: "bigint to value as go struct",
 			v:    bigVal,
 			want: convert.NewStruct(bigVal),
 		},
-		//{
-		//	name: "pointer of bigint",
-		//	v:    &bigVal,
-		//	want: convert.NewStruct(&bigVal),
-		//},
+		{
+			name: "pointer of bigint",
+			v:    &bigVal,
+			want: convert.MakeGoInterface(&bigVal),
+		},
 		{
 			name:    "bool to value",
 			v:       true,
@@ -100,52 +103,60 @@ func TestToValue(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "big float to value",
-			v:       big.NewFloat(123.456),
-			want:    starlark.Float(123.456),
-			wantErr: false,
+			name:     "big float to value",
+			v:        big.NewFloat(123.456),
+			want:     starlark.Float(123.456),
+			wantErr:  false,
+			strMatch: true,
 		},
 		{
-			name:    "slice to value",
-			v:       []int{1, 2, 3},
-			want:    convert.NewGoSlice([]int{1, 2, 3}),
-			wantErr: false,
+			name:     "slice to value",
+			v:        []int{1, 2, 3},
+			want:     convert.NewGoSlice([]int{1, 2, 3}),
+			wantErr:  false,
+			strMatch: true,
 		},
 		{
-			name:    "pointer of slice",
-			v:       &[]int{1, 2, 3},
-			want:    convert.NewGoSlice([]int{1, 2, 3}),
-			wantErr: false,
+			name:     "pointer of slice",
+			v:        &[]int{1, 2, 3},
+			want:     convert.NewGoSlice([]int{1, 2, 3}),
+			wantErr:  false,
+			strMatch: true,
 		},
 		{
-			name:    "array to value",
-			v:       [3]int{1, 2, 3},
-			want:    convert.NewGoSlice([]int{1, 2, 3}),
-			wantErr: false,
+			name:     "array to value",
+			v:        [3]int{1, 2, 3},
+			want:     convert.NewGoSlice([]int{1, 2, 3}),
+			wantErr:  false,
+			strMatch: true,
 		},
 		{
-			name:    "pointer of array",
-			v:       &[3]int{1, 2, 3},
-			want:    convert.NewGoSlice([]int{1, 2, 3}),
-			wantErr: false,
+			name:     "pointer of array",
+			v:        &[3]int{1, 2, 3},
+			want:     convert.NewGoSlice([]int{1, 2, 3}),
+			wantErr:  false,
+			strMatch: true,
 		},
 		{
-			name:    "map to value",
-			v:       map[string]int{"one": 1, "two": 2},
-			want:    convert.NewGoMap(map[string]int{"one": 1, "two": 2}),
-			wantErr: false,
+			name:     "map to value",
+			v:        map[string]int{"one": 1, "two": 2},
+			want:     convert.NewGoMap(map[string]int{"one": 1, "two": 2}),
+			wantErr:  false,
+			strMatch: true,
 		},
 		{
-			name:    "pointer of map",
-			v:       &map[string]int{"one": 1, "two": 2},
-			want:    convert.NewGoMap(map[string]int{"one": 1, "two": 2}),
-			wantErr: false,
+			name:     "pointer of map",
+			v:        &map[string]int{"one": 1, "two": 2},
+			want:     convert.NewGoMap(map[string]int{"one": 1, "two": 2}),
+			wantErr:  false,
+			strMatch: true,
 		},
 		{
-			name:    "map slice to value",
-			v:       map[string][]int{"one": {1, 2}, "two": {3, 4}},
-			want:    convert.NewGoMap(map[string][]int{"one": {1, 2}, "two": {3, 4}}),
-			wantErr: false,
+			name:     "map slice to value",
+			v:        map[string][]int{"one": {1, 2}, "two": {3, 4}},
+			want:     convert.NewGoMap(map[string][]int{"one": {1, 2}, "two": {3, 4}}),
+			wantErr:  false,
+			strMatch: true,
 		},
 		{
 			name:    "empty struct to value",
@@ -154,22 +165,25 @@ func TestToValue(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "custom struct to value",
-			v:       struct{ Name string }{Name: "test"},
-			want:    convert.NewStruct(struct{ Name string }{Name: "test"}),
-			wantErr: false,
+			name:     "custom struct to value",
+			v:        struct{ Name string }{Name: "test"},
+			want:     convert.NewStruct(struct{ Name string }{Name: "test"}),
+			wantErr:  false,
+			strMatch: true,
 		},
 		{
-			name:    "lib struct to value",
-			v:       big.NewRat(1, 3),
-			want:    convert.NewStruct(big.NewRat(1, 3)),
-			wantErr: false,
+			name:     "lib struct to value",
+			v:        big.NewRat(1, 3),
+			want:     convert.NewStruct(big.NewRat(1, 3)),
+			wantErr:  false,
+			strMatch: true,
 		},
 		{
-			name:    "function to value",
-			v:       func() string { return "test" },
-			want:    convert.MakeStarFn("fn", func() string { return "test" }),
-			wantErr: false,
+			name:     "function to value",
+			v:        func() string { return "test" },
+			want:     convert.MakeStarFn("fn", func() string { return "test" }),
+			wantErr:  false,
+			strMatch: true,
 		},
 		{
 			name: "string pointer to value",
@@ -227,9 +241,10 @@ func TestToValue(t *testing.T) {
 			want: convert.NewStruct(naiveType{}),
 		},
 		{
-			name: "pointer of naive struct",
-			v:    &naiveType{},
-			want: convert.NewStruct(&naiveType{}),
+			name:     "pointer of naive struct",
+			v:        &naiveType{},
+			want:     convert.NewStruct(&naiveType{}),
+			strMatch: true,
 		},
 		{
 			name:    "unsupported type: channel",
@@ -245,7 +260,7 @@ func TestToValue(t *testing.T) {
 				t.Errorf("ToValue(%v) error = %v, wantErr %v", tt.v, err, tt.wantErr)
 				return
 			}
-			if !(reflect.DeepEqual(got, tt.want) || got.String() == tt.want.String()) {
+			if !(reflect.DeepEqual(got, tt.want) || (tt.strMatch && (got.String() == tt.want.String()))) {
 				t.Errorf("ToValue(%v) got = %v, want %v", tt.v, got, tt.want)
 			}
 		})
@@ -440,10 +455,11 @@ func TestMakeDict(t *testing.T) {
 	_ = sd6.SetKey(starlark.MakeInt(10), starlark.Tuple{starlark.String("a")})
 
 	tests := []struct {
-		name    string
-		v       interface{}
-		want    starlark.Value
-		wantErr bool
+		name     string
+		v        interface{}
+		want     starlark.Value
+		wantErr  bool
+		strMatch bool
 	}{
 		{
 			name: "map[string]string",
@@ -461,14 +477,16 @@ func TestMakeDict(t *testing.T) {
 			want: sd3,
 		},
 		{
-			name: "map[string][]string",
-			v:    map[string][]string{"a": {"b", "c"}},
-			want: sd4,
+			name:     "map[string][]string",
+			v:        map[string][]string{"a": {"b", "c"}},
+			want:     sd4,
+			strMatch: true,
 		},
 		{
-			name: "map[string]interface{}",
-			v:    map[string]interface{}{"a": "b"},
-			want: sd5,
+			name:     "map[string]interface{}",
+			v:        map[string]interface{}{"a": "b"},
+			want:     sd5,
+			strMatch: true,
 		},
 		{
 			name: "map[starlark.String]starlark.String",
@@ -488,7 +506,7 @@ func TestMakeDict(t *testing.T) {
 				t.Errorf("MakeDict(%v) error = %v, wantErr %v", tt.v, err, tt.wantErr)
 				return
 			}
-			if !(reflect.DeepEqual(got, tt.want) || got.String() == tt.want.String()) {
+			if !(reflect.DeepEqual(got, tt.want) || (tt.strMatch && (got.String() == tt.want.String()))) {
 				t.Errorf("MakeDict(%v) got = %v, want %v", tt.v, got, tt.want)
 			}
 		})
