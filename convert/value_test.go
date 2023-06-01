@@ -9,6 +9,7 @@ import (
 )
 
 func TestToValue(t *testing.T) {
+	aloha := "aloha!"
 	bigVal := big.NewInt(1).Mul(big.NewInt(100000000000000), big.NewInt(100000000000000))
 	tests := []struct {
 		name    string
@@ -68,9 +69,19 @@ func TestToValue(t *testing.T) {
 			want: starlark.MakeInt(123),
 		},
 		{
-			name: "big int to value",
+			name: "bigint to value",
 			v:    bigVal,
 			want: starlark.MakeBigInt(bigVal),
+		},
+		{
+			name: "bigint to value as go struct",
+			v:    bigVal,
+			want: &GoStruct{v: reflect.ValueOf(bigVal)},
+		},
+		{
+			name: "bigint pointer to value",
+			v:    &bigVal,
+			want: &GoInterface{v: reflect.ValueOf(&bigVal)},
 		},
 		{
 			name:    "bool to value",
@@ -138,6 +149,12 @@ func TestToValue(t *testing.T) {
 			want:    makeStarFn("fn", reflect.ValueOf(func() string { return "test" })),
 			wantErr: false,
 		},
+		{
+			name: "string pointer to value",
+			v:    &aloha,
+			want: starlark.String("<*string Value>"),
+		},
+
 		{
 			name:    "unsupported type: channel",
 			v:       make(chan int),
