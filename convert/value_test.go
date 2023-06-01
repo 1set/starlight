@@ -191,6 +191,16 @@ func TestToValue(t *testing.T) {
 			want: starlark.Float(3.141592653589793),
 		},
 		{
+			name: "custom starlark type dereferenced",
+			v:    customType{},
+			want: &GoStruct{v: reflect.ValueOf(customType{})},
+		},
+		{
+			name: "custom starlark type",
+			v:    &customType{},
+			want: &customType{},
+		},
+		{
 			name:    "unsupported type: channel",
 			v:       make(chan int),
 			want:    nil,
