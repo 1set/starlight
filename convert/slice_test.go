@@ -219,6 +219,7 @@ assert.Eq(bananas.index('s', -1000, 7), 6) # bananaS
 		{`bananas.index('s', -1000, 6)`, `index: value s not in list`},
 		{`bananas.index('d', -1000, 1000)`, `index: value d not in list`},
 		{`bananas.index([], 0, 0)`, `index: value of type []interface {} cannot be converted to type string`},
+		{`bananas.index(None, 0, 0)`, `index: value of type None cannot be converted to non-nullable type string`},
 	}
 	expectFails(t, tests, globals)
 }
