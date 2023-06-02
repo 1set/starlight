@@ -747,6 +747,7 @@ func TestCustomStructInStarlark(t *testing.T) {
 			NumberChan:    make(chan int, 10),
 			StarDict:      starlark.NewDict(10),
 		}
+		_ = p.StarDict.SetKey(starlark.String("foo"), starlark.String("bar"))
 		return p
 	}
 	noCheck := func(_ *personStruct, _ map[string]interface{}) error {
