@@ -913,7 +913,7 @@ func TestCustomStructInStarlark(t *testing.T) {
 			},
 		},
 		{
-			name:        "list fields",
+			name:        "list prop fields",
 			codeSnippet: `fields = dir(pn); out = pn`,
 			checkEqual:  getInterfaceStringSliceCompare("fields", []string{"Age", "Aging", "Anything", "Customer", "CustomerPtr", "GetSecretKey", "Labels", "MessageWriter", "Name", "NestedValues", "NilCustomer", "NilPerson", "NilString", "Nothing", "NumberChan", "Parent", "Profile", "ReadMessage", "SetCustomer", "SetSecretKey", "StarDict", "String", "buffer", "secretKey"}),
 		},
