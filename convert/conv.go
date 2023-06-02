@@ -565,7 +565,7 @@ func convertNumericTypes(value interface{}, targetType reflect.Type) interface{}
 func tryConv(v starlark.Value, t reflect.Type) (reflect.Value, error) {
 	if v == starlark.None {
 		switch t.Kind() {
-		case reflect.Ptr, reflect.Slice, reflect.Map, reflect.Interface, reflect.Chan, reflect.Func:
+		case reflect.Ptr, reflect.Slice, reflect.Map, reflect.Interface, reflect.Func:
 			return reflect.Zero(t), nil
 		default:
 			return reflect.Value{}, fmt.Errorf("value of type None cannot be converted to non-nullable type %s", t)
