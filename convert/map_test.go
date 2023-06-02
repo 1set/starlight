@@ -155,6 +155,12 @@ a = x9["a"]
 	expectErr(t, err, `key "a" not in starlight_map<map[string]int>`)
 
 	code = []byte(`
+x9["a"] = "aloha"
+`)
+	_, err = starlight.Eval(code, globals, nil)
+	expectErr(t, err, `reflect.Value.SetMapIndex: value of type string is not assignable to type int`)
+
+	code = []byte(`
 x9["a"] = 1
 assert.Eq(x9["a"], 1)
 assert.Eq(x9, toMap({"a": 1}))

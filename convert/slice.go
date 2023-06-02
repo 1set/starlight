@@ -89,7 +89,10 @@ func (g *GoSlice) SetIndex(index int, v starlark.Value) error {
 	if err := g.checkMutable("assign to"); err != nil {
 		return err
 	}
-	val := conv(v, g.v.Type().Elem())
+	val, err := tryConv(v, g.v.Type().Elem())
+	if err != nil {
+		return fmt.Errorf("set index: %v", err)
+	}
 	g.v.Index(index).Set(val)
 	return nil
 }
@@ -248,7 +251,10 @@ func list_extend(fnname string, g *GoSlice, args starlark.Tuple, kwargs []starla
 	it := iterable.Iterate()
 	defer it.Done()
 	for it.Next(&val) {
-		v := conv(val, g.v.Type().Elem())
+		v, err := tryConv(val, g.v.Type().Elem())
+		if err != nil {
+			return nil, fmt.Errorf("extend: %v", err)
+		}
 		g.v = reflect.Append(g.v, v)
 	}
 
@@ -270,7 +276,12 @@ func list_index(fnname string, g *GoSlice, args starlark.Tuple, kwargs []starlar
 	case 1:
 		// ok
 	}
-	value := conv(args[0], g.v.Type().Elem())
+
+	value, err := tryConv(args[0], g.v.Type().Elem())
+	if err != nil {
+		return nil, fmt.Errorf("index: %v", err)
+	}
+
 	start, end, err := indices(start_, end_, g.v.Len())
 	if err != nil {
 		return nil, fmt.Errorf("%s: %s", fnname, err)

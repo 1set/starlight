@@ -59,8 +59,11 @@ assert.Eq(abc[2], "c")
 	tests := []fail{
 		{"abc[3]", "starlight_slice<[]string> index 3 out of range [-3:2]"},
 		{"abc[-4]", "starlight_slice<[]string> index -4 out of range [-3:2]"},
+		{"abc[0.0]", "starlight_slice<[]string> index: got float, want int"},
+		{`abc["a"]`, "starlight_slice<[]string> index: got string, want int"},
+		{"abc[0, 1]", "starlight_slice<[]string> index: got tuple, want int"},
+		{`abc[0] = True`, "set index: value of type bool cannot be converted to type string"},
 	}
-
 	expectFails(t, tests, globals)
 }
 
@@ -149,6 +152,12 @@ assert.Eq(x3, intSlice([1, 2, 3, 4, 5, 6]))
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	code = []byte(`x3.append("test")`)
+	_, err = starlight.Eval(code, globals, nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
 }
 
 func TestSliceExtend(t *testing.T) {
@@ -167,6 +176,12 @@ assert.Eq(x3, intSlice([1, 2, 3, 4, 5, 6]))
 	_, err := starlight.Eval(code, globals, nil)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	code = []byte(`x3.extend("test")`)
+	_, err = starlight.Eval(code, globals, nil)
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }
 
@@ -203,6 +218,7 @@ assert.Eq(bananas.index('s', -1000, 7), 6) # bananaS
 		{`bananas.index('d')`, `index: value d not in list`},
 		{`bananas.index('s', -1000, 6)`, `index: value s not in list`},
 		{`bananas.index('d', -1000, 1000)`, `index: value d not in list`},
+		{`bananas.index([], 0, 0)`, `index: value of type []interface {} cannot be converted to type string`},
 	}
 	expectFails(t, tests, globals)
 }
