@@ -63,6 +63,7 @@ assert.Eq(abc[2], "c")
 		{`abc["a"]`, "starlight_slice<[]string> index: got string, want int"},
 		{"abc[0, 1]", "starlight_slice<[]string> index: got tuple, want int"},
 		{`abc[0] = True`, "set index: value of type bool cannot be converted to type string"},
+		{`abc[None]`, "starlight_slice<[]string> index: got NoneType, want int"},
 	}
 	expectFails(t, tests, globals)
 }
