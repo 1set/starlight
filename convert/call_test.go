@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/big"
 	"reflect"
 	"strings"
 	"testing"
@@ -131,6 +132,16 @@ def test():
 		fail('go_value is not 123')
 test()
 `,
+		},
+		{
+			name:        "float",
+			goValue:     123.456,
+			codeSnippet: `assert.Equal(123.456, go_value)`,
+		},
+		{
+			name:        "bigint",
+			goValue:     big.NewInt(1234567890),
+			codeSnippet: `assert.Equal(1234567890, go_value.Int64())`,
 		},
 		{
 			name:    "string",
