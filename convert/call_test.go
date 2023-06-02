@@ -745,6 +745,7 @@ func TestCustomStructInStarlark(t *testing.T) {
 			MessageWriter: b,
 			ReadMessage:   b.String,
 			NumberChan:    make(chan int, 10),
+			StarDict:      starlark.NewDict(10),
 		}
 		return p
 	}
@@ -914,7 +915,7 @@ func TestCustomStructInStarlark(t *testing.T) {
 		{
 			name:        "list fields",
 			codeSnippet: `fields = dir(pn); out = pn`,
-			checkEqual:  getInterfaceStringSliceCompare("fields", []string{"Age", "Aging", "Anything", "Customer", "CustomerPtr", "GetSecretKey", "Labels", "MessageWriter", "Name", "NestedValues", "NilCustomer", "NilPerson", "NilString", "Nothing", "NumberChan", "Parent", "Profile", "ReadMessage", "SetCustomer", "SetSecretKey", "String", "buffer", "secretKey"}),
+			checkEqual:  getInterfaceStringSliceCompare("fields", []string{"Age", "Aging", "Anything", "Customer", "CustomerPtr", "GetSecretKey", "Labels", "MessageWriter", "Name", "NestedValues", "NilCustomer", "NilPerson", "NilString", "Nothing", "NumberChan", "Parent", "Profile", "ReadMessage", "SetCustomer", "SetSecretKey", "StarDict", "String", "buffer", "secretKey"}),
 		},
 		{
 			name:        "read slice of string",
@@ -1177,6 +1178,41 @@ val = pn.ReadMessage()
 			checkEqual: getStringCompare("val", "Mahalo!"),
 		},
 		{
+			name:        "use original starlark dict",
+			codeSnippet: `out = pn; pn.StarDict["Hello"] = [42, 1000]; val = pn.StarDict["Hello"]`,
+			checkEqual: func(p *personStruct, m map[string]interface{}) error {
+				// check exported value
+				if v, ok := m["val"]; !ok {
+					return fmt.Errorf(`missing "val" in globals`)
+				} else if p, ok := v.([]interface{}); !ok {
+					return fmt.Errorf("mistype for val, want: []interface{}, got: %T", p)
+				} else {
+					vals := []int64{42, 1000}
+					if len(vals) != len(p) {
+						return fmt.Errorf("diff length of slice: want: %d, got: %d", len(vals), len(p))
+					}
+					for i := range vals {
+						e := vals[i]
+						a := p[i].(int64)
+						if e != a {
+							return fmt.Errorf("diff value of element[%d]: want: %d, got: %d", i, e, a)
+						}
+					}
+				}
+
+				// check original value
+				name := "Hello"
+				if v, found, err := p.StarDict.Get(starlark.String(name)); err != nil {
+					return fmt.Errorf("fail to get value %q from dict: %v", name, err)
+				} else if !found {
+					return fmt.Errorf("target value %q is missing from dict", name)
+				} else if v.Type() != "list" {
+					return fmt.Errorf("got wrong value type: want: list, got: %s", v.Type())
+				}
+				return nil
+			},
+		},
+		{
 			name: "Test!!!!",
 			codeSnippet: `
 print(pn)
@@ -1254,6 +1290,7 @@ type personStruct struct {
 	NilCustomer   *customStruct                `starlark:"nil_custom"`
 	NilPerson     *personStruct                `starlark:"nil_person"`
 	buffer        bytes.Buffer                 `starlark:"-"`
+	StarDict      *starlark.Dict               `starlark:"dict"`
 }
 
 func (p *personStruct) String() string {
