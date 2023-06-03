@@ -62,14 +62,21 @@ func (g *GoMap) SetKey(k, v starlark.Value) (err error) {
 
 // Get implements starlark.Mapping.
 func (g *GoMap) Get(in starlark.Value) (out starlark.Value, found bool, err error) {
-	v := g.v.MapIndex(conv(in, g.v.Type().Key()))
+	//v := g.v.MapIndex(conv(in, g.v.Type().Key()))
+	key, err := tryConv(in, g.v.Type().Key())
+	if err != nil {
+		return nil, false, fmt.Errorf("get: %v", err)
+	}
+	v := g.v.MapIndex(key)
 	if v.Kind() == reflect.Invalid {
 		return starlark.None, false, nil
 	}
+
 	val, err := toValue(v)
 	if err != nil {
 		return nil, false, err
 	}
+
 	return val, true, nil
 }
 

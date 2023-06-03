@@ -5,9 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/1set/starlight/convert"
-
 	"github.com/1set/starlight"
+	"github.com/1set/starlight/convert"
 	"go.starlark.net/starlark"
 )
 
@@ -197,6 +196,14 @@ x9["a"] = 3
 
 	_, err = starlight.Eval(code, map[string]interface{}{"x9": v}, nil)
 	expectErr(t, err, `cannot insert into frozen map`)
+
+	code = []byte(`x9[True]`)
+	_, err = starlight.Eval(code, map[string]interface{}{"x9": v}, nil)
+	expectErr(t, err, `get: value of type bool cannot be converted to type string`)
+
+	code = []byte(`x9[None]`)
+	_, err = starlight.Eval(code, map[string]interface{}{"x9": v}, nil)
+	expectErr(t, err, `get: value of type None cannot be converted to non-nullable type string`)
 }
 
 func expectErr(t *testing.T, err error, expected string) {
