@@ -138,7 +138,10 @@ func (g *GoMap) Delete(k starlark.Value) (v starlark.Value, found bool, err erro
 	if g.numIt > 0 {
 		return nil, false, fmt.Errorf("cannot delete from map during iteration")
 	}
-	key := conv(k, g.v.Type().Key())
+	key, err := tryConv(k, g.v.Type().Key())
+	if err != nil {
+		return nil, false, fmt.Errorf("delete: %v", err)
+	}
 	return g.delete(key)
 }
 

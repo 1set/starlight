@@ -196,14 +196,6 @@ x9["a"] = 3
 
 	_, err = starlight.Eval(code, map[string]interface{}{"x9": v}, nil)
 	expectErr(t, err, `cannot insert into frozen map`)
-
-	code = []byte(`x9[True]`)
-	_, err = starlight.Eval(code, map[string]interface{}{"x9": v}, nil)
-	expectErr(t, err, `get: value of type bool cannot be converted to type string`)
-
-	code = []byte(`x9[None]`)
-	_, err = starlight.Eval(code, map[string]interface{}{"x9": v}, nil)
-	expectErr(t, err, `get: value of type None cannot be converted to non-nullable type string`)
 }
 
 func expectErr(t *testing.T, err error, expected string) {
@@ -232,6 +224,14 @@ assert.Eq(x10.get("b", 2), 2)
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	code = []byte(`x10[True]`)
+	_, err = starlight.Eval(code, map[string]interface{}{"x10": x10}, nil)
+	expectErr(t, err, `get: value of type bool cannot be converted to type string`)
+
+	code = []byte(`x10[None]`)
+	_, err = starlight.Eval(code, map[string]interface{}{"x10": x10}, nil)
+	expectErr(t, err, `get: value of type None cannot be converted to non-nullable type string`)
 }
 
 func TestMapClear(t *testing.T) {
