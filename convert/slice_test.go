@@ -375,9 +375,13 @@ func TestSliceUnsupportedType(t *testing.T) {
 	_, err := starlight.Eval(code, globals, nil)
 	expectErr(t, err, "append: value of type int64 cannot be converted to type chan int")
 
-	code = []byte(`val = s2[0]`)
+	code = []byte(`val = s2[]`)
 	_, err = starlight.Eval(code, globals, nil)
-	expectErr(t, err, "index: value of type chan int cannot be converted to type int64")
+	expectErr(t, err, "eval.sky:1:11: got ']', want primary expression")
+
+	code = []byte(`val = s2["foo"]`)
+	_, err = starlight.Eval(code, globals, nil)
+	expectErr(t, err, "starlight_slice<[]chan int> index: got string, want int")
 }
 
 // func TestSlicePlus(t *testing.T) {

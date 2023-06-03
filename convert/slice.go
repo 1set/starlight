@@ -77,6 +77,7 @@ func (g *GoSlice) Clear() error {
 	return nil
 }
 
+// Index implements starlark.Indexable.
 func (g *GoSlice) Index(i int) starlark.Value {
 	v, err := toValue(g.v.Index(i))
 	if err != nil {
