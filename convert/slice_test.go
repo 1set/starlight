@@ -163,7 +163,6 @@ assert.Eq(x3, intSlice([1, 2, 3, 4, 5, 6]))
 
 func TestSliceExtend(t *testing.T) {
 	x3 := []int{1, 2, 3}
-
 	globals := map[string]interface{}{
 		"assert":   &assert{t: t},
 		"x3":       x3,
@@ -181,9 +180,11 @@ assert.Eq(x3, intSlice([1, 2, 3, 4, 5, 6]))
 
 	code = []byte(`x3.extend("test")`)
 	_, err = starlight.Eval(code, globals, nil)
-	if err == nil {
-		t.Fatal("expected error")
-	}
+	expectErr(t, err, "argument is not iterable: test(starlark.String)")
+
+	code = []byte(`x3.extend(["a", "b", "c"])`)
+	_, err = starlight.Eval(code, globals, nil)
+	expectErr(t, err, "extend: value of type string cannot be converted to type int")
 }
 
 func TestSliceIndex(t *testing.T) {
@@ -226,7 +227,6 @@ assert.Eq(bananas.index('s', -1000, 7), 6) # bananaS
 }
 
 func TestSliceInsert(t *testing.T) {
-
 	globals := map[string]interface{}{
 		"assert":   &assert{t: t},
 		"intSlice": intSlice,
@@ -250,10 +250,13 @@ assert.Eq(insert_at( 4), intSlice([0, 1, 2, 42]))
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	code = []byte(`intSlice([0,1,2]).insert(0, "test")`)
+	_, err = starlight.Eval(code, globals, nil)
+	expectErr(t, err, `insert: value of type string cannot be converted to type int`)
 }
 
 func TestSliceRemove(t *testing.T) {
-
 	globals := map[string]interface{}{
 		"assert":   &assert{t: t},
 		"intSlice": intSlice,
