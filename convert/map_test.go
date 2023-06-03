@@ -503,17 +503,25 @@ f()
 func TestMapUnsupportedType(t *testing.T) {
 	globals := map[string]interface{}{
 		"assert": &assert{t: t},
-		"m1":     map[chan int]int{},
-		"m2":     map[int]chan string{},
+		"m1":     map[chan int]int{make(chan int): 2},
+		"m2":     map[int]chan string{2: make(chan string)},
 	}
 
 	code := []byte(`m1[1] = 1`)
 	_, err := starlight.Eval(code, globals, nil)
 	expectErr(t, err, "setkey key: value of type int64 cannot be converted to type chan int")
 
+	code = []byte(`val = m1[2]`)
+	_, err = starlight.Eval(code, globals, nil)
+	expectErr(t, err, "get: value of type int64 cannot be converted to type chan int")
+
 	code = []byte(`m2[1] = "test"`)
 	_, err = starlight.Eval(code, globals, nil)
 	expectErr(t, err, "setkey value: value of type string cannot be converted to type chan string")
+
+	code = []byte(`val = m2[2]`)
+	_, err = starlight.Eval(code, globals, nil)
+	expectErr(t, err, "type chan string is not a supported starlark type")
 }
 
 // intMap converts from a starlark-created map to a map[int]int
