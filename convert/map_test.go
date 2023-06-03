@@ -165,11 +165,9 @@ a = x9["a"]
 	_, err := starlight.Eval(code, globals, nil)
 	expectErr(t, err, `key "a" not in starlight_map<map[string]int>`)
 
-	code = []byte(`
-x9["a"] = "aloha"
-`)
+	code = []byte(`x9["a"] = "aloha"`)
 	_, err = starlight.Eval(code, globals, nil)
-	expectErr(t, err, `reflect.Value.SetMapIndex: value of type string is not assignable to type int`)
+	expectErr(t, err, `setkey value: value of type string cannot be converted to type int`)
 
 	code = []byte(`
 x9["a"] = 1
@@ -194,7 +192,15 @@ setIndex(x9, [], 2)
 `)
 
 	_, err = starlight.Eval(code, globals, nil)
-	expectErr(t, err, `reflect.Value.SetMapIndex: value of type []interface {} is not assignable to type string`)
+	expectErr(t, err, `setkey key: value of type []interface {} cannot be converted to type string`)
+
+	code = []byte(`x9[True] = 1314`)
+	_, err = starlight.Eval(code, globals, nil)
+	expectErr(t, err, `setkey key: value of type bool cannot be converted to type string`)
+
+	code = []byte(`x9["a"] = "aloha"`)
+	_, err = starlight.Eval(code, globals, nil)
+	expectErr(t, err, `setkey value: value of type string cannot be converted to type int`)
 
 	v, err := convert.ToValue(x9)
 	if err != nil {

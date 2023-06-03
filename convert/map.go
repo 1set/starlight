@@ -54,8 +54,18 @@ func (g *GoMap) SetKey(k, v starlark.Value) (err error) {
 		}
 	}()
 
-	key := conv(k, g.v.Type().Key())
-	val := conv(v, g.v.Type().Elem())
+	//key := conv(k, g.v.Type().Key())
+	//val := conv(v, g.v.Type().Elem())
+	key, err := tryConv(k, g.v.Type().Key())
+	if err != nil {
+		return fmt.Errorf("setkey key: %v", err)
+	}
+
+	val, err := tryConv(v, g.v.Type().Elem())
+	if err != nil {
+		return fmt.Errorf("setkey value: %v", err)
+	}
+
 	g.v.SetMapIndex(key, val)
 	return nil
 }
