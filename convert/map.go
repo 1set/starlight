@@ -41,24 +41,10 @@ func (g *GoMap) SetKey(k, v starlark.Value) (err error) {
 		return fmt.Errorf("cannot insert into map during iteration")
 	}
 
-	// if you set something funky on the map, it'll panic, so we recover it here.
-	defer func() {
-		r := recover()
-		if r == nil {
-			return
-		}
-		if e, ok := r.(error); ok {
-			err = e
-		} else {
-			err = fmt.Errorf("%v", r)
-		}
-	}()
-
 	key, err := tryConv(k, g.v.Type().Key())
 	if err != nil {
 		return fmt.Errorf("setkey key: %v", err)
 	}
-
 	val, err := tryConv(v, g.v.Type().Elem())
 	if err != nil {
 		return fmt.Errorf("setkey value: %v", err)
