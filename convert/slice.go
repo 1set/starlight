@@ -312,7 +312,6 @@ func list_insert(fnname string, g *GoSlice, args starlark.Tuple, kwargs []starla
 		index += g.v.Len()
 	}
 
-	//val := conv(args[1], g.v.Type().Elem())
 	val, err := tryConv(args[1], g.v.Type().Elem())
 	if err != nil {
 		return starlark.None, fmt.Errorf("slice insert: %v", err)
@@ -339,7 +338,12 @@ func list_remove(fnname string, g *GoSlice, args starlark.Tuple, kwargs []starla
 		return nil, err
 	}
 
-	v := conv(args[0], g.v.Type().Elem()).Interface()
+	val, err := tryConv(args[0], g.v.Type().Elem())
+	if err != nil {
+		return nil, fmt.Errorf("slice remove: %v", err)
+	}
+	v := val.Interface()
+
 	for i := 0; i < g.v.Len(); i++ {
 		elem := g.v.Index(i)
 		if reflect.DeepEqual(elem.Interface(), v) {

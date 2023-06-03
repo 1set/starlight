@@ -276,6 +276,10 @@ assert.Eq(remove(4), intSlice([3, 1, 1]))
 	code = []byte(`intSlice([3, 1, 4, 1]).remove(42)`)
 	_, err = starlight.Eval(code, globals, nil)
 	expectErr(t, err, "remove: element 42 not found")
+
+	code = []byte(`intSlice([3, 1, 4, 1]).remove(True)`)
+	_, err = starlight.Eval(code, globals, nil)
+	expectErr(t, err, "slice remove: value of type bool cannot be converted to type int")
 }
 
 func TestSliceIteratorInvalidation(t *testing.T) {
