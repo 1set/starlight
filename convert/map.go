@@ -54,8 +54,6 @@ func (g *GoMap) SetKey(k, v starlark.Value) (err error) {
 		}
 	}()
 
-	//key := conv(k, g.v.Type().Key())
-	//val := conv(v, g.v.Type().Elem())
 	key, err := tryConv(k, g.v.Type().Key())
 	if err != nil {
 		return fmt.Errorf("setkey key: %v", err)
@@ -458,15 +456,4 @@ func updateDict(dict *GoMap, updates starlark.Tuple, kwargs []starlark.Tuple) er
 	}
 
 	return nil
-}
-
-// Deprecated: conv tries to convert v to t if v is not assignable to t.
-func conv(v starlark.Value, t reflect.Type) reflect.Value {
-	out := reflect.ValueOf(FromValue(v))
-	if !out.Type().AssignableTo(t) {
-		if out.Type().ConvertibleTo(t) {
-			return out.Convert(t)
-		}
-	}
-	return out
 }
