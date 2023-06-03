@@ -364,6 +364,22 @@ assert.Eq(x4, intSlice([3,4]))
 	}
 }
 
+func TestSliceUnsupportedType(t *testing.T) {
+	globals := map[string]interface{}{
+		"assert": &assert{t: t},
+		"s1":     []chan int{},
+		"s2":     []chan int{make(chan int), make(chan int, 1), make(chan int, 2)},
+	}
+
+	code := []byte(`s1.append(1)`)
+	_, err := starlight.Eval(code, globals, nil)
+	expectErr(t, err, "append: value of type int64 cannot be converted to type chan int")
+
+	code = []byte(`val = s2[0]`)
+	_, err = starlight.Eval(code, globals, nil)
+	expectErr(t, err, "index: value of type chan int cannot be converted to type int64")
+}
+
 // func TestSlicePlus(t *testing.T) {
 // 	x := []int{1, 2, 3}
 
