@@ -114,8 +114,11 @@ func TestMakeNamedList(t *testing.T) {
 }
 
 type contact struct {
-	Name string
-	age  int
+	Name        string
+	age         int
+	PhoneNumber string `starlark:"phone"`
+	Secret      int    `starlark:"-"`
+	Empty       int    `starlark:""`
 }
 
 func (c contact) Foo()  {}
@@ -131,7 +134,7 @@ func TestStructAttrNames(t *testing.T) {
 	c := &contact{}
 	s := NewStruct(c)
 	names := s.AttrNames()
-	expected := []string{"Name", "age", "Foo", "Bar"}
+	expected := []string{"Name", "Foo", "phone", "Empty", "Bar"}
 	for _, s := range names {
 		if !contains(expected, s) {
 			t.Errorf("output contains extra value %q", s)
@@ -143,6 +146,49 @@ func TestStructAttrNames(t *testing.T) {
 		}
 	}
 	t.Logf("%q", names)
+}
+
+func TestStructAttr(t *testing.T) {
+	c := &contact{
+		Name:        "bob",
+		PhoneNumber: "123",
+	}
+	s := NewStruct(c)
+	envs := map[string]starlark.Value{
+		"contact": s,
+	}
+
+	code := []byte(`
+name = contact.Name
+phone = contact.phone
+`)
+
+	thread := &starlark.Thread{
+		Name: "test",
+	}
+
+	// read the value
+	globals, err := starlark.ExecFile(thread, "foo.star", code, envs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := FromStringDict(globals)
+	if v["name"] != "bob" {
+		t.Errorf("expected name to be bob, but got %q", v["name"])
+	}
+	if v["phone"] != "123" {
+		t.Errorf("expected phone to be 123, but got %q", v["phone"])
+	}
+
+	// set the value
+	code = []byte(`
+contact.Name = "alice"
+contact.phone = "456"
+`)
+	globals, err = starlark.ExecFile(thread, "foo.star", code, envs)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func contains(list []string, s string) bool {

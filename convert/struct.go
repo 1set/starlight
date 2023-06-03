@@ -8,8 +8,13 @@ import (
 	"go.starlark.net/starlark"
 )
 
+var (
+	// DefaultPropertyTag is the default struct tag to use when converting
+	DefaultPropertyTag = "starlark"
+)
+
 // NewStruct makes a new starlark-compatible Struct from the given struct or
-// pointer to struct.  This will panic if you pass it anything else.
+// pointer to struct. This will panic if you pass it anything else.
 func NewStruct(strct interface{}) *GoStruct {
 	val := reflect.ValueOf(strct)
 	if val.Kind() == reflect.Struct || (val.Kind() == reflect.Ptr && val.Elem().Kind() == reflect.Struct) {
@@ -18,61 +23,125 @@ func NewStruct(strct interface{}) *GoStruct {
 	panic(fmt.Errorf("value must be a struct or pointer to a struct, but was %T", val.Interface()))
 }
 
+// NewStructWithTag makes a new starlark-compatible Struct from the given struct
+// or pointer to struct, using the given struct tag to determine which fields to
+// expose. This will panic if you pass it anything else.
+func NewStructWithTag(strct interface{}, tag string) *GoStruct {
+	val := reflect.ValueOf(strct)
+	if val.Kind() == reflect.Struct || (val.Kind() == reflect.Ptr && val.Elem().Kind() == reflect.Struct) {
+		if tag == "" {
+			tag = DefaultPropertyTag
+		}
+		return &GoStruct{v: val, tag: tag}
+	}
+	panic(fmt.Errorf("value must be a struct or pointer to a struct, but was %T", val.Interface()))
+}
+
 // GoStruct is a wrapper around a Go struct to let it be manipulated by starlark
 // scripts.
 type GoStruct struct {
-	v reflect.Value
+	v   reflect.Value
+	tag string
 }
 
-// Attr returns a starlark value that wraps the method or field with the given
-// name.
+// Attr returns a starlark value that wraps the method or field with the given name.
 func (g *GoStruct) Attr(name string) (starlark.Value, error) {
+	// check for its methods and its pointer's methods
 	method := g.v.MethodByName(name)
-	if method.Kind() != reflect.Invalid {
+	if method.Kind() != reflect.Invalid && method.CanInterface() {
 		return makeStarFn(name, method), nil
 	}
 	v := g.v
 	if g.v.Kind() == reflect.Ptr {
 		v = v.Elem()
 		method = g.v.MethodByName(name)
-		if method.Kind() != reflect.Invalid {
+		if method.Kind() != reflect.Invalid && method.CanInterface() {
 			return makeStarFn(name, method), nil
 		}
 	}
-	field := v.FieldByName(name)
-	if field.Kind() != reflect.Invalid {
+
+	// check for properties
+	var (
+		field reflect.Value
+		found bool
+	)
+
+	// check each field
+	tagName := g.tagName()
+	t := v.Type()
+	for i := 0; i < v.NumField(); i++ {
+		tag, ok := extractTagOrFieldName(t.Field(i), tagName)
+		if !ok {
+			continue
+		}
+
+		// check if the tag name matches the given name
+		if tag == name {
+			field = v.Field(i)
+			found = true
+			break
+		}
+	}
+
+	// return the field if found
+	if found && field.Kind() != reflect.Invalid {
 		return toValue(field)
 	}
+
+	// for not found
 	return nil, nil
 }
 
 // AttrNames returns the list of all fields and methods on this struct.
 func (g *GoStruct) AttrNames() []string {
-	count := g.v.NumMethod()
-	if g.v.Kind() == reflect.Ptr {
-		elem := g.v.Elem()
+	// count the number of methods and fields
+	v := g.v
+	count := v.NumMethod()
+	if v.Kind() == reflect.Ptr {
+		elem := v.Elem()
 		count += elem.NumField() + elem.NumMethod()
 	} else {
-		count += g.v.NumField()
+		count += v.NumField()
 	}
 	names := make([]string, 0, count)
-	for i := 0; i < g.v.NumMethod(); i++ {
-		names = append(names, g.v.Type().Method(i).Name)
+
+	// get the defined tag name
+	tagName := g.tagName()
+	saveFieldName := func(f reflect.StructField) {
+		tag, ok := extractTagOrFieldName(f, tagName)
+		if ok {
+			names = append(names, tag)
+		}
 	}
-	if g.v.Kind() == reflect.Ptr {
-		t := g.v.Elem().Type()
+
+	// check each methods and fields
+	for i := 0; i < v.NumMethod(); i++ {
+		names = append(names, v.Type().Method(i).Name)
+	}
+	if v.Kind() == reflect.Ptr {
+		t := v.Elem().Type()
 		for i := 0; i < t.NumField(); i++ {
-			names = append(names, t.Field(i).Name)
+			saveFieldName(t.Field(i))
 		}
 		for i := 0; i < t.NumMethod(); i++ {
 			names = append(names, t.Method(i).Name)
 		}
 	} else {
-		for i := 0; i < g.v.NumField(); i++ {
-			names = append(names, g.v.Type().Field(i).Name)
+		for i := 0; i < v.NumField(); i++ {
+			saveFieldName(v.Type().Field(i))
 		}
 	}
-	return names
+
+	// deduplicate names
+	nn := make([]string, 0, len(names))
+	ns := make(map[string]struct{}, len(names))
+	for _, n := range names {
+		if _, ok := ns[n]; !ok {
+			nn = append(nn, n)
+			ns[n] = struct{}{}
+		}
+	}
+	return nn
 }
 
 // SetField sets the struct field with the given name with the given value.
@@ -81,7 +150,36 @@ func (g *GoStruct) SetField(name string, val starlark.Value) error {
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
 	}
-	field := v.FieldByName(name)
+
+	// check for properties
+	var (
+		field reflect.Value
+		found bool
+	)
+
+	// check each field to find the field
+	tagName := g.tagName()
+	t := v.Type()
+	for i := 0; i < v.NumField(); i++ {
+		tag, ok := extractTagOrFieldName(t.Field(i), tagName)
+		if !ok {
+			continue
+		}
+
+		// check if the tag name matches the given name
+		if tag == name {
+			field = v.Field(i)
+			found = true
+			break
+		}
+	}
+
+	// if not found
+	if !found {
+		return fmt.Errorf("field %s is not found", name)
+	}
+
+	// try to set the field
 	if field.CanSet() {
 		val, err := tryConv(val, field.Type())
 		if err != nil {
@@ -127,4 +225,37 @@ func (g *GoStruct) Truth() starlark.Bool {
 // contains a non-hashable value.
 func (g *GoStruct) Hash() (uint32, error) {
 	return 0, errors.New("starlight_struct is not hashable")
+}
+
+func (g *GoStruct) tagName() string {
+	if g.tag == "" {
+		return DefaultPropertyTag
+	}
+	return g.tag
+}
+
+func extractTagOrFieldName(f reflect.StructField, tagName string) (name string, found bool) {
+	if f.PkgPath != "" {
+		// Skip unexported fields
+		return
+	}
+
+	var tag string
+	if tagName != "" {
+		// get the tag value by name
+		tag = f.Tag.Get(tagName)
+		if tag == "-" {
+			// Skip fields with tag "-"
+			return
+		}
+	}
+	if tag == "" {
+		// If both custom and default tag name are empty, just use the field name
+		// If no related tag is defined or as empty, use the field name
+		name = f.Name
+	} else {
+		name = tag
+	}
+	found = true
+	return
 }
