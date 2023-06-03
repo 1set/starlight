@@ -43,6 +43,18 @@ x6.pop("c")
 `)
 	_, err = starlight.Eval(code, globals, nil)
 	expectErr(t, err, "pop: missing key")
+
+	code = []byte(`x6.pop()`)
+	_, err = starlight.Eval(code, globals, nil)
+	expectErr(t, err, "pop: got 0 arguments, want 1 or 2")
+
+	code = []byte(`x6.pop("a", "b", "c")`)
+	_, err = starlight.Eval(code, globals, nil)
+	expectErr(t, err, "pop: got 3 arguments, want 1 or 2")
+
+	code = []byte(`x6.pop(None)`)
+	_, err = starlight.Eval(code, globals, nil)
+	expectErr(t, err, "delete: value of type None cannot be converted to non-nullable type string")
 }
 
 func TestMapPopItem(t *testing.T) {
