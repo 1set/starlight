@@ -272,9 +272,7 @@ assert.Eq(x10.get("b", 2), 2)
 }
 
 func TestMapClear(t *testing.T) {
-
 	x11 := map[string]int{"a": 1}
-
 	var isIn *bool
 	record := func(b bool) {
 		isIn = &b
@@ -500,6 +498,22 @@ f()
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestMapUnsupportedType(t *testing.T) {
+	globals := map[string]interface{}{
+		"assert": &assert{t: t},
+		"m1":     map[chan int]int{},
+		"m2":     map[int]chan string{},
+	}
+
+	code := []byte(`m1[1] = 1`)
+	_, err := starlight.Eval(code, globals, nil)
+	expectErr(t, err, "setkey key: value of type int64 cannot be converted to type chan int")
+
+	code = []byte(`m2[1] = "test"`)
+	_, err = starlight.Eval(code, globals, nil)
+	expectErr(t, err, "setkey value: value of type string cannot be converted to type chan string")
 }
 
 // intMap converts from a starlark-created map to a map[int]int
