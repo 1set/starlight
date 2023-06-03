@@ -95,6 +95,7 @@ func TestStructWithCustomTag(t *testing.T) {
 	code := []byte(`
 a = m.love
 m.love = "bye!"
+print(dir(m))
 `)
 	res, err := starlight.Eval(code, globals, nil)
 	if err != nil {
