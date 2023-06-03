@@ -245,7 +245,7 @@ func list_extend(fnname string, g *GoSlice, args starlark.Tuple, kwargs []starla
 	}
 	iterable, ok := args[0].(starlark.Iterable)
 	if !ok {
-		return nil, fmt.Errorf("argument is not iterable: %#v(%T)", args[0], args[0])
+		return nil, fmt.Errorf("argument is not iterable: %#v (%T)", args[0], args[0])
 	}
 
 	var val starlark.Value

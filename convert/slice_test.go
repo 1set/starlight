@@ -180,7 +180,7 @@ assert.Eq(x3, intSlice([1, 2, 3, 4, 5, 6]))
 
 	code = []byte(`x3.extend("test")`)
 	_, err = starlight.Eval(code, globals, nil)
-	expectErr(t, err, "argument is not iterable: test(starlark.String)")
+	expectErr(t, err, "argument is not iterable: test (starlark.String)")
 
 	code = []byte(`x3.extend(["a", "b", "c"])`)
 	_, err = starlight.Eval(code, globals, nil)
