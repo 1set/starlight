@@ -91,7 +91,7 @@ func (g *GoSlice) SetIndex(index int, v starlark.Value) error {
 	}
 	val, err := tryConv(v, g.v.Type().Elem())
 	if err != nil {
-		return fmt.Errorf("slice index: %v", err)
+		return fmt.Errorf("index: %v", err)
 	}
 	g.v.Index(index).Set(val)
 	return nil
@@ -221,7 +221,7 @@ func list_append(fnname string, g *GoSlice, args starlark.Tuple, kwargs []starla
 	}
 	v, err := tryConv(args[0], g.v.Type().Elem())
 	if err != nil {
-		return nil, fmt.Errorf("slice append: %v", err)
+		return nil, fmt.Errorf("append: %v", err)
 	}
 	g.v = reflect.Append(g.v, v)
 	return starlark.None, nil
@@ -253,7 +253,7 @@ func list_extend(fnname string, g *GoSlice, args starlark.Tuple, kwargs []starla
 	for it.Next(&val) {
 		v, err := tryConv(val, g.v.Type().Elem())
 		if err != nil {
-			return nil, fmt.Errorf("slice extend: %v", err)
+			return nil, fmt.Errorf("extend: %v", err)
 		}
 		g.v = reflect.Append(g.v, v)
 	}
@@ -279,7 +279,7 @@ func list_index(fnname string, g *GoSlice, args starlark.Tuple, kwargs []starlar
 
 	value, err := tryConv(args[0], g.v.Type().Elem())
 	if err != nil {
-		return nil, fmt.Errorf("slice index: %v", err)
+		return nil, fmt.Errorf("index: %v", err)
 	}
 
 	start, end, err := indices(start_, end_, g.v.Len())
@@ -314,7 +314,7 @@ func list_insert(fnname string, g *GoSlice, args starlark.Tuple, kwargs []starla
 
 	val, err := tryConv(args[1], g.v.Type().Elem())
 	if err != nil {
-		return starlark.None, fmt.Errorf("slice insert: %v", err)
+		return starlark.None, fmt.Errorf("insert: %v", err)
 	}
 	if index >= g.Len() {
 		g.v = reflect.Append(g.v, val)
@@ -340,7 +340,7 @@ func list_remove(fnname string, g *GoSlice, args starlark.Tuple, kwargs []starla
 
 	val, err := tryConv(args[0], g.v.Type().Elem())
 	if err != nil {
-		return nil, fmt.Errorf("slice remove: %v", err)
+		return nil, fmt.Errorf("remove: %v", err)
 	}
 	v := val.Interface()
 

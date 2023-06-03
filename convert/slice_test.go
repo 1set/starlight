@@ -62,7 +62,7 @@ assert.Eq(abc[2], "c")
 		{"abc[0.0]", "starlight_slice<[]string> index: got float, want int"},
 		{`abc["a"]`, "starlight_slice<[]string> index: got string, want int"},
 		{"abc[0, 1]", "starlight_slice<[]string> index: got tuple, want int"},
-		{`abc[0] = True`, "slice index: value of type bool cannot be converted to type string"},
+		{`abc[0] = True`, "index: value of type bool cannot be converted to type string"},
 		{`abc[None]`, "starlight_slice<[]string> index: got NoneType, want int"},
 	}
 	expectFails(t, tests, globals)
@@ -219,8 +219,8 @@ assert.Eq(bananas.index('s', -1000, 7), 6) # bananaS
 		{`bananas.index('d')`, `index: value d not in list`},
 		{`bananas.index('s', -1000, 6)`, `index: value s not in list`},
 		{`bananas.index('d', -1000, 1000)`, `index: value d not in list`},
-		{`bananas.index([], 0, 0)`, `slice index: value of type []interface {} cannot be converted to type string`},
-		{`bananas.index(None, 0, 0)`, `slice index: value of type None cannot be converted to non-nullable type string`},
+		{`bananas.index([], 0, 0)`, `index: value of type []interface {} cannot be converted to type string`},
+		{`bananas.index(None, 0, 0)`, `index: value of type None cannot be converted to non-nullable type string`},
 	}
 	expectFails(t, tests, globals)
 }
@@ -279,7 +279,7 @@ assert.Eq(remove(4), intSlice([3, 1, 1]))
 
 	code = []byte(`intSlice([3, 1, 4, 1]).remove(True)`)
 	_, err = starlight.Eval(code, globals, nil)
-	expectErr(t, err, "slice remove: value of type bool cannot be converted to type int")
+	expectErr(t, err, "remove: value of type bool cannot be converted to type int")
 }
 
 func TestSliceIteratorInvalidation(t *testing.T) {
