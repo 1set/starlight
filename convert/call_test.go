@@ -800,7 +800,7 @@ func TestCustomStructInStarlark(t *testing.T) {
 			} else if n, ok := v.(string); !ok {
 				return fmt.Errorf(`expected %q to be a string, but got %T`, fieldName, v)
 			} else if n != want {
-				return fmt.Errorf(`expected %q to be "%q, but got %q`, fieldName, want, n)
+				return fmt.Errorf(`expected %q to be %q, but got %q`, fieldName, want, n)
 			}
 			return nil
 		}
@@ -902,6 +902,16 @@ func TestCustomStructInStarlark(t *testing.T) {
 				}
 				return nil
 			},
+		},
+		{
+			name:        "read public nested field",
+			codeSnippet: `val = pn.customer.Name ; out = pn`,
+			checkEqual:  getStringCompare("val", "ACME"),
+		},
+		{
+			name:        "read public nested field 2",
+			codeSnippet: `val = pn.customer_ptr.Name ; out = pn`,
+			checkEqual:  getStringCompare("val", "BDX"),
 		},
 		{
 			name:        "use public method",
@@ -1263,24 +1273,25 @@ type customStruct struct {
 //}
 
 type personStruct struct {
-	Name          string                       `starlark:"name"`
-	Age           int                          `starlark:"age"`
-	Anything      []interface{}                `starlark:"anything"`
-	Labels        []string                     `starlark:"tags"`
-	Profile       map[string]interface{}       `starlark:"profile"`
-	Parent        *personStruct                `starlark:"parent"`
-	NestedValues  map[string]map[int][]float32 `starlark:"nested_values"`
-	secretKey     string                       // unexported field
-	Customer      customStruct                 `starlark:"customer"`
-	CustomerPtr   *customStruct                `starlark:"customer_ptr"`
-	MessageWriter io.Writer                    `starlark:"message_writer"`
-	ReadMessage   func() string                `starlark:"read_message"`
-	NumberChan    chan int                     `starlark:"number_chan"`
-	NilString     *string                      `starlark:"nil_string"`
-	NilCustomer   *customStruct                `starlark:"nil_custom"`
-	NilPerson     *personStruct                `starlark:"nil_person"`
-	buffer        bytes.Buffer                 `starlark:"-"`
-	StarDict      *starlark.Dict               `starlark:"dict"`
+	Name              string                       `starlark:"name"`
+	Age               int                          `starlark:"age"`
+	Anything          []interface{}                `starlark:"anything"`
+	Labels            []string                     `starlark:"tags"`
+	Profile           map[string]interface{}       `starlark:"profile"`
+	Parent            *personStruct                `starlark:"parent"`
+	NestedValues      map[string]map[int][]float32 `starlark:"nested_values"`
+	secretKey         string                       // unexported field
+	Customer          customStruct                 `starlark:"customer"`
+	CustomerPtr       *customStruct                `starlark:"customer_ptr"`
+	DuplicateCustomer customStruct                 `starlark:"customer"`
+	MessageWriter     io.Writer                    `starlark:"message_writer"`
+	ReadMessage       func() string                `starlark:"read_message"`
+	NumberChan        chan int                     `starlark:"number_chan"`
+	NilString         *string                      `starlark:"nil_string"`
+	NilCustomer       *customStruct                `starlark:"nil_custom"`
+	NilPerson         *personStruct                `starlark:"nil_person"`
+	buffer            bytes.Buffer                 `starlark:"-"`
+	StarDict          *starlark.Dict               `starlark:"dict"`
 }
 
 func (p *personStruct) String() string {
