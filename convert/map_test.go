@@ -153,10 +153,12 @@ func toMap(m map[interface{}]interface{}) (map[string]int, error) {
 
 func TestMapIndex(t *testing.T) {
 	x9 := map[string]int{}
+	y9 := map[string][]int{}
 	globals := map[string]interface{}{
 		"assert": &assert{t: t},
 		"x9":     x9,
 		"toMap":  toMap,
+		"y9":     y9,
 	}
 
 	code := []byte(`
@@ -214,6 +216,23 @@ x9["a"] = 3
 
 	_, err = starlight.Eval(code, map[string]interface{}{"x9": v}, nil)
 	expectErr(t, err, `cannot insert into frozen map`)
+
+	code = []byte(`y9["a"] = [1, 2, 3]`)
+	_, err = starlight.Eval(code, globals, nil)
+	expectErr(t, err, `setkey value: value of type []interface {} cannot be converted to type []int`)
+
+	code = []byte(`y9["b"] = None`)
+	_, err = starlight.Eval(code, globals, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m, ok := globals["y9"].(map[string][]int); !ok {
+		t.Fatalf("expected map[string][]int, got %T", globals["y9"])
+	} else if len(m) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(m))
+	} else if m["b"] != nil {
+		t.Fatalf("expected nil value, got %v", m["b"])
+	}
 }
 
 func expectErr(t *testing.T, err error, expected string) {
