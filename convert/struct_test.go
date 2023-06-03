@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/1set/starlight"
+	"github.com/1set/starlight/convert"
 )
 
 type mega struct {
@@ -16,7 +17,7 @@ type mega struct {
 	Int    int
 	Int64  int64
 	Body   io.Reader
-	String string
+	String string `star:"love"`
 	Map    map[string]string
 	Time   time.Time
 	Now    func() time.Time
@@ -73,7 +74,7 @@ assert.Eq(True, bytesEqual(readAll(m.Body), m.Bytes))
 	expectErr(t, err, "value of type None cannot be converted to non-nullable type int")
 }
 
-func TestCantCallUnexported(t *testing.T) {
+func TestCannotCallUnexported(t *testing.T) {
 	code := []byte(`
 a = m.getBool()
 `)
@@ -82,4 +83,27 @@ a = m.getBool()
 	}
 	_, err := starlight.Eval(code, globals, nil)
 	expectErr(t, err, "starlight_struct<*convert_test.mega> has no .getBool field or method (did you mean .Bool?)")
+}
+
+func TestStructWithCustomTag(t *testing.T) {
+	m := &mega{
+		String: "hi!",
+	}
+	globals := map[string]interface{}{
+		"m": convert.NewStructWithTag(m, "star"),
+	}
+	code := []byte(`
+a = m.love
+m.love = "bye!"
+`)
+	res, err := starlight.Eval(code, globals, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.String != "bye!" {
+		t.Fatalf("expected m.String to be 'bye!', but got %q", m.String)
+	}
+	if a := res["a"].(string); a != "hi!" {
+		t.Fatalf("expected a to be 'hi!', but got %q", a)
+	}
 }
