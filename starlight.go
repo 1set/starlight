@@ -117,7 +117,7 @@ func (c *Cache) Run(filename string, globals map[string]interface{}) (map[string
 	c.mu.Lock()
 	if p, ok := c.scripts[filename]; ok {
 		c.mu.Unlock()
-		return run(p, globals, c.load)
+		return run(p, globals, c.Load)
 	}
 	c.mu.Unlock()
 
@@ -132,10 +132,11 @@ func (c *Cache) Run(filename string, globals map[string]interface{}) (map[string
 	c.mu.Lock()
 	c.scripts[filename] = p
 	c.mu.Unlock()
-	return run(p, globals, c.load)
+	return run(p, globals, c.Load)
 }
 
-func (c *Cache) load(_ *starlark.Thread, module string) (starlark.StringDict, error) {
+// Load loads a module using the cache's configured directories.
+func (c *Cache) Load(_ *starlark.Thread, module string) (starlark.StringDict, error) {
 	return c.cache.Load(module)
 }
 
