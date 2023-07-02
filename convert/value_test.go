@@ -7,6 +7,7 @@ import (
 
 	"github.com/1set/starlight/convert"
 	"go.starlark.net/starlark"
+	"go.starlark.net/starlarkstruct"
 )
 
 func TestToValue(t *testing.T) {
@@ -277,6 +278,8 @@ func TestFromValue(t *testing.T) {
 
 	testBuiltin := convert.MakeStarFn("fn", func() string { return "test" })
 	testFunction := getSimpleStarlarkFunc()
+	testModule := starlarkstruct.Module{Name: "atest"}
+	testStruct := starlarkstruct.Struct{}
 
 	bigVal := big.NewInt(1).Mul(big.NewInt(100000000000000), big.NewInt(100000000000000))
 
@@ -380,6 +383,16 @@ func TestFromValue(t *testing.T) {
 			name: "Function",
 			v:    testFunction,
 			want: testFunction,
+		},
+		{
+			name: "Module",
+			v:    &testModule,
+			want: &testModule,
+		},
+		{
+			name: "Struct",
+			v:    &testStruct,
+			want: &testStruct,
 		},
 	}
 	for _, tt := range tests {
