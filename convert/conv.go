@@ -18,10 +18,10 @@ func init() {
 	resolve.AllowBitwise = true   // allow bitwise operands
 }
 
-// ToValue attempts to convert the given value to a starlark.Value.  It supports
-// all int, uint, and float numeric types, plus strings and bools.  It supports
-// structs, maps, slices, and functions that use the aforementioned.  Any
-// starlark.Value is passed through as-is.
+// ToValue attempts to convert the given value to a starlark.Value.
+// It supports all int, uint, and float numeric types, plus strings and booleans.
+// It supports structs, maps, slices, and functions that use the aforementioned.
+// Any starlark.Value is passed through as-is.
 func ToValue(v interface{}) (starlark.Value, error) {
 	if val, ok := v.(starlark.Value); ok {
 		return val, nil

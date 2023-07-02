@@ -904,6 +904,16 @@ func TestCustomStructInStarlark(t *testing.T) {
 			},
 		},
 		{
+			name:        "write public field more",
+			codeSnippet: `v = "Lovely"; pn.name = v; out = pn`,
+			checkEqual: func(pn *personStruct, _ map[string]interface{}) error {
+				if pn.Name != "Lovely" {
+					return fmt.Errorf(`expected pn.Name to be "Whoever", but got %q`, pn.Name)
+				}
+				return nil
+			},
+		},
+		{
 			name:        "read public nested field",
 			codeSnippet: `val = pn.customer.Name ; out = pn`,
 			checkEqual:  getStringCompare("val", "ACME"),
