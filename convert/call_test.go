@@ -1172,7 +1172,7 @@ out = pn
 		},
 		{
 			name:        "invalid access to nil simple custom field",
-			codeSnippet: `out = pn; val = pn.nil_custom.name`,
+			codeSnippet: `out = pn; val = pn.nil_custom.Name`,
 			checkEqual:  noCheck,
 			wantErrExec: true,
 		},
@@ -1264,6 +1264,9 @@ val = pn.read_message()
 			} else {
 				if pn != raw {
 					t.Fatalf(`expected pn to be equal to the original personStruct`)
+				}
+				if tc.checkEqual == nil {
+					return
 				}
 				if err := tc.checkEqual(pn, globals); err != nil {
 					t.Fatalf(`expected pn to be equal to the original personStruct, but got error: %v`, err)
