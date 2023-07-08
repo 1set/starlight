@@ -9,7 +9,28 @@ import (
 	"testing"
 
 	"github.com/1set/starlight"
+	"github.com/1set/starlight/convert"
 )
+
+func TestInterfaceNil(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic")
+		}
+	}()
+	_ = convert.MakeGoInterface(nil)
+}
+
+func TestInterfaceInvalid(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic")
+		}
+	}()
+	_ = convert.MakeGoInterface(struct {
+		Foo func()
+	}{})
+}
 
 func TestInterfaceStructPtr(t *testing.T) {
 	type resp struct {

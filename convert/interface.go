@@ -8,8 +8,8 @@ import (
 	"go.starlark.net/starlark"
 )
 
-// MakeGoInterface converts the given value into a GoInterface. This will panic
-// if the type is not a bool, string, float kind, int kind, or uint kind.
+// MakeGoInterface converts the given value into a GoInterface.
+// This will panic if the value is nil or the type is not a bool, string, float kind, int kind, or uint kind.
 func MakeGoInterface(v interface{}) *GoInterface {
 	val := reflect.ValueOf(v)
 	ifc, ok := makeGoInterface(val)

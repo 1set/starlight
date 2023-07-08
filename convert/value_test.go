@@ -760,3 +760,48 @@ func TestFromList(t *testing.T) {
 		})
 	}
 }
+
+func TestGoTypeWrapperValue(t *testing.T) {
+	type HasValue interface {
+		Value() reflect.Value
+	}
+	tests := []struct {
+		name  string
+		input starlark.Value
+		want  interface{}
+	}{
+		{
+			name:  "Map",
+			input: convert.NewGoMap(map[string]int{"a": 1}),
+			want:  map[string]int{"a": 1},
+		},
+		{
+			name:  "Slice",
+			input: convert.NewGoSlice([]int{1, 2, 3}),
+			want:  []int{1, 2, 3},
+		},
+		{
+			name:  "Struct",
+			input: convert.NewStruct(struct{ A int }{A: 1}),
+			want:  struct{ A int }{A: 1},
+		},
+		{
+			name:  "Interface",
+			input: convert.MakeGoInterface(100),
+			want:  100,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v, ok := tt.input.(HasValue)
+			if !ok {
+				t.Errorf("input(%v) doesn't have Value(): %v", tt.name, tt.input)
+				return
+			}
+			got := v.Value().Interface()
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("GoTypeWrapper(%v) got = %v, want = %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
