@@ -131,6 +131,8 @@ func FromValue(v starlark.Value) interface{} {
 		return float64(v)
 	case starlark.String:
 		return string(v)
+	case starlark.Bytes:
+		return []byte(v)
 	case *starlark.List:
 		return FromList(v)
 	case starlark.Tuple:

@@ -319,6 +319,11 @@ func TestFromValue(t *testing.T) {
 			want: "hello",
 		},
 		{
+			name: "Bytes",
+			v:    starlark.Bytes("hello"),
+			want: []byte("hello"),
+		},
+		{
 			name: "List",
 			v:    starlark.NewList([]starlark.Value{starlark.String("a"), starlark.String("b")}),
 			want: []interface{}{"a", "b"},
