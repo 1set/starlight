@@ -21,8 +21,8 @@ type GoSlice struct {
 	frozen bool
 }
 
-// NewGoSlice wraps the given slice in a new GoSlice. This function will panic if m
-// is not a slice nor array.
+// NewGoSlice wraps the given slice in a new GoSlice.
+// This function will panic if m is nil or not a slice nor array.
 func NewGoSlice(slice interface{}) *GoSlice {
 	v := reflect.ValueOf(slice)
 	if v.Kind() != reflect.Slice && v.Kind() != reflect.Array {
