@@ -8,8 +8,8 @@ import (
 	"go.starlark.net/starlark"
 )
 
-// MakeGoInterface converts the given value into a GoInterface. This will panic
-// if the type is not a bool, string, float kind, int kind, or uint kind.
+// MakeGoInterface converts the given value into a GoInterface.
+// This will panic if the value is nil or the type is not a bool, string, float kind, int kind, or uint kind.
 func MakeGoInterface(v interface{}) *GoInterface {
 	val := reflect.ValueOf(v)
 	ifc, ok := makeGoInterface(val)
@@ -99,6 +99,11 @@ func (g *GoInterface) String() string {
 // Type returns a short string describing the value's type.
 func (g *GoInterface) Type() string {
 	return fmt.Sprintf("starlight_interface<%T>", g.v.Interface())
+}
+
+// Value returns reflect.Value of the underlying value.
+func (g *GoInterface) Value() reflect.Value {
+	return g.v
 }
 
 // Freeze causes the value, and all values transitively

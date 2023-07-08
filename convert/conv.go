@@ -18,10 +18,10 @@ func init() {
 	resolve.AllowBitwise = true   // allow bitwise operands
 }
 
-// ToValue attempts to convert the given value to a starlark.Value.  It supports
-// all int, uint, and float numeric types, plus strings and bools.  It supports
-// structs, maps, slices, and functions that use the aforementioned.  Any
-// starlark.Value is passed through as-is.
+// ToValue attempts to convert the given value to a starlark.Value.
+// It supports all int, uint, and float numeric types, plus strings and booleans.
+// It supports structs, maps, slices, and functions that use the aforementioned.
+// Any starlark.Value is passed through as-is.
 func ToValue(v interface{}) (starlark.Value, error) {
 	if val, ok := v.(starlark.Value); ok {
 		return val, nil
@@ -131,6 +131,8 @@ func FromValue(v starlark.Value) interface{} {
 		return float64(v)
 	case starlark.String:
 		return string(v)
+	case starlark.Bytes:
+		return []byte(v)
 	case *starlark.List:
 		return FromList(v)
 	case starlark.Tuple:
@@ -150,10 +152,9 @@ func FromValue(v starlark.Value) interface{} {
 	case *GoSlice:
 		return v.v.Interface()
 	default:
-		// dunno, hope it's a custom type that the receiver knows how to deal
-		// with. This can happen with custom-written go types that implement
-		// starlark.Value.
-		// maybe it's a Starlark function.
+		// dunno, hope it's a custom type that the receiver knows how to deal with.
+		// This can happen with custom-written go types that implement starlark.Value.
+		// Or maybe it's a Starlark function, module, or struct.
 		return v
 	}
 }

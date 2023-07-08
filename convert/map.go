@@ -22,8 +22,8 @@ type GoMap struct {
 	frozen bool
 }
 
-// NewGoMap wraps the given map m in a new GoMap.  This function will panic if m
-// is not a map.
+// NewGoMap wraps the given map m in a new GoMap.
+// This function will panic if m is nil or not a map.
 func NewGoMap(m interface{}) *GoMap {
 	v := reflect.ValueOf(m)
 	if v.Kind() != reflect.Map {

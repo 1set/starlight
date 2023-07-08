@@ -13,8 +13,8 @@ var (
 	DefaultPropertyTag = "starlark"
 )
 
-// NewStruct makes a new starlark-compatible Struct from the given struct or
-// pointer to struct. This will panic if you pass it anything else.
+// NewStruct makes a new starlark-compatible Struct from the given struct or pointer to struct.
+// This will panic if you pass it nil or anything else.
 func NewStruct(strct interface{}) *GoStruct {
 	val := reflect.ValueOf(strct)
 	if val.Kind() == reflect.Struct || (val.Kind() == reflect.Ptr && val.Elem().Kind() == reflect.Struct) {
