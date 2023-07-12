@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"go.starlark.net/starlark"
 )
@@ -13,7 +14,7 @@ var (
 	DefaultPropertyTag = "starlark"
 )
 
-// NewStruct makes a new starlark-compatible Struct from the given struct or pointer to struct.
+// NewStruct makes a new Starlark-compatible Struct from the given struct or pointer to struct.
 // This will panic if you pass it nil or anything else.
 func NewStruct(strct interface{}) *GoStruct {
 	val := reflect.ValueOf(strct)
@@ -23,9 +24,9 @@ func NewStruct(strct interface{}) *GoStruct {
 	panic(fmt.Errorf("value must be a struct or pointer to a struct, but was %T", val.Interface()))
 }
 
-// NewStructWithTag makes a new starlark-compatible Struct from the given struct
-// or pointer to struct, using the given struct tag to determine which fields to
-// expose. This will panic if you pass it anything else.
+// NewStructWithTag makes a new Starlark-compatible Struct from the given struct or pointer to struct,
+// using the given struct tag to determine which fields to expose.
+// This will panic if you pass it anything else.
 func NewStructWithTag(strct interface{}, tag string) *GoStruct {
 	val := reflect.ValueOf(strct)
 	if val.Kind() == reflect.Struct || (val.Kind() == reflect.Ptr && val.Elem().Kind() == reflect.Struct) {
@@ -37,14 +38,13 @@ func NewStructWithTag(strct interface{}, tag string) *GoStruct {
 	panic(fmt.Errorf("value must be a struct or pointer to a struct, but was %T", val.Interface()))
 }
 
-// GoStruct is a wrapper around a Go struct to let it be manipulated by starlark
-// scripts.
+// GoStruct is a wrapper around a Go struct to let it be manipulated by Starlark scripts.
 type GoStruct struct {
 	v   reflect.Value
 	tag string
 }
 
-// Attr returns a starlark value that wraps the method or field with the given name.
+// Attr returns a Starlark value that wraps the method or field with the given name.
 func (g *GoStruct) Attr(name string) (starlark.Value, error) {
 	// check for its methods and its pointer's methods
 	method := g.v.MethodByName(name)
@@ -244,8 +244,16 @@ func extractTagOrFieldName(f reflect.StructField, tagName string) (name string, 
 	if tagName != "" {
 		// get the tag value by name
 		tag = f.Tag.Get(tagName)
+
+		// Split tag into name and options
+		tagParts := strings.SplitN(tag, ",", 2)
+		if len(tagParts) > 1 {
+			// The actual tag name is the first part before the comma.
+			tag = tagParts[0]
+		}
+
+		// Skip fields with tag "-"
 		if tag == "-" {
-			// Skip fields with tag "-"
 			return
 		}
 	}
