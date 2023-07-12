@@ -16,7 +16,7 @@ import (
 type mega struct {
 	Bool   bool
 	Int    int
-	Int64  int64 `star:"hate,omitempty"`
+	Int64  int64 `star:"hate,omitempty,null"`
 	Body   io.Reader
 	String string `star:"love"`
 	Map    map[string]string

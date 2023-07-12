@@ -246,7 +246,7 @@ func extractTagOrFieldName(f reflect.StructField, tagName string) (name string, 
 		tag = f.Tag.Get(tagName)
 
 		// Split tag into name and options
-		tagParts := strings.Split(tag, ",")
+		tagParts := strings.SplitN(tag, ",", 2)
 		if len(tagParts) > 1 {
 			// The actual tag name is the first part before the comma.
 			tag = tagParts[0]
