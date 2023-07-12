@@ -16,7 +16,7 @@ import (
 type mega struct {
 	Bool   bool
 	Int    int
-	Int64  int64
+	Int64  int64 `star:"hate,omitempty"`
 	Body   io.Reader
 	String string `star:"love"`
 	Map    map[string]string
@@ -89,13 +89,16 @@ a = m.getBool()
 func TestStructWithCustomTag(t *testing.T) {
 	m := &mega{
 		String: "hi!",
+		Int64:  100,
 	}
 	globals := map[string]interface{}{
 		"m": convert.NewStructWithTag(m, "star"),
 	}
 	code := []byte(`
 a = m.love
+b = m.hate
 m.love = "bye!"
+m.hate = 60
 print(dir(m))
 `)
 	res, err := starlight.Eval(code, globals, nil)
@@ -107,6 +110,9 @@ print(dir(m))
 	}
 	if a := res["a"].(string); a != "hi!" {
 		t.Fatalf("expected a to be 'hi!', but got %q", a)
+	}
+	if b := res["b"].(int64); b != 100 {
+		t.Fatalf("expected b to be 100, but got %d", b)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"go.starlark.net/starlark"
 )
@@ -243,8 +244,16 @@ func extractTagOrFieldName(f reflect.StructField, tagName string) (name string, 
 	if tagName != "" {
 		// get the tag value by name
 		tag = f.Tag.Get(tagName)
+
+		// Split tag into name and options
+		tagParts := strings.Split(tag, ",")
+		if len(tagParts) > 1 {
+			// The actual tag name is the first part before the comma.
+			tag = tagParts[0]
+		}
+
+		// Skip fields with tag "-"
 		if tag == "-" {
-			// Skip fields with tag "-"
 			return
 		}
 	}
