@@ -4,8 +4,10 @@ import (
 	"math/big"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/1set/starlight/convert"
+	startime "go.starlark.net/lib/time"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
@@ -16,6 +18,7 @@ func TestToValue(t *testing.T) {
 	pi := 3.141592653589793
 	yes := true
 	bigVal := big.NewInt(1).Mul(big.NewInt(100000000000000), big.NewInt(100000000000000))
+	now := time.Now()
 	tests := []struct {
 		name     string
 		v        interface{}
@@ -248,6 +251,11 @@ func TestToValue(t *testing.T) {
 			strMatch: true,
 		},
 		{
+			name: "starlark time",
+			v:    now,
+			want: startime.Time(now),
+		},
+		{
 			name:    "unsupported type: channel",
 			v:       make(chan int),
 			want:    nil,
@@ -280,6 +288,7 @@ func TestFromValue(t *testing.T) {
 	testFunction := getSimpleStarlarkFunc()
 	testModule := starlarkstruct.Module{Name: "atest"}
 	testStruct := starlarkstruct.Struct{}
+	now := time.Now()
 
 	bigVal := big.NewInt(1).Mul(big.NewInt(100000000000000), big.NewInt(100000000000000))
 
@@ -347,6 +356,11 @@ func TestFromValue(t *testing.T) {
 			name: "None",
 			v:    starlark.None,
 			want: nil,
+		},
+		{
+			name: "Time",
+			v:    startime.Time(now),
+			want: now,
 		},
 		// for GoStruct, GoInterface, GoMap, and GoSlice, we're assuming they just hold an interface{}
 		{

@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"time"
 
+	startime "go.starlark.net/lib/time"
 	"go.starlark.net/resolve"
 	"go.starlark.net/starlark"
 )
@@ -101,6 +103,11 @@ func toValue(val reflect.Value) (result starlark.Value, err error) {
 	case reflect.Slice, reflect.Array:
 		return &GoSlice{v: val}, nil
 	case reflect.Struct:
+		// handle special case from standard starlark lib
+		switch val.Type() {
+		case reflect.TypeOf(time.Time{}):
+			return startime.Time(val.Interface().(time.Time)), nil
+		}
 		return &GoStruct{v: val}, nil
 	case reflect.Interface:
 		return &GoInterface{v: val}, nil
@@ -143,6 +150,8 @@ func FromValue(v starlark.Value) interface{} {
 		return FromSet(v)
 	case starlark.NoneType:
 		return nil
+	case startime.Time:
+		return time.Time(v)
 	case *GoStruct:
 		return v.v.Interface()
 	case *GoInterface:
