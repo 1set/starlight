@@ -19,6 +19,11 @@ func TestMakeTuple(t *testing.T) {
 		t.Errorf("unexpected error 2: %v", err)
 		return
 	}
+	if _, err = MakeTuple([]interface{}{make(chan int)}); err == nil {
+		t.Errorf("expected error 3, got nil")
+		return
+	}
+
 	globals := map[string]starlark.Value{
 		"tuple_empty": tuple1,
 		"tuple_has":   tuple2,
@@ -89,6 +94,10 @@ func TestMakeList(t *testing.T) {
 		t.Errorf("unexpected error 2: %v", err)
 		return
 	}
+	if _, err = MakeList([]interface{}{make(chan int)}); err == nil {
+		t.Errorf("expected error 3, got nil")
+		return
+	}
 	globals := map[string]starlark.Value{
 		"list_empty": list1,
 		"list_has":   list2,
@@ -123,6 +132,21 @@ t2d = type(list_has[3])
 	}
 }
 
+func TestMakeSet(t *testing.T) {
+	if _, err := MakeSet(nil); err != nil {
+		t.Errorf("unexpected error 1: %v", err)
+		return
+	}
+	if _, err := MakeSet(map[interface{}]bool{"a": true, 1: true, true: true, 0.1: true}); err != nil {
+		t.Errorf("unexpected error 2: %v", err)
+		return
+	}
+	if _, err := MakeSet(map[interface{}]bool{make(chan int): true}); err == nil {
+		t.Errorf("expected error 3, got nil")
+		return
+	}
+}
+
 func TestMakeSetFromSlice(t *testing.T) {
 	set1, err := MakeSetFromSlice(nil)
 	if err != nil {
@@ -132,6 +156,14 @@ func TestMakeSetFromSlice(t *testing.T) {
 	set2, err := MakeSetFromSlice([]interface{}{"a", 1, true, 0.1})
 	if err != nil {
 		t.Errorf("unexpected error 2: %v", err)
+		return
+	}
+	if _, err = MakeSetFromSlice([]interface{}{make(chan int)}); err == nil {
+		t.Errorf("expected error 3, got nil")
+		return
+	}
+	if _, err = MakeSetFromSlice([]interface{}{[]int{1, 2}}); err == nil {
+		t.Errorf("expected error 4, got nil")
 		return
 	}
 	globals := map[string]starlark.Value{
