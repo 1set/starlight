@@ -212,6 +212,19 @@ func FromTuple(v starlark.Tuple) []interface{} {
 	return ret
 }
 
+// MakeList makes a Starlark List from the given Go slice. The types supported are the same as ToValue.
+func MakeList(v []interface{}) (*starlark.List, error) {
+	values := make([]starlark.Value, len(v))
+	for i := range v {
+		item, err := ToValue(v[i])
+		if err != nil {
+			return nil, err
+		}
+		values[i] = item
+	}
+	return starlark.NewList(values), nil
+}
+
 // FromList creates a go slice from the given starlark list.
 func FromList(l *starlark.List) []interface{} {
 	ret := make([]interface{}, 0, l.Len())

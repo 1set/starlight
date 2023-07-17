@@ -78,6 +78,51 @@ t2 = ("a", 1, True, 0.1)
 	}
 }
 
+func TestMakeList(t *testing.T) {
+	list1, err := MakeList(nil)
+	if err != nil {
+		t.Errorf("unexpected error 1: %v", err)
+		return
+	}
+	list2, err := MakeList([]interface{}{"a", 1, true, 0.1})
+	if err != nil {
+		t.Errorf("unexpected error 2: %v", err)
+		return
+	}
+	globals := map[string]starlark.Value{
+		"list_empty": list1,
+		"list_has":   list2,
+	}
+	code := `
+c1 = len(list_empty)
+c2 = len(list_has)
+t1 = type(list_empty)
+t2 = type(list_has)
+t2a = type(list_has[0])
+t2b = type(list_has[1])
+t2c = type(list_has[2])
+t2d = type(list_has[3])
+`
+	expRes := starlark.StringDict{
+		"c1":  starlark.MakeInt(0),
+		"c2":  starlark.MakeInt(4),
+		"t1":  starlark.String("list"),
+		"t2":  starlark.String("list"),
+		"t2a": starlark.String("string"),
+		"t2b": starlark.String("int"),
+		"t2c": starlark.String("bool"),
+		"t2d": starlark.String("float"),
+	}
+	res, err := starlark.ExecFile(&starlark.Thread{}, "foo.star", []byte(code), globals)
+	if err != nil {
+		t.Errorf("unexpected error to exec: %v", err)
+		return
+	}
+	if !reflect.DeepEqual(res, expRes) {
+		t.Errorf("expected %v, got %v", expRes, res)
+	}
+}
+
 func TestKwargs(t *testing.T) {
 	// Mental note: starlark numbers pop out as int64s
 	data := []byte(`
