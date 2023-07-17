@@ -123,6 +123,45 @@ t2d = type(list_has[3])
 	}
 }
 
+func TestMakeSetFromSlice(t *testing.T) {
+	set1, err := MakeSetFromSlice(nil)
+	if err != nil {
+		t.Errorf("unexpected error 1: %v", err)
+		return
+	}
+	set2, err := MakeSetFromSlice([]interface{}{"a", 1, true, 0.1})
+	if err != nil {
+		t.Errorf("unexpected error 2: %v", err)
+		return
+	}
+	globals := map[string]starlark.Value{
+		"set_empty": set1,
+		"set_has":   set2,
+	}
+	code := `
+c1 = len(set_empty)
+c2 = len(set_has)
+t1 = type(set_empty)
+t2 = type(set_has)
+a = all([x in set_has for x in ["a", 1, True, 0.1]])
+`
+	expRes := starlark.StringDict{
+		"c1": starlark.MakeInt(0),
+		"c2": starlark.MakeInt(4),
+		"t1": starlark.String("set"),
+		"t2": starlark.String("set"),
+		"a":  starlark.True,
+	}
+	res, err := starlark.ExecFile(&starlark.Thread{}, "foo.star", []byte(code), globals)
+	if err != nil {
+		t.Errorf("unexpected error to exec: %v", err)
+		return
+	}
+	if !reflect.DeepEqual(res, expRes) {
+		t.Errorf("expected %v, got %v", expRes, res)
+	}
+}
+
 func TestKwargs(t *testing.T) {
 	// Mental note: starlark numbers pop out as int64s
 	data := []byte(`
