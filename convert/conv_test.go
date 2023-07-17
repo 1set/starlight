@@ -53,6 +53,31 @@ t2d = type(tuple_has[3])
 	}
 }
 
+func TestFromTuple(t *testing.T) {
+	code := `
+t0 = ()
+t1 = (10,)
+t2 = ("a", 1, True, 0.1)
+`
+	expRes := map[string][]interface{}{
+		"t0": {},
+		"t1": {int64(10)},
+		"t2": {"a", int64(1), true, 0.1},
+	}
+	res, err := starlark.ExecFile(&starlark.Thread{}, "foo.star", []byte(code), nil)
+	if err != nil {
+		t.Errorf("unexpected error to exec: %v", err)
+		return
+	}
+	actRes := map[string][]interface{}{}
+	for k, v := range res {
+		actRes[k] = FromTuple(v.(starlark.Tuple))
+	}
+	if !reflect.DeepEqual(actRes, expRes) {
+		t.Errorf("expected %v, got %v", expRes, res)
+	}
+}
+
 func TestKwargs(t *testing.T) {
 	// Mental note: starlark numbers pop out as int64s
 	data := []byte(`
