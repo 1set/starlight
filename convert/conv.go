@@ -168,8 +168,7 @@ func FromValue(v starlark.Value) interface{} {
 	}
 }
 
-// MakeStringDict makes a StringDict from the given arg. The types supported are
-// the same as ToValue.
+// MakeStringDict makes a StringDict from the given arg. The types supported are the same as ToValue.
 func MakeStringDict(m map[string]interface{}) (starlark.StringDict, error) {
 	dict := make(starlark.StringDict, len(m))
 	for k, v := range m {
@@ -182,14 +181,26 @@ func MakeStringDict(m map[string]interface{}) (starlark.StringDict, error) {
 	return dict, nil
 }
 
-// FromStringDict makes a map[string]interface{} from the given arg. Any
-// inconvertible values are ignored.
+// FromStringDict makes a map[string]interface{} from the given arg. Any inconvertible values are ignored.
 func FromStringDict(m starlark.StringDict) map[string]interface{} {
 	ret := make(map[string]interface{}, len(m))
 	for k, v := range m {
 		ret[k] = FromValue(v)
 	}
 	return ret
+}
+
+// MakeTuple makes a Starlark Tuple from the given Go slice. The types supported are the same as ToValue.
+func MakeTuple(v []interface{}) (starlark.Tuple, error) {
+	tuple := make(starlark.Tuple, len(v))
+	for i, val := range v {
+		item, err := ToValue(val)
+		if err != nil {
+			return nil, err
+		}
+		tuple[i] = item
+	}
+	return tuple, nil
 }
 
 // FromTuple converts a starlark.Tuple into a []interface{}.
@@ -199,6 +210,19 @@ func FromTuple(v starlark.Tuple) []interface{} {
 		ret[i] = FromValue(v[i])
 	}
 	return ret
+}
+
+// MakeList makes a Starlark List from the given Go slice. The types supported are the same as ToValue.
+func MakeList(v []interface{}) (*starlark.List, error) {
+	values := make([]starlark.Value, len(v))
+	for i := range v {
+		item, err := ToValue(v[i])
+		if err != nil {
+			return nil, err
+		}
+		values[i] = item
+	}
+	return starlark.NewList(values), nil
 }
 
 // FromList creates a go slice from the given starlark list.
@@ -253,8 +277,7 @@ func FromDict(m *starlark.Dict) map[interface{}]interface{} {
 	return ret
 }
 
-// MakeSet makes a Set from the given map.  The acceptable keys
-// the same as ToValue.
+// MakeSet makes a Set from the given map. The acceptable keys the same as ToValue.
 func MakeSet(s map[interface{}]bool) (*starlark.Set, error) {
 	set := starlark.Set{}
 	for k := range s {
@@ -262,7 +285,22 @@ func MakeSet(s map[interface{}]bool) (*starlark.Set, error) {
 		if err != nil {
 			return nil, err
 		}
-		if err := set.Insert(key); err != nil {
+		if err = set.Insert(key); err != nil {
+			return nil, err
+		}
+	}
+	return &set, nil
+}
+
+// MakeSetFromSlice makes a Set from the given slice. The acceptable keys the same as ToValue.
+func MakeSetFromSlice(s []interface{}) (*starlark.Set, error) {
+	set := starlark.Set{}
+	for i := range s {
+		key, err := ToValue(s[i])
+		if err != nil {
+			return nil, err
+		}
+		if err = set.Insert(key); err != nil {
 			return nil, err
 		}
 	}
