@@ -8,6 +8,51 @@ import (
 	"go.starlark.net/starlark"
 )
 
+func TestMakeTuple(t *testing.T) {
+	tuple1, err := MakeTuple(nil)
+	if err != nil {
+		t.Errorf("unexpected error 1: %v", err)
+		return
+	}
+	tuple2, err := MakeTuple([]interface{}{"a", 1, true, 0.1})
+	if err != nil {
+		t.Errorf("unexpected error 2: %v", err)
+		return
+	}
+	globals := map[string]starlark.Value{
+		"tuple_empty": tuple1,
+		"tuple_has":   tuple2,
+	}
+	code := `
+c1 = len(tuple_empty)
+c2 = len(tuple_has)
+t1 = type(tuple_empty)
+t2 = type(tuple_has)
+t2a = type(tuple_has[0])
+t2b = type(tuple_has[1])
+t2c = type(tuple_has[2])
+t2d = type(tuple_has[3])
+`
+	expRes := starlark.StringDict{
+		"c1":  starlark.MakeInt(0),
+		"c2":  starlark.MakeInt(4),
+		"t1":  starlark.String("tuple"),
+		"t2":  starlark.String("tuple"),
+		"t2a": starlark.String("string"),
+		"t2b": starlark.String("int"),
+		"t2c": starlark.String("bool"),
+		"t2d": starlark.String("float"),
+	}
+	res, err := starlark.ExecFile(&starlark.Thread{}, "foo.star", []byte(code), globals)
+	if err != nil {
+		t.Errorf("unexpected error to exec: %v", err)
+		return
+	}
+	if !reflect.DeepEqual(res, expRes) {
+		t.Errorf("expected %v, got %v", expRes, res)
+	}
+}
+
 func TestKwargs(t *testing.T) {
 	// Mental note: starlark numbers pop out as int64s
 	data := []byte(`
