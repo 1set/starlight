@@ -30,7 +30,7 @@ type mega struct {
 	Time   time.Time
 	Now    func() time.Time
 	Bytes  []byte
-	Child  nested
+	Child  nested `star:"children"`
 }
 
 func (m *mega) GetTime() time.Time {
@@ -51,12 +51,6 @@ func TestStructs(t *testing.T) {
 		Time:  time.Now(),
 		Now:   time.Now,
 		Bytes: []byte("hi!"),
-		Child: nested{
-			Truth:  true,
-			Name:   "alice",
-			Number: 100,
-			Value:  1.8,
-		},
 	}
 	globals := map[string]interface{}{
 		"m":          m,
@@ -104,6 +98,12 @@ func TestStructWithCustomTag(t *testing.T) {
 	m := &mega{
 		String: "hi!",
 		Int64:  100,
+		Child: nested{
+			Truth:  true,
+			Name:   "alice",
+			Number: 100,
+			Value:  1.8,
+		},
 	}
 	globals := map[string]interface{}{
 		"m": convert.NewStructWithTag(m, "star"),
@@ -114,6 +114,8 @@ b = m.hate
 m.love = "bye!"
 m.hate = 60
 print(dir(m))
+c = m.children.Truth
+d = m.children.name
 `)
 	res, err := starlight.Eval(code, globals, nil)
 	if err != nil {
@@ -127,6 +129,12 @@ print(dir(m))
 	}
 	if b := res["b"].(int64); b != 100 {
 		t.Fatalf("expected b to be 100, but got %d", b)
+	}
+	if c := res["c"].(bool); c != true {
+		t.Fatalf("expected c to be true, but got %v", c)
+	}
+	if d := res["d"].(string); d != "alice" {
+		t.Fatalf("expected d to be 'alice', but got %q", d)
 	}
 }
 
