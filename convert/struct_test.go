@@ -13,6 +13,13 @@ import (
 	"go.starlark.net/starlark"
 )
 
+type nested struct {
+	Truth  bool
+	Name   string `star:"name"`
+	Number int    `star:"num,omitempty,nil"`
+	Value  float64
+}
+
 type mega struct {
 	Bool   bool
 	Int    int
@@ -23,6 +30,7 @@ type mega struct {
 	Time   time.Time
 	Now    func() time.Time
 	Bytes  []byte
+	Child  nested
 }
 
 func (m *mega) GetTime() time.Time {
@@ -43,6 +51,12 @@ func TestStructs(t *testing.T) {
 		Time:  time.Now(),
 		Now:   time.Now,
 		Bytes: []byte("hi!"),
+		Child: nested{
+			Truth:  true,
+			Name:   "alice",
+			Number: 100,
+			Value:  1.8,
+		},
 	}
 	globals := map[string]interface{}{
 		"m":          m,
