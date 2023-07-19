@@ -88,12 +88,15 @@ func (g *GoStruct) Attr(name string) (starlark.Value, error) {
 	// return the field if found
 	if found && field.Kind() != reflect.Invalid {
 		if field.Kind() == reflect.Struct || (field.Kind() == reflect.Ptr && field.Elem().Kind() == reflect.Struct) {
-			// handle nested struct or pointer to a struct, also see ToValue() to align special cases
-			switch field.Type() {
-			case reflect.TypeOf(time.Time{}):
-				return startime.Time(field.Interface().(time.Time)), nil
+			// Handle nested struct or pointer to a struct
+			if field.Type() != reflect.TypeOf(&starlark.Dict{}) {
+				// handle nested struct or pointer to a struct, also see ToValue() to align special cases
+				switch field.Type() {
+				case reflect.TypeOf(time.Time{}):
+					return startime.Time(field.Interface().(time.Time)), nil
+				}
+				return NewStructWithTag(field.Interface(), g.tag), nil
 			}
-			return NewStructWithTag(field.Interface(), g.tag), nil
 		}
 		return toValue(field)
 	}
