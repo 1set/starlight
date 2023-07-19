@@ -30,7 +30,8 @@ type mega struct {
 	Time   time.Time
 	Now    func() time.Time
 	Bytes  []byte
-	Child  nested `star:"children"`
+	Child  nested  `star:"children"`
+	Change *nested `star:"change"`
 }
 
 func (m *mega) GetTime() time.Time {
@@ -104,6 +105,12 @@ func TestStructWithCustomTag(t *testing.T) {
 			Number: 100,
 			Value:  1.8,
 		},
+		Change: &nested{
+			Truth:  false,
+			Name:   "bob",
+			Number: 200,
+			Value:  2.8,
+		},
 	}
 	globals := map[string]interface{}{
 		"m": convert.NewStructWithTag(m, "star"),
@@ -113,9 +120,10 @@ a = m.love
 b = m.hate
 m.love = "bye!"
 m.hate = 60
-print(dir(m), dir(m.children))
+print(dir(m), dir(m.children), dir(m.change))
 c = m.children.Truth
 d = m.children.name
+m.change.num = 100
 `)
 	res, err := starlight.Eval(code, globals, nil)
 	if err != nil {
