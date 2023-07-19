@@ -124,6 +124,7 @@ print(dir(m), dir(m.children), dir(m.change))
 c = m.children.Truth
 d = m.children.name
 m.change.num = 100
+e = dir(m.children) == dir(m.change)
 `)
 	res, err := starlight.Eval(code, globals, nil)
 	if err != nil {
@@ -143,6 +144,9 @@ m.change.num = 100
 	}
 	if d := res["d"].(string); d != "alice" {
 		t.Fatalf("expected d to be 'alice', but got %q", d)
+	}
+	if e := res["e"].(bool); e != true {
+		t.Fatalf("expected e to be true, but got %v", e)
 	}
 }
 

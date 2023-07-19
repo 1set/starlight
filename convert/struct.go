@@ -87,8 +87,8 @@ func (g *GoStruct) Attr(name string) (starlark.Value, error) {
 
 	// return the field if found
 	if found && field.Kind() != reflect.Invalid {
-		if field.Kind() == reflect.Struct {
-			// handle nested struct, also see ToValue() to align special cases
+		if field.Kind() == reflect.Struct || (field.Kind() == reflect.Ptr && field.Elem().Kind() == reflect.Struct) {
+			// handle nested struct or pointer to a struct, also see ToValue() to align special cases
 			switch field.Type() {
 			case reflect.TypeOf(time.Time{}):
 				return startime.Time(field.Interface().(time.Time)), nil
@@ -191,8 +191,8 @@ func (g *GoStruct) SetField(name string, val starlark.Value) error {
 
 	// try to set the field
 	if field.CanSet() {
-		if field.Kind() == reflect.Struct {
-			// Handle nested struct
+		if field.Kind() == reflect.Struct || (field.Kind() == reflect.Ptr && field.Elem().Kind() == reflect.Struct) {
+			// Handle nested struct or pointer to a struct
 			if val, ok := val.(*GoStruct); ok {
 				field.Set(reflect.ValueOf(val.Value().Interface()))
 				return nil
