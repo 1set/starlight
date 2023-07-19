@@ -15,9 +15,9 @@ import (
 
 type nested struct {
 	Truth  bool
-	Name   string `star:"name"`
-	Number int    `star:"num,omitempty,nil"`
-	Value  float64
+	Name   string  `star:"name"`
+	Number int     `star:"num,omitempty,nil"`
+	Value  float64 `star:"-"`
 }
 
 type mega struct {
@@ -113,7 +113,7 @@ a = m.love
 b = m.hate
 m.love = "bye!"
 m.hate = 60
-print(dir(m))
+print(dir(m), dir(m.children))
 c = m.children.Truth
 d = m.children.name
 `)

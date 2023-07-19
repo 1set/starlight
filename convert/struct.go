@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 
+	startime "go.starlark.net/lib/time"
 	"go.starlark.net/starlark"
 )
 
@@ -85,6 +87,14 @@ func (g *GoStruct) Attr(name string) (starlark.Value, error) {
 
 	// return the field if found
 	if found && field.Kind() != reflect.Invalid {
+		if field.Kind() == reflect.Struct {
+			// handle nested struct, also see ToValue() to align special cases
+			switch field.Type() {
+			case reflect.TypeOf(time.Time{}):
+				return startime.Time(field.Interface().(time.Time)), nil
+			}
+			return NewStructWithTag(field.Interface(), g.tag), nil
+		}
 		return toValue(field)
 	}
 
@@ -181,6 +191,14 @@ func (g *GoStruct) SetField(name string, val starlark.Value) error {
 
 	// try to set the field
 	if field.CanSet() {
+		if field.Kind() == reflect.Struct {
+			// Handle nested struct
+			if val, ok := val.(*GoStruct); ok {
+				field.Set(reflect.ValueOf(val.Value().Interface()))
+				return nil
+			}
+			return fmt.Errorf("value is not a GoStruct")
+		}
 		val, err := tryConv(val, field.Type())
 		if err != nil {
 			return err
