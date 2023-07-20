@@ -220,9 +220,9 @@ d["f"] = d
 print("dict", d)
 dd = d
 
-# m["e"] = m
+m["e"] = m
 # print("map", m)
-# mm = m
+mm = m
 `
 	res, err := starlark.ExecFile(&starlark.Thread{}, "foo.star", []byte(code), globals)
 	if err != nil {
@@ -230,12 +230,11 @@ dd = d
 		return
 	}
 	cnv := FromStringDict(res)
-	if len(cnv) != 3 {
-		t.Errorf("expected 3 converted results, got %d", len(cnv))
+	if len(cnv) != 4 {
+		t.Errorf("expected 4 converted results, got %d", len(cnv))
 		return
-	} else {
-		t.Logf("converted results: %v", cnv)
 	}
+	//t.Logf("converted results: %v", cnv)
 	if exp := []interface{}{int64(4), int64(5), int64(6), ([]interface{})(nil)}; !reflect.DeepEqual(cnv["ll"], exp) {
 		t.Errorf("expected %v, got %v", exp, cnv["ll"])
 	}
