@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 	"time"
 
 	startime "go.starlark.net/lib/time"
@@ -18,6 +19,34 @@ func init() {
 	resolve.AllowFloat = true     // allow floating point literals, the 'float' built-in, and x / y
 	resolve.AllowSet = true       // allow the 'set' built-in
 	resolve.AllowBitwise = true   // allow bitwise operands
+}
+
+var (
+	ld = &loopDetector{visited: make(map[starlark.Value]bool)}
+)
+
+// loopDetector is used to detect loops in the data structure being converted, usually for starlark.Dict and starlark.List.
+type loopDetector struct {
+	sync.RWMutex
+	visited map[starlark.Value]bool
+}
+
+func (ld *loopDetector) hasVisited(v starlark.Value) bool {
+	ld.RLock()
+	defer ld.RUnlock()
+	return ld.visited[v]
+}
+
+func (ld *loopDetector) setVisited(v starlark.Value) {
+	ld.Lock()
+	defer ld.Unlock()
+	ld.visited[v] = true
+}
+
+func (ld *loopDetector) clearVisited(v starlark.Value) {
+	ld.Lock()
+	defer ld.Unlock()
+	delete(ld.visited, v)
 }
 
 // ToValue attempts to convert the given value to a starlark.Value.
