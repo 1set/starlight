@@ -194,6 +194,36 @@ a = all([x in set_has for x in ["a", 1, True, 0.1]])
 	}
 }
 
+func TestAppendItself(t *testing.T) {
+	l, _ := MakeList([]interface{}{4, 5, 6})
+	globals := map[string]starlark.Value{
+		"s": NewGoSlice([]interface{}{1, 2, 3}),
+		"l": l,
+	}
+	code := `
+s.append(s)
+l.append(l)
+ss = s
+ll = l
+print("slice", ss)
+print("list", ll)
+`
+	res, err := starlark.ExecFile(&starlark.Thread{}, "foo.star", []byte(code), globals)
+	if err != nil {
+		t.Errorf("unexpected error to exec: %v", err)
+		return
+	}
+	if len(res) != 2 {
+		t.Errorf("expected 2 original results, got %d", len(res))
+		return
+	}
+	cnv := FromStringDict(res)
+	if len(cnv) != 2 {
+		t.Errorf("expected 2 converted results, got %d", len(cnv))
+		return
+	}
+}
+
 func TestKwargs(t *testing.T) {
 	// Mental note: starlark numbers pop out as int64s
 	data := []byte(`
