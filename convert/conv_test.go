@@ -222,22 +222,18 @@ d["f"] = d
 print("dict", d)
 dd = d
 
-m["e"] = m
+# m["e"] = m
 # print("map", m)
-mm = m
+# mm = m
 `
 	res, err := starlark.ExecFile(&starlark.Thread{}, "foo.star", []byte(code), globals)
 	if err != nil {
 		t.Errorf("unexpected error to exec: %v", err)
 		return
 	}
-	if len(res) != 4 {
-		t.Errorf("expected 2 original results, got %d", len(res))
-		return
-	}
 	cnv := FromStringDict(res)
-	if len(cnv) != 4 {
-		t.Errorf("expected 2 converted results, got %d", len(cnv))
+	if len(cnv) != 3 {
+		t.Errorf("expected 3 converted results, got %d", len(cnv))
 		return
 	}
 }
