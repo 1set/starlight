@@ -54,4 +54,25 @@ func TestAddr(t *testing.T) {
 	if addr != expectedAddr {
 		t.Errorf("Expected addr to return %v, got %v", expectedAddr, addr)
 	}
+
+	// Get the address of Go map
+	om := map[string]int{"a": 100}
+	gm := NewGoMap(om)
+	addr1 := trd.addr(gm)
+	expectedAddr = reflect.ValueOf(gm).Pointer()
+	if addr1 != expectedAddr {
+		t.Errorf("Expected GoMap addr1 to return %v, got %v", expectedAddr, addr1)
+	}
+
+	gm2 := NewGoMap(om)
+	addr2 := trd.addr(gm2)
+	expectedAddr = reflect.ValueOf(gm2).Pointer()
+	if addr2 != expectedAddr {
+		t.Errorf("Expected GoMap addr2 to return %v, got %v", expectedAddr, addr2)
+	}
+
+	// Compare the addresses of the two Go maps
+	if addr1 == addr2 {
+		t.Errorf("Expected GoMap addr1 and addr2 to be different, got same: %v", addr1)
+	}
 }
