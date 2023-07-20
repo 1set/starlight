@@ -37,7 +37,17 @@ type recursionDetector struct {
 }
 
 func (r *recursionDetector) addr(v interface{}) uintptr {
-	return reflect.ValueOf(v).Pointer()
+	// v is a uintptr, so we can't use reflect.ValueOf(v).Pointer()
+	if v == nil {
+		return 0
+	} else if p, ok := v.(uintptr); ok {
+		return p
+	}
+	switch reflect.TypeOf(v).Kind() {
+	case reflect.Chan, reflect.Slice, reflect.Map, reflect.Func, reflect.Pointer, reflect.UnsafePointer:
+		return reflect.ValueOf(v).Pointer()
+	}
+	return 0
 }
 
 func (r *recursionDetector) hasVisited(v interface{}) bool {

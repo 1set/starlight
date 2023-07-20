@@ -93,6 +93,11 @@ func (g *GoInterface) AttrNames() []string {
 // String returns the string representation of the value.
 // Starlark string values are quoted as if by Python's repr.
 func (g *GoInterface) String() string {
+	// if it's GoMap, we want to print it as a starlark dict.
+	if _, ok := g.v.Interface().(*GoMap); ok {
+		return "map{}"
+	}
+	return "-"
 	return fmt.Sprint(g.v.Interface())
 }
 

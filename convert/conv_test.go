@@ -221,7 +221,7 @@ print("dict", d)
 dd = d
 
 m["e"] = m
-# print("map", m)
+print("map", m)
 mm = m
 `
 	res, err := starlark.ExecFile(&starlark.Thread{}, "foo.star", []byte(code), globals)
