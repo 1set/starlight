@@ -36,8 +36,8 @@ func TestRecursionDetector(t *testing.T) {
 	}
 }
 
-// TestAddr tests the addr function of the recursionDetector struct.
-func TestAddr(t *testing.T) {
+// TestRecursionDetector_Addr tests the addr function of the recursionDetector struct.
+func TestRecursionDetector_Addr(t *testing.T) {
 	// Create a new recursionDetector.
 	trd := newRecursionDetector()
 
