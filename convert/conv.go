@@ -28,7 +28,7 @@ func ToValue(v interface{}) (starlark.Value, error) {
 	if val, ok := v.(starlark.Value); ok {
 		return val, nil
 	}
-	return toValue(reflect.ValueOf(v))
+	return toValue(reflect.ValueOf(v), emptyStr)
 }
 
 func hasMethods(val reflect.Value) bool {
@@ -41,7 +41,9 @@ func hasMethods(val reflect.Value) bool {
 	return false
 }
 
-func toValue(val reflect.Value) (result starlark.Value, err error) {
+var emptyStr string
+
+func toValue(val reflect.Value, tagName string) (result starlark.Value, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("panic recovered: %v", r)
@@ -108,7 +110,7 @@ func toValue(val reflect.Value) (result starlark.Value, err error) {
 		case reflect.TypeOf(time.Time{}):
 			return startime.Time(val.Interface().(time.Time)), nil
 		}
-		return &GoStruct{v: val}, nil
+		return &GoStruct{v: val, tag: tagName}, nil
 	case reflect.Interface:
 		return &GoInterface{v: val}, nil
 	case reflect.Invalid:
@@ -250,12 +252,12 @@ func makeDict(val reflect.Value) (starlark.Value, error) {
 	}
 	dict := starlark.Dict{}
 	for _, k := range val.MapKeys() {
-		vk, err := toValue(k)
+		vk, err := toValue(k, emptyStr)
 		if err != nil {
 			return nil, err
 		}
 
-		vv, err := toValue(val.MapIndex(k))
+		vv, err := toValue(val.MapIndex(k), emptyStr)
 		if err != nil {
 			return nil, err
 		}
@@ -466,7 +468,7 @@ func makeOut(out []reflect.Value) (starlark.Value, error) {
 		return starlark.None, err
 	}
 	if len(out) == 1 {
-		v, err2 := toValue(out[0])
+		v, err2 := toValue(out[0], emptyStr)
 		if err2 != nil {
 			return starlark.None, err2
 		}
@@ -475,7 +477,7 @@ func makeOut(out []reflect.Value) (starlark.Value, error) {
 	// tuple-up multiple values
 	res := make([]starlark.Value, 0, len(out))
 	for i := range out {
-		val, err3 := toValue(out[i])
+		val, err3 := toValue(out[i], emptyStr)
 		if err3 != nil {
 			return starlark.None, err3
 		}
