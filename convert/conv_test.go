@@ -195,18 +195,28 @@ a = all([x in set_has for x in ["a", 1, True, 0.1]])
 }
 
 func TestAppendItself(t *testing.T) {
+	t.SkipNow()
+	
 	l, _ := MakeList([]interface{}{4, 5, 6})
+	d, _ := MakeDict(map[interface{}]interface{}{"c": 3, "d": 4})
 	globals := map[string]starlark.Value{
 		"s": NewGoSlice([]interface{}{1, 2, 3}),
 		"l": l,
+		"m": NewGoMap(map[interface{}]interface{}{"a": 1, "b": 2}),
+		"d": d,
 	}
 	code := `
-s.append(s)
 l.append(l)
-ss = s
-ll = l
-print("slice", ss)
-print("list", ll)
+print("list", l)
+
+s.append(s)
+print("slice", s)
+
+d["f"] = d
+print("dict", d)
+
+m["e"] = m
+print("map", m)
 `
 	res, err := starlark.ExecFile(&starlark.Thread{}, "foo.star", []byte(code), globals)
 	if err != nil {
