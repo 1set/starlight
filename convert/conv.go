@@ -22,31 +22,36 @@ func init() {
 }
 
 var (
-	rd = &recursionDetector{visited: make(map[starlark.Value]bool)}
+	rd = &recursionDetector{visited: make(map[uintptr]struct{})}
 )
 
 // recursionDetector is used to detect infinite recursion in the data structure being converted, usually for starlark.Dict and starlark.List.
 type recursionDetector struct {
 	sync.RWMutex
-	visited map[starlark.Value]bool
+	visited map[uintptr]struct{}
 }
 
-func (ld *recursionDetector) hasVisited(v starlark.Value) bool {
-	ld.RLock()
-	defer ld.RUnlock()
-	return ld.visited[v]
+func (r *recursionDetector) addr(v interface{}) uintptr {
+	return reflect.ValueOf(v).Pointer()
 }
 
-func (ld *recursionDetector) setVisited(v starlark.Value) {
-	ld.Lock()
-	defer ld.Unlock()
-	ld.visited[v] = true
+func (r *recursionDetector) hasVisited(v interface{}) bool {
+	r.RLock()
+	defer r.RUnlock()
+	_, ok := r.visited[r.addr(v)]
+	return ok
 }
 
-func (ld *recursionDetector) clearVisited(v starlark.Value) {
-	ld.Lock()
-	defer ld.Unlock()
-	delete(ld.visited, v)
+func (r *recursionDetector) setVisited(v interface{}) {
+	r.Lock()
+	defer r.Unlock()
+	r.visited[r.addr(v)] = struct{}{}
+}
+
+func (r *recursionDetector) clearVisited(v interface{}) {
+	r.Lock()
+	defer r.Unlock()
+	delete(r.visited, r.addr(v))
 }
 
 // ToValue attempts to convert the given value to a starlark.Value.
