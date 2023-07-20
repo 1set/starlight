@@ -26,6 +26,7 @@ var (
 )
 
 // recursionDetector is used to detect infinite recursion in the data structure being converted, usually for starlark.Dict and starlark.List.
+// Only pointers are checked, other types will cause panic.
 type recursionDetector struct {
 	sync.RWMutex
 	visited map[uintptr]struct{}
