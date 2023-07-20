@@ -194,14 +194,14 @@ func (g *GoStruct) SetField(name string, val starlark.Value) error {
 
 	// try to set the field
 	if field.CanSet() {
-		if field.Kind() == reflect.Struct || (field.Kind() == reflect.Ptr && field.Elem().Kind() == reflect.Struct) {
-			// Handle nested struct or pointer to a struct
-			if val, ok := val.(*GoStruct); ok {
-				field.Set(reflect.ValueOf(val.Value().Interface()))
-				return nil
-			}
-			return fmt.Errorf("value is not a GoStruct")
-		}
+		//if field.Kind() == reflect.Struct || (field.Kind() == reflect.Ptr && field.Elem().Kind() == reflect.Struct) {
+		//	// Handle nested struct or pointer to a struct
+		//	if val, ok := val.(*GoStruct); ok {
+		//		field.Set(reflect.ValueOf(val.Value().Interface()))
+		//		return nil
+		//	}
+		//	return fmt.Errorf("value is not a GoStruct")
+		//}
 		val, err := tryConv(val, field.Type())
 		if err != nil {
 			return err
