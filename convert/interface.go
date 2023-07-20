@@ -43,8 +43,7 @@ type GoInterface struct {
 	v reflect.Value
 }
 
-// Attr returns a starlark value that wraps the method or field with the given
-// name.
+// Attr returns a starlark value that wraps the method or field with the given name.
 func (g *GoInterface) Attr(name string) (starlark.Value, error) {
 	switch name {
 	case "toInt":
