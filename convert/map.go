@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
-	"strings"
 
 	"go.starlark.net/starlark"
 )
@@ -78,31 +77,7 @@ func (g *GoMap) Get(in starlark.Value) (out starlark.Value, found bool, err erro
 // String returns the string representation of the value.
 // Starlark string values are quoted as if by Python's repr.
 func (g *GoMap) String() string {
-	u := g.v.Pointer()
-	if rd.hasVisited(u) {
-		return "{...}"
-	}
-	rd.setVisited(u)
-	defer rd.clearVisited(u)
-
-	var sb strings.Builder
-	sb.WriteString("{")
-	for i, k := range g.v.MapKeys() {
-		if i > 0 {
-			sb.WriteString(", ")
-		}
-		key, err := toValue(k, emptyStr)
-		if err != nil {
-			panic(err)
-		}
-		val, err := toValue(g.v.MapIndex(k), emptyStr)
-		if err != nil {
-			panic(err)
-		}
-		sb.WriteString(fmt.Sprintf("%s: %s", key.String(), val.String()))
-	}
-	sb.WriteString("}")
-	return sb.String()
+	return fmt.Sprint(g.v.Interface())
 }
 
 // Type returns a short string describing the value's type.
