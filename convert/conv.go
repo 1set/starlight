@@ -240,8 +240,7 @@ func FromList(l *starlark.List) []interface{} {
 	return ret
 }
 
-// MakeDict makes a Dict from the given map.  The acceptable keys and values are
-// the same as ToValue.
+// MakeDict makes a Dict from the given map.  The acceptable keys and values are the same as ToValue.
 func MakeDict(v interface{}) (starlark.Value, error) {
 	return makeDict(reflect.ValueOf(v))
 }
