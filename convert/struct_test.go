@@ -13,16 +13,26 @@ import (
 	"go.starlark.net/starlark"
 )
 
+type nested struct {
+	Truth  bool
+	Name   string  `star:"name"`
+	Number int     `star:"num,omitempty,nil"`
+	Value  float64 `star:"-"`
+}
+
 type mega struct {
-	Bool   bool
-	Int    int
-	Int64  int64 `star:"hate,omitempty,null"`
-	Body   io.Reader
-	String string `star:"love"`
-	Map    map[string]string
-	Time   time.Time
-	Now    func() time.Time
-	Bytes  []byte
+	Bool    bool
+	Int     int
+	Int64   int64 `star:"hate,omitempty,null"`
+	Body    io.Reader
+	String  string `star:"love"`
+	Map     map[string]string
+	Time    time.Time
+	Now     func() time.Time
+	Bytes   []byte
+	Child   nested  `star:"children"`
+	Change  *nested `star:"change"`
+	Another *nested `star:"another"`
 }
 
 func (m *mega) GetTime() time.Time {
@@ -90,6 +100,18 @@ func TestStructWithCustomTag(t *testing.T) {
 	m := &mega{
 		String: "hi!",
 		Int64:  100,
+		Child: nested{
+			Truth:  true,
+			Name:   "alice",
+			Number: 100,
+			Value:  1.8,
+		},
+		Change: &nested{
+			Truth:  false,
+			Name:   "bob",
+			Number: 200,
+			Value:  2.8,
+		},
 	}
 	globals := map[string]interface{}{
 		"m": convert.NewStructWithTag(m, "star"),
@@ -99,7 +121,13 @@ a = m.love
 b = m.hate
 m.love = "bye!"
 m.hate = 60
-print(dir(m))
+print(dir(m), dir(m.children), dir(m.change))
+c = m.children.Truth
+d = m.children.name
+m.change.num = 100
+e = dir(m.children) == dir(m.change)
+m.another = m.change
+f = dir(m.another) == dir(m.change)
 `)
 	res, err := starlight.Eval(code, globals, nil)
 	if err != nil {
@@ -113,6 +141,18 @@ print(dir(m))
 	}
 	if b := res["b"].(int64); b != 100 {
 		t.Fatalf("expected b to be 100, but got %d", b)
+	}
+	if c := res["c"].(bool); c != true {
+		t.Fatalf("expected c to be true, but got %v", c)
+	}
+	if d := res["d"].(string); d != "alice" {
+		t.Fatalf("expected d to be 'alice', but got %q", d)
+	}
+	if e := res["e"].(bool); e != true {
+		t.Fatalf("expected e to be true, but got %v", e)
+	}
+	if f := res["f"].(bool); f != true {
+		t.Fatalf("expected f to be true, but got %v", f)
 	}
 }
 

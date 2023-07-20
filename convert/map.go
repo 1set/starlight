@@ -66,7 +66,7 @@ func (g *GoMap) Get(in starlark.Value) (out starlark.Value, found bool, err erro
 		return starlark.None, false, nil
 	}
 
-	val, err := toValue(v)
+	val, err := toValue(v, emptyStr)
 	if err != nil {
 		return nil, false, err
 	}
@@ -146,7 +146,7 @@ func (g *GoMap) delete(key reflect.Value) (v starlark.Value, found bool, err err
 	}
 	g.v.SetMapIndex(key, reflect.Value{})
 
-	ret, err := toValue(val)
+	ret, err := toValue(val, emptyStr)
 	if err != nil {
 		return starlark.None, true, err
 	}
@@ -158,11 +158,11 @@ func (g *GoMap) Items() []starlark.Tuple {
 	var err error
 	for _, k := range g.v.MapKeys() {
 		tuple := make(starlark.Tuple, 2)
-		tuple[0], err = toValue(k)
+		tuple[0], err = toValue(k, emptyStr)
 		if err != nil {
 			panic(err)
 		}
-		tuple[1], err = toValue(g.v.MapIndex(k))
+		tuple[1], err = toValue(g.v.MapIndex(k), emptyStr)
 		if err != nil {
 			panic(err)
 		}
@@ -174,7 +174,7 @@ func (g *GoMap) Items() []starlark.Tuple {
 func (g *GoMap) Keys() []starlark.Value {
 	keys := make([]starlark.Value, 0, g.v.Len())
 	for _, k := range g.v.MapKeys() {
-		key, err := toValue(k)
+		key, err := toValue(k, emptyStr)
 		if err != nil {
 			panic(err)
 		}
@@ -248,7 +248,7 @@ type mapIterator struct {
 
 func (it *mapIterator) Next(p *starlark.Value) bool {
 	if it.i < len(it.keys) {
-		v, err := toValue(it.keys[it.i])
+		v, err := toValue(it.keys[it.i], emptyStr)
 		if err != nil {
 			panic(err)
 		}
@@ -338,7 +338,7 @@ func dict_popitem(fnname string, g *GoMap, args starlark.Tuple, _ []starlark.Tup
 	if err != nil {
 		return nil, err
 	}
-	key, err := toValue(k)
+	key, err := toValue(k, emptyStr)
 	if err != nil {
 		return nil, err
 	}

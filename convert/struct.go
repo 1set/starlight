@@ -85,7 +85,7 @@ func (g *GoStruct) Attr(name string) (starlark.Value, error) {
 
 	// return the field if found
 	if found && field.Kind() != reflect.Invalid {
-		return toValue(field)
+		return toValue(field, g.tag)
 	}
 
 	// for not found
