@@ -43,11 +43,7 @@ func (r *recursionDetector) addr(v interface{}) uintptr {
 	} else if p, ok := v.(uintptr); ok {
 		return p
 	}
-	switch reflect.TypeOf(v).Kind() {
-	case reflect.Chan, reflect.Slice, reflect.Map, reflect.Func, reflect.Pointer, reflect.UnsafePointer:
-		return reflect.ValueOf(v).Pointer()
-	}
-	panic(fmt.Errorf("cannot get address of %T", v))
+	return reflect.ValueOf(v).Pointer()
 }
 
 func (r *recursionDetector) hasVisited(v interface{}) bool {
