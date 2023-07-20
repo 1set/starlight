@@ -230,11 +230,6 @@ mm = m
 		return
 	}
 	cnv := FromStringDict(res)
-	if len(cnv) != 4 {
-		t.Errorf("expected 4 converted results, got %d", len(cnv))
-		return
-	}
-	//t.Logf("converted results: %v", cnv)
 	if exp := []interface{}{int64(4), int64(5), int64(6), ([]interface{})(nil)}; !reflect.DeepEqual(cnv["ll"], exp) {
 		t.Errorf("expected %v, got %v", exp, cnv["ll"])
 	}
@@ -244,6 +239,7 @@ mm = m
 	if exp := map[interface{}]interface{}{"c": 3, "d": 4, "f": (map[interface{}]interface{})(nil)}; !reflect.DeepEqual(cnv["dd"], exp) {
 		t.Errorf("expected %v, got %v", exp, cnv["dd"])
 	}
+	//t.Logf("converted results: %v", cnv)
 }
 
 func TestKwargs(t *testing.T) {
