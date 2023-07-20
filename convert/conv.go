@@ -22,8 +22,12 @@ func init() {
 }
 
 var (
-	rd = &recursionDetector{visited: make(map[uintptr]struct{})}
+	rd = newRecursionDetector()
 )
+
+func newRecursionDetector() *recursionDetector {
+	return &recursionDetector{visited: make(map[uintptr]struct{})}
+}
 
 // recursionDetector is used to detect infinite recursion in the data structure being converted, usually for starlark.Dict and starlark.List.
 // Only pointers are checked, other types will cause panic.
