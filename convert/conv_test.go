@@ -212,27 +212,31 @@ func TestAppendItself(t *testing.T) {
 	code := `
 l.append(l)
 print("list", l)
+ll = l
 
 s.append(s)
 print("slice", s)
+ss = s
 
 d["f"] = d
 print("dict", d)
+dd = d
 
 m["e"] = m
-print("map", m)
+# print("map", m)
+mm = m
 `
 	res, err := starlark.ExecFile(&starlark.Thread{}, "foo.star", []byte(code), globals)
 	if err != nil {
 		t.Errorf("unexpected error to exec: %v", err)
 		return
 	}
-	if len(res) != 2 {
+	if len(res) != 4 {
 		t.Errorf("expected 2 original results, got %d", len(res))
 		return
 	}
 	cnv := FromStringDict(res)
-	if len(cnv) != 2 {
+	if len(cnv) != 4 {
 		t.Errorf("expected 2 converted results, got %d", len(cnv))
 		return
 	}
