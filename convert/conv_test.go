@@ -194,6 +194,54 @@ a = all([x in set_has for x in ["a", 1, True, 0.1]])
 	}
 }
 
+func TestAppendItself(t *testing.T) {
+	l, _ := MakeList([]interface{}{4, 5, 6})
+	d, e := MakeDict(map[string]interface{}{"c": 3, "d": 4})
+	if e != nil {
+		t.Errorf("unexpected error to make dict: %v", e)
+		return
+	}
+	globals := map[string]starlark.Value{
+		"s": NewGoSlice([]interface{}{1, 2, 3}),
+		"l": l,
+		"m": NewGoMap(map[interface{}]interface{}{"a": 1, "b": 2}),
+		"d": d,
+	}
+	code := `
+l.append(l)
+print("list", l)
+ll = l
+
+s.append(s)
+print("slice", s)
+ss = s
+
+d["f"] = d
+print("dict", d)
+dd = d
+
+m["e"] = m
+# print("map", m)
+mm = m
+`
+	res, err := starlark.ExecFile(&starlark.Thread{}, "foo.star", []byte(code), globals)
+	if err != nil {
+		t.Errorf("unexpected error to exec: %v", err)
+		return
+	}
+	cnv := FromStringDict(res)
+	if exp := []interface{}{int64(4), int64(5), int64(6), ([]interface{})(nil)}; !reflect.DeepEqual(cnv["ll"], exp) {
+		t.Errorf("expected %v, got %v", exp, cnv["ll"])
+	}
+	if exp := []interface{}{1, 2, 3, []interface{}{1, 2, 3}}; !reflect.DeepEqual(cnv["ss"], exp) {
+		t.Errorf("expected %v, got %v", exp, cnv["ss"])
+	}
+	if exp := map[interface{}]interface{}{"c": 3, "d": 4, "f": (map[interface{}]interface{})(nil)}; !reflect.DeepEqual(cnv["dd"], exp) {
+		t.Errorf("expected %v, got %v", exp, cnv["dd"])
+	}
+	//t.Logf("converted results: %v", cnv)
+}
+
 func TestKwargs(t *testing.T) {
 	// Mental note: starlark numbers pop out as int64s
 	data := []byte(`

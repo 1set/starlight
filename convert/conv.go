@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 	"time"
 
 	startime "go.starlark.net/lib/time"
@@ -18,6 +19,50 @@ func init() {
 	resolve.AllowFloat = true     // allow floating point literals, the 'float' built-in, and x / y
 	resolve.AllowSet = true       // allow the 'set' built-in
 	resolve.AllowBitwise = true   // allow bitwise operands
+}
+
+var (
+	rd = newRecursionDetector()
+)
+
+func newRecursionDetector() *recursionDetector {
+	return &recursionDetector{visited: make(map[uintptr]struct{})}
+}
+
+// recursionDetector is used to detect infinite recursion in the data structure being converted, usually for starlark.Dict and starlark.List.
+// Only pointers are checked, other types will cause panic.
+type recursionDetector struct {
+	sync.RWMutex
+	visited map[uintptr]struct{}
+}
+
+func (r *recursionDetector) addr(v interface{}) uintptr {
+	// v is a uintptr, so we can't use reflect.ValueOf(v).Pointer()
+	if v == nil {
+		return 0
+	} else if p, ok := v.(uintptr); ok {
+		return p
+	}
+	return reflect.ValueOf(v).Pointer()
+}
+
+func (r *recursionDetector) hasVisited(v interface{}) bool {
+	r.RLock()
+	defer r.RUnlock()
+	_, ok := r.visited[r.addr(v)]
+	return ok
+}
+
+func (r *recursionDetector) setVisited(v interface{}) {
+	r.Lock()
+	defer r.Unlock()
+	r.visited[r.addr(v)] = struct{}{}
+}
+
+func (r *recursionDetector) clearVisited(v interface{}) {
+	r.Lock()
+	defer r.Unlock()
+	delete(r.visited, r.addr(v))
 }
 
 // ToValue attempts to convert the given value to a starlark.Value.
@@ -229,6 +274,13 @@ func MakeList(v []interface{}) (*starlark.List, error) {
 
 // FromList creates a go slice from the given starlark list.
 func FromList(l *starlark.List) []interface{} {
+	// return nil to avoid infinite recursion
+	if rd.hasVisited(l) {
+		return nil
+	}
+	rd.setVisited(l)
+	defer rd.clearVisited(l)
+
 	ret := make([]interface{}, 0, l.Len())
 	var v starlark.Value
 	i := l.Iterate()
@@ -240,8 +292,7 @@ func FromList(l *starlark.List) []interface{} {
 	return ret
 }
 
-// MakeDict makes a Dict from the given map.  The acceptable keys and values are
-// the same as ToValue.
+// MakeDict makes a Dict from the given map. The acceptable keys and values are the same as ToValue.
 func MakeDict(v interface{}) (starlark.Value, error) {
 	return makeDict(reflect.ValueOf(v))
 }
@@ -268,6 +319,13 @@ func makeDict(val reflect.Value) (starlark.Value, error) {
 
 // FromDict converts a starlark.Dict to a map[interface{}]interface{}
 func FromDict(m *starlark.Dict) map[interface{}]interface{} {
+	// return nil to avoid infinite recursion
+	if rd.hasVisited(m) {
+		return nil
+	}
+	rd.setVisited(m)
+	defer rd.clearVisited(m)
+
 	ret := make(map[interface{}]interface{}, m.Len())
 	for _, k := range m.Keys() {
 		key := FromValue(k)
