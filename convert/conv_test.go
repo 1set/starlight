@@ -195,8 +195,6 @@ a = all([x in set_has for x in ["a", 1, True, 0.1]])
 }
 
 func TestAppendItself(t *testing.T) {
-	//t.SkipNow()
-
 	l, _ := MakeList([]interface{}{4, 5, 6})
 	d, e := MakeDict(map[string]interface{}{"c": 3, "d": 4})
 	if e != nil {
@@ -235,6 +233,17 @@ dd = d
 	if len(cnv) != 3 {
 		t.Errorf("expected 3 converted results, got %d", len(cnv))
 		return
+	} else {
+		t.Logf("converted results: %v", cnv)
+	}
+	if exp := []interface{}{int64(4), int64(5), int64(6), ([]interface{})(nil)}; !reflect.DeepEqual(cnv["ll"], exp) {
+		t.Errorf("expected %v, got %v", exp, cnv["ll"])
+	}
+	if exp := []interface{}{1, 2, 3, []interface{}{1, 2, 3}}; !reflect.DeepEqual(cnv["ss"], exp) {
+		t.Errorf("expected %v, got %v", exp, cnv["ss"])
+	}
+	if exp := map[interface{}]interface{}{"c": 3, "d": 4, "f": (map[interface{}]interface{})(nil)}; !reflect.DeepEqual(cnv["dd"], exp) {
+		t.Errorf("expected %v, got %v", exp, cnv["dd"])
 	}
 }
 

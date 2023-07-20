@@ -22,28 +22,28 @@ func init() {
 }
 
 var (
-	ld = &loopDetector{visited: make(map[starlark.Value]bool)}
+	rd = &recursionDetector{visited: make(map[starlark.Value]bool)}
 )
 
-// loopDetector is used to detect loops in the data structure being converted, usually for starlark.Dict and starlark.List.
-type loopDetector struct {
+// recursionDetector is used to detect infinite recursion in the data structure being converted, usually for starlark.Dict and starlark.List.
+type recursionDetector struct {
 	sync.RWMutex
 	visited map[starlark.Value]bool
 }
 
-func (ld *loopDetector) hasVisited(v starlark.Value) bool {
+func (ld *recursionDetector) hasVisited(v starlark.Value) bool {
 	ld.RLock()
 	defer ld.RUnlock()
 	return ld.visited[v]
 }
 
-func (ld *loopDetector) setVisited(v starlark.Value) {
+func (ld *recursionDetector) setVisited(v starlark.Value) {
 	ld.Lock()
 	defer ld.Unlock()
 	ld.visited[v] = true
 }
 
-func (ld *loopDetector) clearVisited(v starlark.Value) {
+func (ld *recursionDetector) clearVisited(v starlark.Value) {
 	ld.Lock()
 	defer ld.Unlock()
 	delete(ld.visited, v)
@@ -258,6 +258,13 @@ func MakeList(v []interface{}) (*starlark.List, error) {
 
 // FromList creates a go slice from the given starlark list.
 func FromList(l *starlark.List) []interface{} {
+	// return nil to avoid infinite recursion
+	if rd.hasVisited(l) {
+		return nil
+	}
+	rd.setVisited(l)
+	defer rd.clearVisited(l)
+
 	ret := make([]interface{}, 0, l.Len())
 	var v starlark.Value
 	i := l.Iterate()
@@ -269,7 +276,7 @@ func FromList(l *starlark.List) []interface{} {
 	return ret
 }
 
-// MakeDict makes a Dict from the given map.  The acceptable keys and values are the same as ToValue.
+// MakeDict makes a Dict from the given map. The acceptable keys and values are the same as ToValue.
 func MakeDict(v interface{}) (starlark.Value, error) {
 	return makeDict(reflect.ValueOf(v))
 }
@@ -296,6 +303,13 @@ func makeDict(val reflect.Value) (starlark.Value, error) {
 
 // FromDict converts a starlark.Dict to a map[interface{}]interface{}
 func FromDict(m *starlark.Dict) map[interface{}]interface{} {
+	// return nil to avoid infinite recursion
+	if rd.hasVisited(m) {
+		return nil
+	}
+	rd.setVisited(m)
+	defer rd.clearVisited(m)
+
 	ret := make(map[interface{}]interface{}, m.Len())
 	for _, k := range m.Keys() {
 		key := FromValue(k)
