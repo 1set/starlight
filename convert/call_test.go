@@ -746,6 +746,7 @@ func TestCustomStructInStarlark(t *testing.T) {
 			ReadMessage:   b.String,
 			NumberChan:    make(chan int, 10),
 			StarDict:      starlark.NewDict(10),
+			DataBytes:     []byte("hello world"),
 		}
 		_ = p.StarDict.SetKey(starlark.String("foo"), starlark.String("bar"))
 		return p
@@ -936,7 +937,7 @@ func TestCustomStructInStarlark(t *testing.T) {
 		{
 			name:        "list prop fields",
 			codeSnippet: `fields = dir(pn); out = pn`,
-			checkEqual:  getInterfaceStringSliceCompare("fields", []string{"Aging", "GetSecretKey", "Nothing", "SetCustomer", "SetSecretKey", "String", "age", "anything", "customer", "customer_ptr", "dict", "message_writer", "name", "nested_values", "nil_custom", "nil_person", "nil_string", "number_chan", "parent", "profile", "read_message", "tags"}),
+			checkEqual:  getInterfaceStringSliceCompare("fields", []string{"Aging", "GetSecretKey", "Nothing", "SetCustomer", "SetSecretKey", "String", "age", "anything", "customer", "customer_ptr", "data", "dict", "message_writer", "name", "nested_values", "nil_custom", "nil_person", "nil_string", "number_chan", "parent", "profile", "read_message", "tags"}),
 		},
 		{
 			name:        "read slice of string",
@@ -1024,6 +1025,30 @@ out = pn
 					return fmt.Errorf(`expected "foo" to be an int16, but got %T`, v)
 				} else if n != 12345 {
 					return fmt.Errorf(`expected "foo" to be 12345, but got %v`, n)
+				}
+				return nil
+			},
+		},
+		{
+			name:        "read bytes",
+			codeSnippet: `foo = pn.data; out = pn`,
+			checkEqual: func(_ *personStruct, m map[string]interface{}) error {
+				if v, ok := m["foo"]; !ok {
+					return fmt.Errorf(`expected "foo" to be in globals, but not found`)
+				} else if n, ok := v.([]byte); !ok {
+					return fmt.Errorf(`expected "foo" to be a []byte, but got %T`, v)
+				} else if !bytes.Equal(n, []byte("hello world")) {
+					return fmt.Errorf(`expected "foo" to be "hello world", but got %v`, n)
+				}
+				return nil
+			},
+		},
+		{
+			name:        "write bytes",
+			codeSnippet: `pn.data = "aloha"; out = pn`,
+			checkEqual: func(p *personStruct, _ map[string]interface{}) error {
+				if !bytes.Equal(p.DataBytes, []byte("aloha")) {
+					return fmt.Errorf(`expected "data" to be "aloha", but got %v`, p.DataBytes)
 				}
 				return nil
 			},
@@ -1305,6 +1330,7 @@ type personStruct struct {
 	NilPerson         *personStruct                `starlark:"nil_person"`
 	buffer            bytes.Buffer                 `starlark:"-"`
 	StarDict          *starlark.Dict               `starlark:"dict"`
+	DataBytes         []byte                       `starlark:"data"`
 }
 
 func (p *personStruct) String() string {
