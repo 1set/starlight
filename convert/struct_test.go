@@ -21,18 +21,19 @@ type nested struct {
 }
 
 type mega struct {
-	Bool    bool
-	Int     int
-	Int64   int64 `star:"hate,omitempty,null"`
-	Body    io.Reader
-	String  string `star:"love"`
-	Map     map[string]string
-	Time    time.Time
-	Now     func() time.Time
-	Bytes   []byte
-	Child   nested  `star:"children"`
-	Change  *nested `star:"change"`
-	Another *nested `star:"another"`
+	Bool     bool
+	Int      int
+	Int64    int64 `star:"hate,omitempty,null"`
+	Body     io.Reader
+	String   string `star:"love"`
+	Map      map[string]string
+	Time     time.Time
+	Now      func() time.Time
+	Bytes    []byte
+	Child    nested    `star:"children"`
+	Change   *nested   `star:"change"`
+	Another  *nested   `star:"another"`
+	Multiple []*nested `star:"many"`
 }
 
 func (m *mega) GetTime() time.Time {
