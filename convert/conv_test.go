@@ -370,7 +370,36 @@ addr = contact.Street
 	verifyTestStructValues(t, x, scr)
 }
 
-func TestStructToValueWithTag(t *testing.T) {
+func TestStructToValueWithDefaultTag(t *testing.T) {
+	type contact struct {
+		Name, Street string
+	}
+	c := &contact{Name: "bob", Street: "oak"}
+
+	s := NewStructWithTag(c, "")
+	v, err := ToValueWithTag(s, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, ok := v.(*GoStruct)
+	if !ok {
+		t.Fatalf("expected v to be *Struct, but was %T", v)
+	}
+	x, err := ToValue(c)
+	if err != nil {
+		t.Fatalf("expected x to be *Struct, but was %T", x)
+	}
+
+	scr := `
+name = contact.Name
+addr = contact.Street
+`
+	verifyTestStructValues(t, s, scr)
+	verifyTestStructValues(t, v, scr)
+	verifyTestStructValues(t, x, scr)
+}
+
+func TestStructToValueWithCustomTag(t *testing.T) {
 	type contact struct {
 		Name   string `lark:"name"`
 		Street string `lark:"address,omitempty"`
