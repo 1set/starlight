@@ -27,6 +27,15 @@ func ToValue(v interface{}) (starlark.Value, error) {
 	return toValue(reflect.ValueOf(v), emptyStr)
 }
 
+// ToValueWithTag attempts to convert the given value to a starlark.Value.
+// It works like ToValue, but also accepts a tag name to use for all nested struct fields.
+func ToValueWithTag(v interface{}, tagName string) (starlark.Value, error) {
+	if val, ok := v.(starlark.Value); ok {
+		return val, nil
+	}
+	return toValue(reflect.ValueOf(v), tagName)
+}
+
 func hasMethods(val reflect.Value) bool {
 	if val.NumMethod() > 0 {
 		return true

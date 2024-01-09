@@ -332,6 +332,74 @@ func TestStructToValue(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected v to be *Struct, but was %T", v)
 	}
+
+	// run in starlark
+	envs := map[string]starlark.Value{
+		"contact": v,
+	}
+	code := []byte(`
+name = contact.Name
+addr = contact.Street
+`)
+	thread := &starlark.Thread{
+		Name: "test",
+	}
+
+	// read the value
+	globals, err := starlark.ExecFile(thread, "foo.star", code, envs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vv := FromStringDict(globals)
+	if vv["name"] != "bob" {
+		t.Errorf("expected name to be \"bob\", but got %q", vv["name"])
+	}
+	if vv["addr"] != "oak" {
+		t.Errorf("expected addr to be \"oak\", but got %q", vv["addr"])
+	}
+}
+
+func TestStructToValueWithTag(t *testing.T) {
+	type contact struct {
+		Name   string `lark:"name"`
+		Street string `lark:"address,omitempty"`
+	}
+	c := &contact{Name: "bob", Street: "oak"}
+
+	s := NewStructWithTag(c, "lark")
+	v, err := ToValueWithTag(s, "lark")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, ok := v.(*GoStruct)
+	if !ok {
+		t.Fatalf("expected v to be *Struct, but was %T", v)
+	}
+
+	// run in starlark
+	envs := map[string]starlark.Value{
+		"contact": v,
+	}
+	code := []byte(`
+name = contact.name
+addr = contact.address
+`)
+	thread := &starlark.Thread{
+		Name: "test",
+	}
+
+	// read the value
+	globals, err := starlark.ExecFile(thread, "foo.star", code, envs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vv := FromStringDict(globals)
+	if vv["name"] != "bob" {
+		t.Errorf("expected name to be \"bob\", but got %q", vv["name"])
+	}
+	if vv["addr"] != "oak" {
+		t.Errorf("expected addr to be \"oak\", but got %q", vv["addr"])
+	}
 }
 
 func TestMakeNamedList(t *testing.T) {

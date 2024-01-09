@@ -27,13 +27,13 @@ func NewStruct(strct interface{}) *GoStruct {
 // NewStructWithTag makes a new Starlark-compatible Struct from the given struct or pointer to struct,
 // using the given struct tag to determine which fields to expose.
 // This will panic if you pass it anything else.
-func NewStructWithTag(strct interface{}, tag string) *GoStruct {
+func NewStructWithTag(strct interface{}, tagName string) *GoStruct {
 	val := reflect.ValueOf(strct)
 	if val.Kind() == reflect.Struct || (val.Kind() == reflect.Ptr && val.Elem().Kind() == reflect.Struct) {
-		if tag == "" {
-			tag = DefaultPropertyTag
+		if tagName == "" {
+			tagName = DefaultPropertyTag
 		}
-		return &GoStruct{v: val, tag: tag}
+		return &GoStruct{v: val, tag: tagName}
 	}
 	panic(fmt.Errorf("value must be a struct or pointer to a struct, but was %T", val.Interface()))
 }
