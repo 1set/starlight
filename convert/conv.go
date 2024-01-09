@@ -93,11 +93,11 @@ func toValue(val reflect.Value, tagName string) (result starlark.Value, err erro
 	case reflect.Func:
 		return makeStarFn("fn", val), nil
 	case reflect.Map:
-		return &GoMap{v: val}, nil
+		return &GoMap{v: val, tag: tagName}, nil
 	case reflect.String:
 		return starlark.String(val.String()), nil
 	case reflect.Slice, reflect.Array:
-		return &GoSlice{v: val}, nil
+		return &GoSlice{v: val, tag: tagName}, nil
 	case reflect.Struct:
 		// handle special case from standard starlark lib
 		switch val.Type() {
