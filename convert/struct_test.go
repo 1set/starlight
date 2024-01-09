@@ -113,6 +113,18 @@ func TestStructWithCustomTag(t *testing.T) {
 			Number: 200,
 			Value:  2.8,
 		},
+		Multiple: []*nested{
+			{
+				Truth:  true,
+				Name:   "one",
+				Number: 1,
+			},
+			{
+				Truth:  true,
+				Name:   "two",
+				Number: 2,
+			},
+		},
 	}
 	globals := map[string]interface{}{
 		"m": convert.NewStructWithTag(m, "star"),
@@ -122,13 +134,16 @@ a = m.love
 b = m.hate
 m.love = "bye!"
 m.hate = 60
-print(dir(m), dir(m.children), dir(m.change))
+print(dir(m), dir(m.children), dir(m.change), dir(m.many[0]))
 c = m.children.Truth
 d = m.children.name
 m.change.num = 100
 e = dir(m.children) == dir(m.change)
 m.another = m.change
 f = dir(m.another) == dir(m.change)
+g = len(m.many) == 2
+m1 = m.many[0]
+h = dir(m1) == ["Truth", "name", "num"]
 `)
 	res, err := starlight.Eval(code, globals, nil)
 	if err != nil {
@@ -154,6 +169,12 @@ f = dir(m.another) == dir(m.change)
 	}
 	if f := res["f"].(bool); f != true {
 		t.Fatalf("expected f to be true, but got %v", f)
+	}
+	if g := res["g"].(bool); g != true {
+		t.Fatalf("expected g to be true, but got %v", g)
+	}
+	if h := res["h"].(bool); h != true {
+		t.Fatalf("expected h to be true, but got %v", h)
 	}
 }
 
