@@ -21,18 +21,20 @@ type nested struct {
 }
 
 type mega struct {
-	Bool    bool
-	Int     int
-	Int64   int64 `star:"hate,omitempty,null"`
-	Body    io.Reader
-	String  string `star:"love"`
-	Map     map[string]string
-	Time    time.Time
-	Now     func() time.Time
-	Bytes   []byte
-	Child   nested  `star:"children"`
-	Change  *nested `star:"change"`
-	Another *nested `star:"another"`
+	Bool     bool
+	Int      int
+	Int64    int64 `star:"hate,omitempty,null"`
+	Body     io.Reader
+	String   string `star:"love"`
+	Map      map[string]string
+	Time     time.Time
+	Now      func() time.Time
+	Bytes    []byte
+	Child    nested             `star:"children"`
+	Change   *nested            `star:"change"`
+	Another  *nested            `star:"another"`
+	Multiple []*nested          `star:"many"`
+	MoreMap  map[string]*nested `star:"more"`
 }
 
 func (m *mega) GetTime() time.Time {
@@ -112,6 +114,30 @@ func TestStructWithCustomTag(t *testing.T) {
 			Number: 200,
 			Value:  2.8,
 		},
+		Multiple: []*nested{
+			{
+				Truth:  true,
+				Name:   "one",
+				Number: 1,
+			},
+			{
+				Truth:  true,
+				Name:   "two",
+				Number: 2,
+			},
+		},
+		MoreMap: map[string]*nested{
+			"one": {
+				Truth:  true,
+				Name:   "I",
+				Number: 1,
+			},
+			"two": {
+				Truth:  true,
+				Name:   "II",
+				Number: 2,
+			},
+		},
 	}
 	globals := map[string]interface{}{
 		"m": convert.NewStructWithTag(m, "star"),
@@ -121,13 +147,24 @@ a = m.love
 b = m.hate
 m.love = "bye!"
 m.hate = 60
-print(dir(m), dir(m.children), dir(m.change))
-c = m.children.Truth
-d = m.children.name
+print(dir(m), dir(m.children), dir(m.change), dir(m.many[0]))
+print(m.more["two"])
+
+c = m.children.name
+d = m.children.Truth
+
 m.change.num = 100
 e = dir(m.children) == dir(m.change)
 m.another = m.change
 f = dir(m.another) == dir(m.change)
+
+g = len(m.many) == 2
+m1 = m.many[0]
+h = dir(m1) == ["Truth", "name", "num"]
+
+i = len(m.more) == 2
+m2 = m.more["one"]
+j = dir(m2) == ["Truth", "name", "num"]
 `)
 	res, err := starlight.Eval(code, globals, nil)
 	if err != nil {
@@ -142,17 +179,15 @@ f = dir(m.another) == dir(m.change)
 	if b := res["b"].(int64); b != 100 {
 		t.Fatalf("expected b to be 100, but got %d", b)
 	}
-	if c := res["c"].(bool); c != true {
-		t.Fatalf("expected c to be true, but got %v", c)
-	}
-	if d := res["d"].(string); d != "alice" {
+	if d := res["c"].(string); d != "alice" {
 		t.Fatalf("expected d to be 'alice', but got %q", d)
 	}
-	if e := res["e"].(bool); e != true {
-		t.Fatalf("expected e to be true, but got %v", e)
-	}
-	if f := res["f"].(bool); f != true {
-		t.Fatalf("expected f to be true, but got %v", f)
+
+	boolChecks := []string{"d", "e", "f", "g", "h", "i", "j"}
+	for _, label := range boolChecks {
+		if v := res[label].(bool); v != true {
+			t.Fatalf("expected %s to be true, but got %v", label, v)
+		}
 	}
 }
 

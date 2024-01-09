@@ -18,6 +18,7 @@ import (
 type GoSlice struct {
 	v      reflect.Value
 	numIt  int
+	tag    string
 	frozen bool
 }
 
@@ -79,7 +80,7 @@ func (g *GoSlice) Clear() error {
 
 // Index implements starlark.Indexable.
 func (g *GoSlice) Index(i int) starlark.Value {
-	v, err := toValue(g.v.Index(i), emptyStr)
+	v, err := toValue(g.v.Index(i), g.tag)
 	if err != nil {
 		panic(err)
 	}
@@ -185,7 +186,7 @@ type sliceIterator struct {
 
 func (it *sliceIterator) Next(p *starlark.Value) bool {
 	if it.i < it.g.v.Len() {
-		v, err := toValue(it.g.v.Index(it.i), emptyStr)
+		v, err := toValue(it.g.v.Index(it.i), it.g.tag)
 		if err != nil {
 			panic(err)
 		}
@@ -378,7 +379,7 @@ func list_pop(fnname string, g *GoSlice, args starlark.Tuple, kwargs []starlark.
 		return nil, err
 	}
 	// convert this out before reslicing, otherwise the value changes out from under us.
-	res, err := toValue(g.v.Index(index), emptyStr)
+	res, err := toValue(g.v.Index(index), g.tag)
 	if err != nil {
 		return nil, err
 	}

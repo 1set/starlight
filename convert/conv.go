@@ -13,11 +13,7 @@ import (
 )
 
 func init() {
-	resolve.AllowNestedDef = true // allow def statements within function bodies
-	resolve.AllowLambda = true    // allow lambda expressions
-	resolve.AllowFloat = true     // allow floating point literals, the 'float' built-in, and x / y
-	resolve.AllowSet = true       // allow the 'set' built-in
-	resolve.AllowBitwise = true   // allow bitwise operands
+	resolve.AllowSet = true // allow the 'set' built-in
 }
 
 // ToValue attempts to convert the given value to a starlark.Value.
@@ -29,6 +25,15 @@ func ToValue(v interface{}) (starlark.Value, error) {
 		return val, nil
 	}
 	return toValue(reflect.ValueOf(v), emptyStr)
+}
+
+// ToValueWithTag attempts to convert the given value to a starlark.Value.
+// It works like ToValue, but also accepts a tag name to use for all nested struct fields.
+func ToValueWithTag(v interface{}, tagName string) (starlark.Value, error) {
+	if val, ok := v.(starlark.Value); ok {
+		return val, nil
+	}
+	return toValue(reflect.ValueOf(v), tagName)
 }
 
 func hasMethods(val reflect.Value) bool {
@@ -97,11 +102,11 @@ func toValue(val reflect.Value, tagName string) (result starlark.Value, err erro
 	case reflect.Func:
 		return makeStarFn("fn", val), nil
 	case reflect.Map:
-		return &GoMap{v: val}, nil
+		return &GoMap{v: val, tag: tagName}, nil
 	case reflect.String:
 		return starlark.String(val.String()), nil
 	case reflect.Slice, reflect.Array:
-		return &GoSlice{v: val}, nil
+		return &GoSlice{v: val, tag: tagName}, nil
 	case reflect.Struct:
 		// handle special case from standard starlark lib
 		switch val.Type() {
