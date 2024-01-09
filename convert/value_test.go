@@ -285,7 +285,7 @@ func TestFromValue(t *testing.T) {
 	slSet.Insert(starlark.String("b"))
 
 	testBuiltin := convert.MakeStarFn("fn", func() string { return "test" })
-	testFunction := getSimpleStarlarkFunc()
+	testFunction := getTestStarlarkFunc()
 	testModule := starlarkstruct.Module{Name: "atest"}
 	testStruct := starlarkstruct.Struct{}
 	now := time.Now()
@@ -453,7 +453,7 @@ func (s naiveType) Triple(x int) int {
 
 // Generate Starlark Functions
 
-func getSimpleStarlarkFunc() *starlark.Function {
+func getTestStarlarkFunc() *starlark.Function {
 	code := `
 def double(x):
 	return x*2
