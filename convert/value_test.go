@@ -819,3 +819,76 @@ func TestGoTypeWrapperValue(t *testing.T) {
 		})
 	}
 }
+
+func TestMakeDictWithTag(t *testing.T) {
+	type contact struct {
+		Name   string `sl:"name"`
+		Street string `sl:"address,omitempty"`
+	}
+	type testCase struct {
+		name        string
+		data        interface{}
+		codeSnippet string
+		customTag   string
+		wantErrConv bool
+		wantErrExec bool
+	}
+	testCases := []testCase{
+		{
+			name: "map[string]int",
+			data: map[string]int{
+				"a": 1,
+				"b": 2,
+			},
+			codeSnippet: `
+assert.Eq(type(data), "dict")
+a = data["a"]
+b = data["b"]
+assert.Eq(type(a), "int")
+assert.Eq(type(b), "int")
+assert.Eq(a, 1)
+assert.Eq(b, 2)
+`,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gs := map[string]interface{}{
+				"assert": &assert{t: t},
+				"i1":     int64(1),
+			}
+			envs, err := convert.MakeStringDict(gs)
+			if err != nil {
+				t.Fatalf(`expected no error while converting globals, but got %v`, err)
+			}
+
+			// convert go values to Starlark values as predefined globals
+			var (
+				cv      starlark.Value
+				errConv error
+			)
+			if tc.customTag != "" {
+				cv, errConv = convert.MakeDictWithTag(tc.data, tc.customTag)
+			} else {
+				cv, errConv = convert.MakeDict(tc.data)
+			}
+			if errConv != nil == !tc.wantErrConv {
+				t.Fatalf(`expected no error while converting dict, but got %v`, errConv)
+			} else if errConv == nil && tc.wantErrConv {
+				t.Fatalf(`expected an error while converting dict, but got none`)
+			}
+			if errConv != nil {
+				return
+			}
+
+			// run the Starlark code to test the converted globals
+			envs["data"] = cv
+			_, errExec := execStarlark(tc.codeSnippet, envs)
+			if errExec != nil && !tc.wantErrExec {
+				t.Fatalf(`expected no error while executing code snippet, but got %v`, errExec)
+			} else if errExec == nil && tc.wantErrExec {
+				t.Fatalf(`expected an error while executing code snippet, but got none`)
+			}
+		})
+	}
+}

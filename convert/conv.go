@@ -261,15 +261,15 @@ func FromList(l *starlark.List) []interface{} {
 
 // MakeDict makes a Dict from the given map. The acceptable keys and values are the same as ToValue.
 func MakeDict(v interface{}) (starlark.Value, error) {
-	return makeDict(reflect.ValueOf(v), emptyStr)
+	return makeDictTag(reflect.ValueOf(v), emptyStr)
 }
 
 // MakeDictWithTag makes a Dict from the given map with custom tag. The acceptable keys and values are the same as ToValueWithTag.
 func MakeDictWithTag(v interface{}, tagName string) (starlark.Value, error) {
-	return makeDict(reflect.ValueOf(v), tagName)
+	return makeDictTag(reflect.ValueOf(v), tagName)
 }
 
-func makeDict(val reflect.Value, tagName string) (starlark.Value, error) {
+func makeDictTag(val reflect.Value, tagName string) (starlark.Value, error) {
 	if val.Kind() != reflect.Map {
 		panic(fmt.Errorf("can't make map of %T", val.Interface()))
 	}

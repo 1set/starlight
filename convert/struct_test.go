@@ -268,6 +268,7 @@ func TestMakeStringDict(t *testing.T) {
 				"c": map[string]int{"a": 100, "b": 200},
 			},
 			codeSnippet: `
+print(type(a))
 assert.Eq(a, 1)
 assert.Eq(b, "foo")
 assert.Eq(c["a"], 100)
