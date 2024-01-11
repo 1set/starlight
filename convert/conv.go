@@ -281,11 +281,11 @@ func makeDictTag(val reflect.Value, tagName string) (starlark.Value, error) {
 
 	dict := starlark.Dict{}
 	for _, k := range val.MapKeys() {
-		vk, err := toValueAdjusted(k, tagName)
+		vk, err := adjustedToValue(k, tagName)
 		if err != nil {
 			return nil, err
 		}
-		vv, err := toValueAdjusted(val.MapIndex(k), tagName)
+		vv, err := adjustedToValue(val.MapIndex(k), tagName)
 		if err != nil {
 			return nil, err
 		}
@@ -295,7 +295,7 @@ func makeDictTag(val reflect.Value, tagName string) (starlark.Value, error) {
 }
 
 // Helper method that checks the input value for interface{} and adjusts the conversion accordingly.
-func toValueAdjusted(val reflect.Value, tagName string) (starlark.Value, error) {
+func adjustedToValue(val reflect.Value, tagName string) (starlark.Value, error) {
 	if val.Kind() == reflect.Interface && val.NumMethod() == 0 && val.Elem().IsValid() {
 		val = val.Elem()
 	}

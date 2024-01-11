@@ -835,7 +835,7 @@ func TestMakeDictWithTag(t *testing.T) {
 	}
 	testCases := []testCase{
 		{
-			name: "map[string]int",
+			name: "1map[string]int",
 			data: map[string]int{
 				"a": 1,
 				"b": 2,
@@ -852,7 +852,7 @@ assert.Eq(b, 2)
 `,
 		},
 		{
-			name: "map[string]interface{}",
+			name: "1map[string]interface{}",
 			data: map[string]interface{}{
 				"a": 1,
 				"b": 2,
@@ -869,7 +869,24 @@ assert.Eq(b, 2)
 `,
 		},
 		{
-			name: "map[int]int",
+			name: "1map[interface{}]interface{}",
+			data: map[interface{}]interface{}{
+				"a": 1,
+				"b": 2,
+			},
+			codeSnippet: `
+assert.Eq(type(data), "dict")
+assert.Eq(type(data.keys()[0]), "string")
+a = data["a"]
+b = data["b"]
+assert.Eq(type(a), "int")
+assert.Eq(type(b), "int")
+assert.Eq(a, 1)
+assert.Eq(b, 2)
+`,
+		},
+		{
+			name: "2map[int]int",
 			data: map[int]int{
 				100: 1,
 				200: 2,
@@ -886,7 +903,7 @@ assert.Eq(b, 2)
 `,
 		},
 		{
-			name: "map[int]interface{}",
+			name: "2map[int]interface{}",
 			data: map[int]interface{}{
 				100: 1,
 				200: 2,
@@ -904,6 +921,46 @@ assert.Eq(type(c), "float")
 assert.Eq(a, 1)
 assert.Eq(b, 2)
 assert.Eq(c, 3.5)
+`,
+		},
+		{
+			name: "2map[interface{}]interface{}",
+			data: map[interface{}]interface{}{
+				100: 1,
+				200: 2,
+				300: 3.5,
+			},
+			codeSnippet: `
+assert.Eq(type(data), "dict")
+assert.Eq(type(data.keys()[0]), "int")
+a = data[100]
+b = data[200]
+c = data[300]
+assert.Eq(type(a), "int")
+assert.Eq(type(b), "int")
+assert.Eq(type(c), "float")
+assert.Eq(a, 1)
+assert.Eq(b, 2)
+assert.Eq(c, 3.5)
+`,
+		},
+		{
+			name: "3map[interface{}]interface{}",
+			data: map[interface{}]interface{}{
+				true:  1,
+				false: 3.5,
+			},
+			codeSnippet: `
+assert.Eq(type(data), "dict")
+ks = data.keys()
+assert.Eq(type(ks[0]), "bool")
+assert.Eq(type(ks[1]), "bool")
+a = data[True]
+b = data[False]
+assert.Eq(type(a), "int")
+assert.Eq(type(b), "float")
+assert.Eq(a, 1)
+assert.Eq(b, 3.5)
 `,
 		},
 	}
