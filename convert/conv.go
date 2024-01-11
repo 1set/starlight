@@ -175,19 +175,15 @@ func FromValue(v starlark.Value) interface{} {
 
 // MakeStringDict makes a StringDict from the given arg. The types supported are the same as ToValue.
 func MakeStringDict(m map[string]interface{}) (starlark.StringDict, error) {
-	dict := make(starlark.StringDict, len(m))
-	for k, v := range m {
-		val, err := ToValue(v)
-		if err != nil {
-			return nil, err
-		}
-		dict[k] = val
-	}
-	return dict, nil
+	return makeStringDictTag(m, emptyStr)
 }
 
 // MakeStringDictWithTag makes a StringDict from the given arg with custom tag. The types supported are the same as ToValueWithTag.
 func MakeStringDictWithTag(m map[string]interface{}, tagName string) (starlark.StringDict, error) {
+	return makeStringDictTag(m, tagName)
+}
+
+func makeStringDictTag(m map[string]interface{}, tagName string) (starlark.StringDict, error) {
 	dict := make(starlark.StringDict, len(m))
 	for k, v := range m {
 		val, err := ToValueWithTag(v, tagName)
