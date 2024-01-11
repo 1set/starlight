@@ -186,6 +186,19 @@ func MakeStringDict(m map[string]interface{}) (starlark.StringDict, error) {
 	return dict, nil
 }
 
+// MakeStringDictWithTag makes a StringDict from the given arg with custom tag. The types supported are the same as ToValueWithTag.
+func MakeStringDictWithTag(m map[string]interface{}, tagName string) (starlark.StringDict, error) {
+	dict := make(starlark.StringDict, len(m))
+	for k, v := range m {
+		val, err := ToValueWithTag(v, tagName)
+		if err != nil {
+			return nil, err
+		}
+		dict[k] = val
+	}
+	return dict, nil
+}
+
 // FromStringDict makes a map[string]interface{} from the given arg. Any inconvertible values are ignored.
 func FromStringDict(m starlark.StringDict) map[string]interface{} {
 	ret := make(map[string]interface{}, len(m))
@@ -252,10 +265,15 @@ func FromList(l *starlark.List) []interface{} {
 
 // MakeDict makes a Dict from the given map. The acceptable keys and values are the same as ToValue.
 func MakeDict(v interface{}) (starlark.Value, error) {
-	return makeDict(reflect.ValueOf(v))
+	return makeDict(reflect.ValueOf(v), emptyStr)
 }
 
-func makeDict(val reflect.Value) (starlark.Value, error) {
+// MakeDictWithTag makes a Dict from the given map with custom tag. The acceptable keys and values are the same as ToValueWithTag.
+func MakeDictWithTag(v interface{}, tagName string) (starlark.Value, error) {
+	return makeDict(reflect.ValueOf(v), tagName)
+}
+
+func makeDict(val reflect.Value, tagName string) (starlark.Value, error) {
 	if val.Kind() != reflect.Map {
 		panic(fmt.Errorf("can't make map of %T", val.Interface()))
 	}
@@ -266,7 +284,7 @@ func makeDict(val reflect.Value) (starlark.Value, error) {
 			return nil, err
 		}
 
-		vv, err := toValue(val.MapIndex(k), emptyStr)
+		vv, err := toValue(val.MapIndex(k), tagName)
 		if err != nil {
 			return nil, err
 		}
