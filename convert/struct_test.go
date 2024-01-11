@@ -245,3 +245,106 @@ p.Value += 1
 		t.Logf("verify p: %v - %v", p, m4)
 	}
 }
+
+func TestMakeStringDict(t *testing.T) {
+	type contact struct {
+		Name   string `sl:"name"`
+		Street string `sl:"address,omitempty"`
+	}
+	type testCase struct {
+		name        string
+		globals     map[string]interface{}
+		codeSnippet string
+		customTag   string
+		wantErrConv bool
+		wantErrExec bool
+	}
+	testCases := []testCase{
+		{
+			name: "simple",
+			globals: map[string]interface{}{
+				"a": 1,
+				"b": "foo",
+				"c": map[string]int{"a": 100, "b": 200},
+			},
+			codeSnippet: `
+assert.Eq(a, 1)
+assert.Eq(b, "foo")
+assert.Eq(c["a"], 100)
+assert.Eq(c["b"], 200)
+assert.Eq(type(c), "starlight_map<map[string]int>")
+`,
+		},
+		{
+			name: "struct",
+			globals: map[string]interface{}{
+				"a": &contact{Name: "bob", Street: "oak"},
+			},
+			codeSnippet: `
+assert.Eq(a.Name, "bob")
+assert.Eq(a.Street, "oak")
+assert.Eq(type(a), "starlight_struct<*convert_test.contact>")
+assert.Eq(dir(a), ["Name", "Street"])
+`,
+		},
+		{
+			name: "struct with custom tag",
+			globals: map[string]interface{}{
+				"a": &contact{Name: "bob", Street: "oak"},
+			},
+			customTag: `sl`,
+			codeSnippet: `
+assert.Eq(a.name, "bob")
+assert.Eq(a.address, "oak")
+assert.Eq(type(a), "starlight_struct<*convert_test.contact>")
+assert.Eq(dir(a), ["address", "name"])
+`,
+		},
+		{
+			name: "struct with custom tag and no value",
+			globals: map[string]interface{}{
+				"a": &contact{Name: "bob"},
+			},
+			customTag: `sl`,
+			codeSnippet: `
+assert.Eq(a.name, "bob")
+assert.Eq(a.address, "")
+assert.Eq(type(a), "starlight_struct<*convert_test.contact>")
+assert.Eq(dir(a), ["address", "name"])
+`,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gs := tc.globals
+			gs["assert"] = &assert{t: t}
+
+			// convert go values to Starlark values as predefined globals
+			var (
+				env     starlark.StringDict
+				errConv error
+			)
+			if tc.customTag != "" {
+				env, errConv = convert.MakeStringDictWithTag(gs, tc.customTag)
+			} else {
+				env, errConv = convert.MakeStringDict(gs)
+			}
+			if errConv != nil == !tc.wantErrConv {
+				t.Fatalf(`expected no error while converting globals, but got %v`, errConv)
+			} else if errConv == nil && tc.wantErrConv {
+				t.Fatalf(`expected an error while converting globals, but got none`)
+			}
+			if errConv != nil {
+				return
+			}
+
+			// run the Starlark code to test the converted globals
+			_, errExec := execStarlark(tc.codeSnippet, env)
+			if errExec != nil && !tc.wantErrExec {
+				t.Fatalf(`expected no error while executing code snippet, but got %v`, errExec)
+			} else if errExec == nil && tc.wantErrExec {
+				t.Fatalf(`expected an error while executing code snippet, but got none`)
+			}
+		})
+	}
+}
