@@ -869,6 +869,23 @@ assert.Eq(b, 2)
 `,
 		},
 		{
+			name: "1map[interface{}]int",
+			data: map[interface{}]int{
+				"a": 1,
+				"b": 2,
+			},
+			codeSnippet: `
+assert.Eq(type(data), "dict")
+assert.Eq(type(data.keys()[0]), "string")
+a = data["a"]
+b = data["b"]
+assert.Eq(type(a), "int")
+assert.Eq(type(b), "int")
+assert.Eq(a, 1)
+assert.Eq(b, 2)
+`,
+		},
+		{
 			name: "1map[interface{}]interface{}",
 			data: map[interface{}]interface{}{
 				"a": 1,
