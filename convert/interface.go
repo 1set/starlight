@@ -61,7 +61,7 @@ func (g *GoInterface) Attr(name string) (starlark.Value, error) {
 
 	method := g.v.MethodByName(name)
 	if method.Kind() != reflect.Invalid {
-		return makeStarFn(name, method), nil
+		return makeStarFn(name, method, g.tag), nil
 	}
 	return nil, nil
 }
