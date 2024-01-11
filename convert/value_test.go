@@ -963,6 +963,35 @@ assert.Eq(a, 1)
 assert.Eq(b, 3.5)
 `,
 		},
+		{
+			name: "4map[interface{}]interface{}",
+			data: map[interface{}]interface{}{
+				"A": &contact{Name: "bob", Street: "oak"},
+			},
+			codeSnippet: `
+assert.Eq(type(data), "dict")
+a = data["A"]
+assert.Eq(a.Name, "bob")
+assert.Eq(a.Street, "oak")
+assert.Eq(type(a), "starlight_struct<*convert_test.contact>")
+assert.Eq(dir(a), ["Name", "Street"])
+`,
+		},
+		{
+			name: "5map[interface{}]interface{}",
+			data: map[interface{}]interface{}{
+				"A": &contact{Name: "bob", Street: "oak"},
+			},
+			customTag: `sl`,
+			codeSnippet: `
+assert.Eq(type(data), "dict")
+a = data["A"]
+assert.Eq(a.name, "bob")
+assert.Eq(a.address, "oak")
+assert.Eq(type(a), "starlight_struct<*convert_test.contact>")
+assert.Eq(dir(a), ["address", "name"])
+`,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
