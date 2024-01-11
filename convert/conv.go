@@ -115,7 +115,7 @@ func toValue(val reflect.Value, tagName string) (result starlark.Value, err erro
 		}
 		return &GoStruct{v: val, tag: tagName}, nil
 	case reflect.Interface:
-		return &GoInterface{v: val}, nil
+		return &GoInterface{v: val, tag: tagName}, nil
 	case reflect.Invalid:
 		return starlark.None, nil
 	}
