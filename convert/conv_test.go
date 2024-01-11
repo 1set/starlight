@@ -376,8 +376,9 @@ func TestStructToValueWithDefaultTag(t *testing.T) {
 	}
 	c := &contact{Name: "bob", Street: "oak"}
 
-	s := NewStructWithTag(c, "")
-	v, err := ToValueWithTag(s, "")
+	tag := ""
+	s := NewStructWithTag(c, tag)
+	v, err := ToValueWithTag(s, tag)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -385,7 +386,7 @@ func TestStructToValueWithDefaultTag(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected v to be *Struct, but was %T", v)
 	}
-	x, err := ToValue(c)
+	x, err := ToValueWithTag(c, tag)
 	if err != nil {
 		t.Fatalf("expected x to be *Struct, but was %T", x)
 	}
@@ -406,8 +407,9 @@ func TestStructToValueWithCustomTag(t *testing.T) {
 	}
 	c := &contact{Name: "bob", Street: "oak"}
 
-	s := NewStructWithTag(c, "lark")
-	v, err := ToValueWithTag(s, "lark")
+	tag := "lark"
+	s := NewStructWithTag(c, tag)
+	v, err := ToValueWithTag(s, tag)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -415,7 +417,7 @@ func TestStructToValueWithCustomTag(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected v to be *Struct, but was %T", v)
 	}
-	x, err := ToValueWithTag(c, "lark")
+	x, err := ToValueWithTag(c, tag)
 	if err != nil {
 		t.Fatalf("expected x to be *Struct, but was %T", x)
 	}
@@ -423,6 +425,37 @@ func TestStructToValueWithCustomTag(t *testing.T) {
 	scr := `
 name = contact.name
 addr = contact.address
+`
+	verifyTestStructValues(t, s, scr)
+	verifyTestStructValues(t, v, scr)
+	verifyTestStructValues(t, x, scr)
+}
+
+func TestStructToValueWithMismatchTag(t *testing.T) {
+	type contact struct {
+		Name   string `lark:"name"`
+		Street string `lark:"address,omitempty"`
+	}
+	c := &contact{Name: "bob", Street: "oak"}
+
+	tag := "other"
+	s := NewStructWithTag(c, tag)
+	v, err := ToValueWithTag(s, tag)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, ok := v.(*GoStruct)
+	if !ok {
+		t.Fatalf("expected v to be *Struct, but was %T", v)
+	}
+	x, err := ToValueWithTag(c, tag)
+	if err != nil {
+		t.Fatalf("expected x to be *Struct, but was %T", x)
+	}
+
+	scr := `
+name = contact.Name
+addr = contact.Street
 `
 	verifyTestStructValues(t, s, scr)
 	verifyTestStructValues(t, v, scr)
