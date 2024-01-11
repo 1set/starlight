@@ -481,7 +481,7 @@ func TestMakeDict(t *testing.T) {
 	_ = sd4.SetKey(starlark.String("a"), convert.NewGoSlice([]string{"b", "c"}))
 
 	sd5 := starlark.NewDict(1)
-	_ = sd5.SetKey(starlark.String("a"), convert.MakeGoInterface("b"))
+	_ = sd5.SetKey(starlark.String("a"), starlark.String("b"))
 
 	sd6 := starlark.NewDict(1)
 	_ = sd6.SetKey(starlark.MakeInt(10), starlark.Tuple{starlark.String("a")})

@@ -116,6 +116,11 @@ func toValue(val reflect.Value, tagName string) (result starlark.Value, err erro
 		return &GoStruct{v: val, tag: tagName}, nil
 	case reflect.Interface:
 		return &GoInterface{v: val, tag: tagName}, nil
+		//if innerVal, ok := val.Interface().(interface{}); ok {
+		//	return ToValueWithTag(innerVal, tagName)
+		//} else {
+		//	return &GoInterface{v: val, tag: tagName}, nil
+		//}
 	case reflect.Invalid:
 		return starlark.None, nil
 	}
@@ -273,20 +278,28 @@ func makeDictTag(val reflect.Value, tagName string) (starlark.Value, error) {
 	if val.Kind() != reflect.Map {
 		panic(fmt.Errorf("can't make map of %T", val.Interface()))
 	}
+
 	dict := starlark.Dict{}
 	for _, k := range val.MapKeys() {
-		vk, err := toValue(k, tagName)
+		vk, err := toValueAdjusted(k, tagName)
 		if err != nil {
 			return nil, err
 		}
-
-		vv, err := toValue(val.MapIndex(k), tagName)
+		vv, err := toValueAdjusted(val.MapIndex(k), tagName)
 		if err != nil {
 			return nil, err
 		}
 		dict.SetKey(vk, vv)
 	}
 	return &dict, nil
+}
+
+// Helper method that checks the input value for interface{} and adjusts the conversion accordingly.
+func toValueAdjusted(val reflect.Value, tagName string) (starlark.Value, error) {
+	if val.Kind() == reflect.Interface && val.NumMethod() == 0 && val.Elem().IsValid() {
+		val = val.Elem()
+	}
+	return toValue(val, tagName)
 }
 
 // FromDict converts a starlark.Dict to a map[interface{}]interface{}
