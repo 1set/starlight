@@ -279,7 +279,7 @@ func makeDict(val reflect.Value, tagName string) (starlark.Value, error) {
 	}
 	dict := starlark.Dict{}
 	for _, k := range val.MapKeys() {
-		vk, err := toValue(k, emptyStr)
+		vk, err := toValue(k, tagName)
 		if err != nil {
 			return nil, err
 		}
