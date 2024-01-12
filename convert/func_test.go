@@ -261,14 +261,14 @@ func TestMakeStarFnCustomTag(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unexpected error for function conversion: %v", err)
 	}
-	assrt, err := convert.ToValueWithTag(&assert{t: t}, tag)
+	asrt, err := convert.ToValueWithTag(&assert{t: t}, tag)
 	if err != nil {
-		t.Errorf("Unexpected error for conversion assert: %v", err)
+		t.Errorf("Unexpected error for assert conversion: %v", err)
 	}
 
 	globals := map[string]starlark.Value{
 		"boo":    skyf,
-		"assert": assrt,
+		"assert": asrt,
 	}
 	code1 := `
 dc, dp = boo("a", "b")
