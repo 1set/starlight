@@ -2,6 +2,7 @@ package convert_test
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"strings"
@@ -58,6 +59,13 @@ func (m *mega) GetOne() *nested {
 	return m.Another
 }
 
+func (m mega) Summarize() *nested {
+	return &nested{
+		Truth: m.Another.Truth,
+		Name:  fmt.Sprintf("%s %d %.0f", m.Another.Name, m.Another.Number, m.Another.Value),
+	}
+}
+
 func TestStructs(t *testing.T) {
 	m := &mega{
 		Bool:  true,
@@ -91,12 +99,14 @@ can.Name = "hello"
 can.Number = 200
 m.SetOne(can)
 ret = m.GetOne()
+sum = m.Summarize()
 print(can, ret)
 
 assert.Eq(ret.Truth, False)
 assert.Eq(ret.Name, "hello!")
 assert.Eq(ret.Number, 201)
 assert.Eq(ret.Value, 10.)
+assert.Eq(sum.Name, "hello! 201 10")
 `)
 
 	_, err := starlight.Eval(code, globals, nil)
@@ -200,10 +210,13 @@ can.Number = 200
 can.Value = 10
 m.SetOne(can)
 ret = m.GetOne()
+sum = m.Summarize()
+
 print(can, ret)
 assert.Eq(ret.Truth, False)
 assert.Eq(ret.name, "Aloha!")
 assert.Eq(ret.num, 201)
+assert.Eq(sum.name, "Aloha! 201 20")
 `)
 	res, err := starlight.Eval(code, globals, nil)
 	if err != nil {
