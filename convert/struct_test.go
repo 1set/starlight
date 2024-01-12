@@ -166,7 +166,9 @@ func TestStructWithCustomTag(t *testing.T) {
 		},
 	}
 	globals := map[string]interface{}{
-		"m": convert.NewStructWithTag(m, "star"),
+		"m":      convert.NewStructWithTag(m, "star"),
+		"assert": &assert{t: t},
+		"can":    &nested{Name: "candidate", Number: 100},
 	}
 	code := []byte(`
 a = m.love
@@ -191,6 +193,17 @@ h = dir(m1) == ["Truth", "name", "num"]
 i = len(m.more) == 2
 m2 = m.more["one"]
 j = dir(m2) == ["Truth", "name", "num"]
+
+can.Truth = True
+can.Name = "Aloha"
+can.Number = 200
+can.Value = 10
+m.SetOne(can)
+ret = m.GetOne()
+print(can, ret)
+assert.Eq(ret.Truth, False)
+assert.Eq(ret.name, "Aloha!")
+assert.Eq(ret.num, 201)
 `)
 	res, err := starlight.Eval(code, globals, nil)
 	if err != nil {
