@@ -46,7 +46,12 @@ func (m *mega) getBool() bool {
 }
 
 func (m *mega) SetOne(n *nested) {
-	m.Another = n
+	nn := *n
+	nn.Truth = !nn.Truth
+	nn.Name += "!"
+	nn.Number += 1
+	nn.Value += 10
+	m.Another = &nn
 }
 
 func (m *mega) GetOne() *nested {
@@ -69,6 +74,7 @@ func TestStructs(t *testing.T) {
 		"assert":     &assert{t: t},
 		"bytesEqual": bytes.Equal,
 		"readAll":    ioutil.ReadAll,
+		"can":        &nested{Name: "candidate", Number: 100},
 	}
 
 	code := []byte(`
@@ -79,6 +85,18 @@ assert.Eq(m.Map["foo"], "bar")
 assert.Eq(m.Time.year, m.Now().year)
 assert.Eq(m.GetTime().year, m.Now().year)
 assert.Eq(True, bytesEqual(readAll(m.Body), m.Bytes))
+
+can.Truth = True
+can.Name = "hello"
+can.Number = 200
+m.SetOne(can)
+ret = m.GetOne()
+print(can, ret)
+
+assert.Eq(ret.Truth, False)
+assert.Eq(ret.Name, "hello!")
+assert.Eq(ret.Number, 201)
+assert.Eq(ret.Value, 10.)
 `)
 
 	_, err := starlight.Eval(code, globals, nil)
