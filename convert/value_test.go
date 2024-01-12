@@ -1,8 +1,10 @@
 package convert_test
 
 import (
+	"fmt"
 	"math/big"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -481,7 +483,7 @@ func TestMakeDict(t *testing.T) {
 	_ = sd4.SetKey(starlark.String("a"), convert.NewGoSlice([]string{"b", "c"}))
 
 	sd5 := starlark.NewDict(1)
-	_ = sd5.SetKey(starlark.String("a"), convert.MakeGoInterface("b"))
+	_ = sd5.SetKey(starlark.String("a"), starlark.String("b"))
 
 	sd6 := starlark.NewDict(1)
 	_ = sd6.SetKey(starlark.MakeInt(10), starlark.Tuple{starlark.String("a")})
@@ -815,6 +817,272 @@ func TestGoTypeWrapperValue(t *testing.T) {
 			got := v.Value().Interface()
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("GoTypeWrapper(%v) got = %v, want = %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+type mockStr struct{}
+
+func (m mockStr) String() string { return "mock-str" }
+
+func TestMakeDictWithTag(t *testing.T) {
+	var fsr, fsr2 fmt.Stringer
+	ms := mockStr{}
+	fsr2 = ms
+	type contact struct {
+		Name   string `sl:"name"`
+		Street string `sl:"address,omitempty"`
+	}
+	type testCase struct {
+		name        string
+		data        interface{}
+		codeSnippet string
+		customTag   string
+		wantErrConv bool
+		wantErrExec bool
+	}
+	testCases := []testCase{
+		{
+			name: "1map[string]int",
+			data: map[string]int{
+				"a": 1,
+				"b": 2,
+			},
+			codeSnippet: `
+assert.Eq(type(data), "dict")
+assert.Eq(type(data.keys()[0]), "string")
+a = data["a"]
+b = data["b"]
+assert.Eq(type(a), "int")
+assert.Eq(type(b), "int")
+assert.Eq(a, 1)
+assert.Eq(b, 2)
+`,
+		},
+		{
+			name: "1map[string]interface{}",
+			data: map[string]interface{}{
+				"a": 1,
+				"b": 2,
+			},
+			codeSnippet: `
+assert.Eq(type(data), "dict")
+assert.Eq(type(data.keys()[0]), "string")
+a = data["a"]
+b = data["b"]
+assert.Eq(type(a), "int")
+assert.Eq(type(b), "int")
+assert.Eq(a, 1)
+assert.Eq(b, 2)
+`,
+		},
+		{
+			name: "1map[interface{}]int",
+			data: map[interface{}]int{
+				"a": 1,
+				"b": 2,
+			},
+			codeSnippet: `
+assert.Eq(type(data), "dict")
+assert.Eq(type(data.keys()[0]), "string")
+a = data["a"]
+b = data["b"]
+assert.Eq(type(a), "int")
+assert.Eq(type(b), "int")
+assert.Eq(a, 1)
+assert.Eq(b, 2)
+`,
+		},
+		{
+			name: "1map[interface{}]interface{}",
+			data: map[interface{}]interface{}{
+				"a": 1,
+				"b": 2,
+			},
+			codeSnippet: `
+assert.Eq(type(data), "dict")
+assert.Eq(type(data.keys()[0]), "string")
+a = data["a"]
+b = data["b"]
+assert.Eq(type(a), "int")
+assert.Eq(type(b), "int")
+assert.Eq(a, 1)
+assert.Eq(b, 2)
+`,
+		},
+		{
+			name: "2map[int]int",
+			data: map[int]int{
+				100: 1,
+				200: 2,
+			},
+			codeSnippet: `
+assert.Eq(type(data), "dict")
+assert.Eq(type(data.keys()[0]), "int")
+a = data[100]
+b = data[200]
+assert.Eq(type(a), "int")
+assert.Eq(type(b), "int")
+assert.Eq(a, 1)
+assert.Eq(b, 2)
+`,
+		},
+		{
+			name: "2map[int]interface{}",
+			data: map[int]interface{}{
+				100: 1,
+				200: 2,
+				300: 3.5,
+			},
+			codeSnippet: `
+assert.Eq(type(data), "dict")
+assert.Eq(type(data.keys()[0]), "int")
+a = data[100]
+b = data[200]
+c = data[300]
+assert.Eq(type(a), "int")
+assert.Eq(type(b), "int")
+assert.Eq(type(c), "float")
+assert.Eq(a, 1)
+assert.Eq(b, 2)
+assert.Eq(c, 3.5)
+`,
+		},
+		{
+			name: "2map[interface{}]interface{}",
+			data: map[interface{}]interface{}{
+				100: 1,
+				200: 2,
+				300: 3.5,
+			},
+			codeSnippet: `
+assert.Eq(type(data), "dict")
+assert.Eq(type(data.keys()[0]), "int")
+a = data[100]
+b = data[200]
+c = data[300]
+assert.Eq(type(a), "int")
+assert.Eq(type(b), "int")
+assert.Eq(type(c), "float")
+assert.Eq(a, 1)
+assert.Eq(b, 2)
+assert.Eq(c, 3.5)
+`,
+		},
+		{
+			name: "3map[interface{}]interface{}",
+			data: map[interface{}]interface{}{
+				true:  1,
+				false: 3.5,
+			},
+			codeSnippet: `
+assert.Eq(type(data), "dict")
+ks = data.keys()
+assert.Eq(type(ks[0]), "bool")
+assert.Eq(type(ks[1]), "bool")
+a = data[True]
+b = data[False]
+assert.Eq(type(a), "int")
+assert.Eq(type(b), "float")
+assert.Eq(a, 1)
+assert.Eq(b, 3.5)
+`,
+		},
+		{
+			name: "4map[interface{}]interface{}",
+			data: map[interface{}]interface{}{
+				"A": &contact{Name: "bob", Street: "oak"},
+			},
+			codeSnippet: `
+assert.Eq(type(data), "dict")
+a = data["A"]
+assert.Eq(a.Name, "bob")
+assert.Eq(a.Street, "oak")
+assert.Eq(type(a), "starlight_struct<*convert_test.contact>")
+assert.Eq(dir(a), ["Name", "Street"])
+`,
+		},
+		{
+			name: "5map[interface{}]interface{}",
+			data: map[interface{}]interface{}{
+				"A": &contact{Name: "bob", Street: "oak"},
+				"R": strings.NewReader("hello"),
+				"S": fsr,
+				"T": fsr2,
+			},
+			customTag: `sl`,
+			codeSnippet: `
+assert.Eq(type(data), "dict")
+a = data["A"]
+assert.Eq(a.name, "bob")
+assert.Eq(a.address, "oak")
+assert.Eq(type(a), "starlight_struct<*convert_test.contact>")
+assert.Eq(dir(a), ["address", "name"])
+
+r = data["R"]
+print(type(r), dir(r))
+assert.Eq(type(r), "starlight_struct<*strings.Reader>")
+
+s = data["S"]
+assert.Eq(type(s), "starlight_interface<<nil>>")
+
+t = data["T"]
+assert.Eq(type(t), "starlight_struct<convert_test.mockStr>")
+`,
+		},
+		{
+			name: "invalid key",
+			data: map[interface{}]interface{}{
+				complex(1, 2): "a",
+			},
+			wantErrConv: true,
+		},
+		{
+			name: "invalid value",
+			data: map[interface{}]interface{}{
+				"b": complex(3, 4),
+			},
+			wantErrConv: true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gs := map[string]interface{}{
+				"assert": &assert{t: t},
+				"i1":     int64(1),
+			}
+			envs, err := convert.MakeStringDict(gs)
+			if err != nil {
+				t.Fatalf(`expected no error while converting globals, but got %v`, err)
+			}
+
+			// convert go values to Starlark values as predefined globals
+			var (
+				cv      starlark.Value
+				errConv error
+			)
+			if tc.customTag != "" {
+				cv, errConv = convert.MakeDictWithTag(tc.data, tc.customTag)
+			} else {
+				cv, errConv = convert.MakeDict(tc.data)
+			}
+			if errConv != nil == !tc.wantErrConv {
+				t.Fatalf(`expected no error while converting dict, but got %v`, errConv)
+			} else if errConv == nil && tc.wantErrConv {
+				t.Fatalf(`expected an error while converting dict, but got none`)
+			}
+			if errConv != nil {
+				return
+			}
+
+			// run the Starlark code to test the converted globals
+			envs["data"] = cv
+			_, errExec := execStarlark(tc.codeSnippet, envs)
+			if errExec != nil && !tc.wantErrExec {
+				t.Fatalf(`expected no error while executing code snippet, but got %v`, errExec)
+			} else if errExec == nil && tc.wantErrExec {
+				t.Fatalf(`expected an error while executing code snippet, but got none`)
 			}
 		})
 	}

@@ -40,7 +40,8 @@ func makeGoInterface(val reflect.Value) (*GoInterface, bool) {
 // types will not behave as their base type (you can't add 2 to an ID, even if
 // it is an int underneath).
 type GoInterface struct {
-	v reflect.Value
+	v   reflect.Value
+	tag string
 }
 
 // Attr returns a starlark value that wraps the method or field with the given name.
@@ -60,7 +61,7 @@ func (g *GoInterface) Attr(name string) (starlark.Value, error) {
 
 	method := g.v.MethodByName(name)
 	if method.Kind() != reflect.Invalid {
-		return makeStarFn(name, method), nil
+		return makeStarFn(name, method, g.tag), nil
 	}
 	return nil, nil
 }

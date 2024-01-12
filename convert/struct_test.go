@@ -2,6 +2,7 @@ package convert_test
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"strings"
@@ -45,6 +46,26 @@ func (m *mega) getBool() bool {
 	return m.Bool
 }
 
+func (m *mega) SetOne(n *nested) {
+	nn := *n
+	nn.Truth = !nn.Truth
+	nn.Name += "!"
+	nn.Number += 1
+	nn.Value += 10
+	m.Another = &nn
+}
+
+func (m *mega) GetOne() *nested {
+	return m.Another
+}
+
+func (m mega) Summarize() *nested {
+	return &nested{
+		Truth: m.Another.Truth,
+		Name:  fmt.Sprintf("%s %d %.0f", m.Another.Name, m.Another.Number, m.Another.Value),
+	}
+}
+
 func TestStructs(t *testing.T) {
 	m := &mega{
 		Bool:  true,
@@ -61,6 +82,7 @@ func TestStructs(t *testing.T) {
 		"assert":     &assert{t: t},
 		"bytesEqual": bytes.Equal,
 		"readAll":    ioutil.ReadAll,
+		"can":        &nested{Name: "candidate", Number: 100},
 	}
 
 	code := []byte(`
@@ -71,6 +93,20 @@ assert.Eq(m.Map["foo"], "bar")
 assert.Eq(m.Time.year, m.Now().year)
 assert.Eq(m.GetTime().year, m.Now().year)
 assert.Eq(True, bytesEqual(readAll(m.Body), m.Bytes))
+
+can.Truth = True
+can.Name = "hello"
+can.Number = 200
+m.SetOne(can)
+ret = m.GetOne()
+sum = m.Summarize()
+print(can, ret)
+
+assert.Eq(ret.Truth, False)
+assert.Eq(ret.Name, "hello!")
+assert.Eq(ret.Number, 201)
+assert.Eq(ret.Value, 10.)
+assert.Eq(sum.Name, "hello! 201 10")
 `)
 
 	_, err := starlight.Eval(code, globals, nil)
@@ -95,7 +131,7 @@ a = m.getBool()
 		"m": &mega{},
 	}
 	_, err := starlight.Eval(code, globals, nil)
-	expectErr(t, err, "starlight_struct<*convert_test.mega> has no .getBool field or method (did you mean .Bool?)")
+	expectErr(t, err, "starlight_struct<*convert_test.mega> has no .getBool field or method (did you mean .GetOne?)")
 }
 
 func TestStructWithCustomTag(t *testing.T) {
@@ -140,7 +176,9 @@ func TestStructWithCustomTag(t *testing.T) {
 		},
 	}
 	globals := map[string]interface{}{
-		"m": convert.NewStructWithTag(m, "star"),
+		"m":      convert.NewStructWithTag(m, "star"),
+		"assert": &assert{t: t},
+		"can":    &nested{Name: "candidate", Number: 100},
 	}
 	code := []byte(`
 a = m.love
@@ -165,6 +203,20 @@ h = dir(m1) == ["Truth", "name", "num"]
 i = len(m.more) == 2
 m2 = m.more["one"]
 j = dir(m2) == ["Truth", "name", "num"]
+
+can.Truth = True
+can.Name = "Aloha"
+can.Number = 200
+can.Value = 10
+m.SetOne(can)
+ret = m.GetOne()
+sum = m.Summarize()
+
+print(can, ret)
+assert.Eq(ret.Truth, False)
+assert.Eq(ret.name, "Aloha!")
+assert.Eq(ret.num, 201)
+assert.Eq(sum.name, "Aloha! 201 20")
 `)
 	res, err := starlight.Eval(code, globals, nil)
 	if err != nil {
@@ -243,5 +295,109 @@ p.Value += 1
 		t.Errorf("unexpected error for addressable pointer int value: %v", err)
 	} else {
 		t.Logf("verify p: %v - %v", p, m4)
+	}
+}
+
+func TestMakeStringDict(t *testing.T) {
+	type contact struct {
+		Name   string `sl:"name"`
+		Street string `sl:"address,omitempty"`
+	}
+	type testCase struct {
+		name        string
+		globals     map[string]interface{}
+		codeSnippet string
+		customTag   string
+		wantErrConv bool
+		wantErrExec bool
+	}
+	testCases := []testCase{
+		{
+			name: "simple",
+			globals: map[string]interface{}{
+				"a": 1,
+				"b": "foo",
+				"c": map[string]int{"a": 100, "b": 200},
+			},
+			codeSnippet: `
+print(type(a))
+assert.Eq(a, 1)
+assert.Eq(b, "foo")
+assert.Eq(c["a"], 100)
+assert.Eq(c["b"], 200)
+assert.Eq(type(c), "starlight_map<map[string]int>")
+`,
+		},
+		{
+			name: "struct",
+			globals: map[string]interface{}{
+				"a": &contact{Name: "bob", Street: "oak"},
+			},
+			codeSnippet: `
+assert.Eq(a.Name, "bob")
+assert.Eq(a.Street, "oak")
+assert.Eq(type(a), "starlight_struct<*convert_test.contact>")
+assert.Eq(dir(a), ["Name", "Street"])
+`,
+		},
+		{
+			name: "struct with custom tag",
+			globals: map[string]interface{}{
+				"a": &contact{Name: "bob", Street: "oak"},
+			},
+			customTag: `sl`,
+			codeSnippet: `
+assert.Eq(a.name, "bob")
+assert.Eq(a.address, "oak")
+assert.Eq(type(a), "starlight_struct<*convert_test.contact>")
+assert.Eq(dir(a), ["address", "name"])
+`,
+		},
+		{
+			name: "struct with custom tag and no value",
+			globals: map[string]interface{}{
+				"a": &contact{Name: "bob"},
+			},
+			customTag: `sl`,
+			codeSnippet: `
+assert.Eq(a.name, "bob")
+assert.Eq(a.address, "")
+assert.Eq(type(a), "starlight_struct<*convert_test.contact>")
+assert.Eq(dir(a), ["address", "name"])
+`,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gs := tc.globals
+			gs["assert"] = &assert{t: t}
+
+			// convert go values to Starlark values as predefined globals
+			var (
+				env     starlark.StringDict
+				errConv error
+			)
+			if tc.customTag != "" {
+				env, errConv = convert.MakeStringDictWithTag(gs, tc.customTag)
+			} else {
+				env, errConv = convert.MakeStringDict(gs)
+			}
+			if errConv != nil == !tc.wantErrConv {
+				t.Fatalf(`expected no error while converting globals, but got %v`, errConv)
+			} else if errConv == nil && tc.wantErrConv {
+				t.Fatalf(`expected an error while converting globals, but got none`)
+			}
+			if errConv != nil {
+				return
+			}
+
+			// run the Starlark code to test the converted globals
+			_, errExec := execStarlark(tc.codeSnippet, env)
+			if errExec != nil && !tc.wantErrExec {
+				t.Fatalf(`expected no error while executing code snippet, but got %v`, errExec)
+			} else if errExec == nil && tc.wantErrExec {
+				t.Fatalf(`expected an error while executing code snippet, but got none`)
+			}
+		})
 	}
 }

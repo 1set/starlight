@@ -100,7 +100,7 @@ func toValue(val reflect.Value, tagName string) (result starlark.Value, err erro
 	case reflect.Float32, reflect.Float64:
 		return starlark.Float(val.Float()), nil
 	case reflect.Func:
-		return makeStarFn("fn", val), nil
+		return makeStarFn("fn", val, tagName), nil
 	case reflect.Map:
 		return &GoMap{v: val, tag: tagName}, nil
 	case reflect.String:
@@ -115,7 +115,12 @@ func toValue(val reflect.Value, tagName string) (result starlark.Value, err erro
 		}
 		return &GoStruct{v: val, tag: tagName}, nil
 	case reflect.Interface:
-		return &GoInterface{v: val}, nil
+		return &GoInterface{v: val, tag: tagName}, nil
+		//if innerVal, ok := val.Interface().(interface{}); ok {
+		//	return ToValueWithTag(innerVal, tagName)
+		//} else {
+		//	return &GoInterface{v: val, tag: tagName}, nil
+		//}
 	case reflect.Invalid:
 		return starlark.None, nil
 	}
@@ -175,9 +180,18 @@ func FromValue(v starlark.Value) interface{} {
 
 // MakeStringDict makes a StringDict from the given arg. The types supported are the same as ToValue.
 func MakeStringDict(m map[string]interface{}) (starlark.StringDict, error) {
+	return makeStringDictTag(m, emptyStr)
+}
+
+// MakeStringDictWithTag makes a StringDict from the given arg with custom tag. The types supported are the same as ToValueWithTag.
+func MakeStringDictWithTag(m map[string]interface{}, tagName string) (starlark.StringDict, error) {
+	return makeStringDictTag(m, tagName)
+}
+
+func makeStringDictTag(m map[string]interface{}, tagName string) (starlark.StringDict, error) {
 	dict := make(starlark.StringDict, len(m))
 	for k, v := range m {
-		val, err := ToValue(v)
+		val, err := ToValueWithTag(v, tagName)
 		if err != nil {
 			return nil, err
 		}
@@ -252,27 +266,40 @@ func FromList(l *starlark.List) []interface{} {
 
 // MakeDict makes a Dict from the given map. The acceptable keys and values are the same as ToValue.
 func MakeDict(v interface{}) (starlark.Value, error) {
-	return makeDict(reflect.ValueOf(v))
+	return makeDictTag(reflect.ValueOf(v), emptyStr)
 }
 
-func makeDict(val reflect.Value) (starlark.Value, error) {
+// MakeDictWithTag makes a Dict from the given map with custom tag. The acceptable keys and values are the same as ToValueWithTag.
+func MakeDictWithTag(v interface{}, tagName string) (starlark.Value, error) {
+	return makeDictTag(reflect.ValueOf(v), tagName)
+}
+
+func makeDictTag(val reflect.Value, tagName string) (starlark.Value, error) {
 	if val.Kind() != reflect.Map {
 		panic(fmt.Errorf("can't make map of %T", val.Interface()))
 	}
+
 	dict := starlark.Dict{}
 	for _, k := range val.MapKeys() {
-		vk, err := toValue(k, emptyStr)
+		vk, err := adjustedToValue(k, tagName)
 		if err != nil {
 			return nil, err
 		}
-
-		vv, err := toValue(val.MapIndex(k), emptyStr)
+		vv, err := adjustedToValue(val.MapIndex(k), tagName)
 		if err != nil {
 			return nil, err
 		}
 		dict.SetKey(vk, vv)
 	}
 	return &dict, nil
+}
+
+// Helper method that checks the input value for interface{} and adjusts the conversion accordingly.
+func adjustedToValue(val reflect.Value, tagName string) (starlark.Value, error) {
+	if val.Kind() == reflect.Interface && val.NumMethod() == 0 && val.Elem().IsValid() {
+		val = val.Elem()
+	}
+	return toValue(val, tagName)
 }
 
 // FromDict converts a starlark.Dict to a map[interface{}]interface{}
@@ -376,12 +403,12 @@ func MakeStarFn(name string, gofn interface{}) *starlark.Builtin {
 	if v.Kind() != reflect.Func {
 		panic(errors.New("fn is not a function"))
 	}
-	return makeStarFn(name, v)
+	return makeStarFn(name, v, emptyStr)
 }
 
-func makeStarFn(name string, gofn reflect.Value) *starlark.Builtin {
+func makeStarFn(name string, gofn reflect.Value, tagName string) *starlark.Builtin {
 	if gofn.Type().IsVariadic() {
-		return makeVariadicStarFn(name, gofn)
+		return makeVariadicStarFn(name, gofn, tagName)
 	}
 	return starlark.NewBuiltin(name, func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (sv starlark.Value, ef error) {
 		defer func() {
@@ -412,11 +439,11 @@ func makeStarFn(name string, gofn reflect.Value) *starlark.Builtin {
 		}
 
 		out := gofn.Call(rvs)
-		return makeOut(out)
+		return makeOut(out, tagName)
 	})
 }
 
-func makeVariadicStarFn(name string, gofn reflect.Value) *starlark.Builtin {
+func makeVariadicStarFn(name string, gofn reflect.Value, tagName string) *starlark.Builtin {
 	return starlark.NewBuiltin(name, func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (sv starlark.Value, ef error) {
 		defer func() {
 			if r := recover(); r != nil {
@@ -462,11 +489,11 @@ func makeVariadicStarFn(name string, gofn reflect.Value) *starlark.Builtin {
 			rvs = append(rvs, val)
 		}
 		out := gofn.Call(rvs)
-		return makeOut(out)
+		return makeOut(out, tagName)
 	})
 }
 
-func makeOut(out []reflect.Value) (starlark.Value, error) {
+func makeOut(out []reflect.Value, tagName string) (starlark.Value, error) {
 	if len(out) == 0 {
 		return starlark.None, nil
 	}
@@ -482,7 +509,7 @@ func makeOut(out []reflect.Value) (starlark.Value, error) {
 		return starlark.None, err
 	}
 	if len(out) == 1 {
-		v, err2 := toValue(out[0], emptyStr)
+		v, err2 := toValue(out[0], tagName)
 		if err2 != nil {
 			return starlark.None, err2
 		}
@@ -491,7 +518,7 @@ func makeOut(out []reflect.Value) (starlark.Value, error) {
 	// tuple-up multiple values
 	res := make([]starlark.Value, 0, len(out))
 	for i := range out {
-		val, err3 := toValue(out[i], emptyStr)
+		val, err3 := toValue(out[i], tagName)
 		if err3 != nil {
 			return starlark.None, err3
 		}

@@ -49,14 +49,14 @@ func (g *GoStruct) Attr(name string) (starlark.Value, error) {
 	// check for its methods and its pointer's methods
 	method := g.v.MethodByName(name)
 	if method.Kind() != reflect.Invalid && method.CanInterface() {
-		return makeStarFn(name, method), nil
+		return makeStarFn(name, method, g.tag), nil
 	}
 	v := g.v
 	if g.v.Kind() == reflect.Ptr {
 		v = v.Elem()
 		method = g.v.MethodByName(name)
 		if method.Kind() != reflect.Invalid && method.CanInterface() {
-			return makeStarFn(name, method), nil
+			return makeStarFn(name, method, g.tag), nil
 		}
 	}
 
