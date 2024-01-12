@@ -45,6 +45,14 @@ func (m *mega) getBool() bool {
 	return m.Bool
 }
 
+func (m *mega) SetOne(n *nested) {
+	m.Another = n
+}
+
+func (m *mega) GetOne() *nested {
+	return m.Another
+}
+
 func TestStructs(t *testing.T) {
 	m := &mega{
 		Bool:  true,
@@ -95,7 +103,7 @@ a = m.getBool()
 		"m": &mega{},
 	}
 	_, err := starlight.Eval(code, globals, nil)
-	expectErr(t, err, "starlight_struct<*convert_test.mega> has no .getBool field or method (did you mean .Bool?)")
+	expectErr(t, err, "starlight_struct<*convert_test.mega> has no .getBool field or method (did you mean .GetOne?)")
 }
 
 func TestStructWithCustomTag(t *testing.T) {
