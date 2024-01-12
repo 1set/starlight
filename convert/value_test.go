@@ -1009,6 +1009,20 @@ assert.Eq(type(a), "starlight_struct<*convert_test.contact>")
 assert.Eq(dir(a), ["address", "name"])
 `,
 		},
+		{
+			name: "invalid key",
+			data: map[interface{}]interface{}{
+				complex(1, 2): "a",
+			},
+			wantErrConv: true,
+		},
+		{
+			name: "invalid value",
+			data: map[interface{}]interface{}{
+				"b": complex(3, 4),
+			},
+			wantErrConv: true,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
