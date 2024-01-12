@@ -822,8 +822,14 @@ func TestGoTypeWrapperValue(t *testing.T) {
 	}
 }
 
+type mockStr struct{}
+
+func (m mockStr) String() string { return "mock-str" }
+
 func TestMakeDictWithTag(t *testing.T) {
-	var fsr fmt.Stringer
+	var fsr, fsr2 fmt.Stringer
+	ms := mockStr{}
+	fsr2 = ms
 	type contact struct {
 		Name   string `sl:"name"`
 		Street string `sl:"address,omitempty"`
@@ -1003,6 +1009,7 @@ assert.Eq(dir(a), ["Name", "Street"])
 				"A": &contact{Name: "bob", Street: "oak"},
 				"R": strings.NewReader("hello"),
 				"S": fsr,
+				"T": fsr2,
 			},
 			customTag: `sl`,
 			codeSnippet: `
@@ -1019,6 +1026,9 @@ assert.Eq(type(r), "starlight_struct<*strings.Reader>")
 
 s = data["S"]
 assert.Eq(type(s), "starlight_interface<<nil>>")
+
+t = data["T"]
+assert.Eq(type(t), "starlight_struct<convert_test.mockStr>")
 `,
 		},
 		{
