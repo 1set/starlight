@@ -157,9 +157,7 @@ func TestMakeStarFnTwoRetNonError(t *testing.T) {
 	fn := func(s string) (string, string) {
 		return "hi " + s, "bye " + s
 	}
-
 	skyf := convert.MakeStarFn("boo", fn)
-
 	globals := map[string]starlark.Value{
 		"boo": skyf,
 	}
@@ -237,6 +235,50 @@ func TestMakeStarFnOneRetTwoNonErrorAndError(t *testing.T) {
 	}
 	if v, err := execStarlark(`a, b = boo("starlight", 5)`, globals); err != nil {
 		t.Fatalf(`expected a = "hi starlight", b = 10, err = nil, but got a=%v, b=%v, err=%v`, v["a"], v["b"], err)
+	}
+}
+
+func TestMakeStarFnCustomTag(t *testing.T) {
+	type contact struct {
+		Name   string `sl:"name"`
+		Street string `sl:"address,omitempty"`
+	}
+	type profile struct {
+		NickName string `star:"nickname"`
+		Location string `star:"location"`
+	}
+	fn := func(n, s string) (*contact, *profile) {
+		return &contact{
+				Name:   n,
+				Street: s,
+			}, &profile{
+				NickName: n,
+				Location: s,
+			}
+	}
+	tag := "sl"
+	skyf, err := convert.ToValueWithTag(fn, tag)
+	if err != nil {
+		t.Errorf("Unexpected error for function conversion: %v", err)
+	}
+	assrt, err := convert.ToValueWithTag(&assert{t: t}, tag)
+	if err != nil {
+		t.Errorf("Unexpected error for conversion assert: %v", err)
+	}
+
+	globals := map[string]starlark.Value{
+		"boo":    skyf,
+		"assert": assrt,
+	}
+	code1 := `
+dc, dp = boo("a", "b")
+assert.Eq("a", dc.name)
+assert.Eq("b", dc.address)
+assert.Eq("a", dp.NickName)
+assert.Eq("b", dp.Location)
+`
+	if _, err := execStarlark(code1, globals); err != nil {
+		t.Errorf("Unexpected error for runtime: %v", err)
 	}
 }
 
