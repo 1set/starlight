@@ -1,8 +1,10 @@
 package convert_test
 
 import (
+	"fmt"
 	"math/big"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -821,6 +823,7 @@ func TestGoTypeWrapperValue(t *testing.T) {
 }
 
 func TestMakeDictWithTag(t *testing.T) {
+	var fsr fmt.Stringer
 	type contact struct {
 		Name   string `sl:"name"`
 		Street string `sl:"address,omitempty"`
@@ -998,6 +1001,8 @@ assert.Eq(dir(a), ["Name", "Street"])
 			name: "5map[interface{}]interface{}",
 			data: map[interface{}]interface{}{
 				"A": &contact{Name: "bob", Street: "oak"},
+				"R": strings.NewReader("hello"),
+				"S": fsr,
 			},
 			customTag: `sl`,
 			codeSnippet: `
@@ -1007,6 +1012,13 @@ assert.Eq(a.name, "bob")
 assert.Eq(a.address, "oak")
 assert.Eq(type(a), "starlight_struct<*convert_test.contact>")
 assert.Eq(dir(a), ["address", "name"])
+
+r = data["R"]
+print(type(r), dir(r))
+assert.Eq(type(r), "starlight_struct<*strings.Reader>")
+
+s = data["S"]
+assert.Eq(type(s), "starlight_interface<<nil>>")
 `,
 		},
 		{
