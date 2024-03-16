@@ -479,6 +479,9 @@ func TestMakeStarFnArgumentType(t *testing.T) {
 		{
 			name: "Call with map interface argument",
 			funcToConvert: func(a map[string]interface{}) int {
+				for k, v := range a {
+					t.Logf("[Go⭐️] %#v: %#v (%T)", k, v, v)
+				}
 				return len(a)
 			},
 			codeSnippet: `x = boo({"a": 1, "b": True, "c": [1,2,3]})`,
