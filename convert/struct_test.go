@@ -134,6 +134,50 @@ a = m.getBool()
 	expectErr(t, err, "starlight_struct<*convert_test.mega> has no .getBool field or method (did you mean .GetOne?)")
 }
 
+func TestStructString(t *testing.T) {
+	code := []byte(`
+print(type(m))
+print(type(m.String))
+print(type(m.Bytes))
+
+s1 = m.String
+m.String = "bravo"
+m.String = b"banana"
+s2 = m.String
+
+b1 = m.Bytes
+m.Bytes = "banana"
+m.Bytes = b"bravo"
+b2 = m.Bytes
+`)
+	globals := map[string]interface{}{
+		"m": &mega{
+			String: "apple",
+			Bytes:  []byte("aloha"),
+		},
+	}
+	out, err := starlight.Eval(code, globals, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out) != 4 {
+		t.Fatalf("expected 4 outputs, but got %d", len(out))
+	}
+	if s1, ok := out["s1"].(string); !ok || s1 != "apple" {
+		t.Fatalf("expected s1 to be 'apple', but got %q", s1)
+	}
+	if s2, ok := out["s2"].(string); !ok || s2 != "banana" {
+		t.Fatalf("expected s2 to be 'banana', but got %q", s2)
+	}
+	// attention: the type of m.Bytes is []byte, not string, and it's handled by starlight as slice
+	if b1, ok := out["b1"].([]byte); !ok || !bytes.Equal(b1, []byte("bravo")) {
+		t.Fatalf("expected b1 to be 'bravo', but got %q", b1)
+	}
+	if b2, ok := out["b2"].([]byte); !ok || !bytes.Equal(b2, []byte("bravo")) {
+		t.Fatalf("expected b2 to be 'bravo', but got %q", b2)
+	}
+}
+
 func TestStructWithCustomTag(t *testing.T) {
 	m := &mega{
 		String: "hi!",
