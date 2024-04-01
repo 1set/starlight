@@ -468,6 +468,15 @@ def double(x):
 	return globals["double"].(*starlark.Function)
 }
 
+func TestMakeDict_Panic(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("MakeDict did not panic")
+		}
+	}()
+	_, _ = convert.MakeDict(123)
+}
+
 func TestMakeDict(t *testing.T) {
 	sd0 := starlark.NewDict(0)
 
