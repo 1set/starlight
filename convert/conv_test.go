@@ -21,6 +21,9 @@ func TestMakeTuple(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error 1: %v", err)
 		return
+	} else if tuple1 == nil {
+		t.Errorf("expected tuple1 to be non-nil")
+		return
 	}
 	tuple2, err := MakeTuple([]interface{}{"a", 1, true, 0.1})
 	if err != nil {
@@ -104,6 +107,9 @@ func TestMakeList(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error 1: %v", err)
 		return
+	} else if list1 == nil {
+		t.Errorf("expected list1 to be non-nil")
+		return
 	}
 	list2, err := MakeList([]interface{}{"a", 1, true, 0.1})
 	if err != nil {
@@ -149,8 +155,18 @@ t2d = type(list_has[3])
 }
 
 func TestMakeSet(t *testing.T) {
-	if _, err := MakeSet(nil); err != nil {
+	if s0, err := MakeSet(map[interface{}]bool{}); err != nil {
+		t.Errorf("unexpected error 0: %v", err)
+		return
+	} else if s0 == nil {
+		t.Errorf("expected s0 to be non-nil")
+		return
+	}
+	if s1, err := MakeSet(nil); err != nil {
 		t.Errorf("unexpected error 1: %v", err)
+		return
+	} else if s1 == nil {
+		t.Errorf("expected s1 to be non-nil")
 		return
 	}
 	if _, err := MakeSet(map[interface{}]bool{"a": true, 1: true, true: true, 0.1: true}); err != nil {
@@ -164,9 +180,20 @@ func TestMakeSet(t *testing.T) {
 }
 
 func TestMakeSetFromSlice(t *testing.T) {
+	set0, err := MakeSetFromSlice([]interface{}{})
+	if err != nil {
+		t.Errorf("unexpected error 0: %v", err)
+		return
+	} else if set0 == nil {
+		t.Errorf("expected set0 to be non-nil")
+		return
+	}
 	set1, err := MakeSetFromSlice(nil)
 	if err != nil {
 		t.Errorf("unexpected error 1: %v", err)
+		return
+	} else if set1 == nil {
+		t.Errorf("expected set1 to be non-nil")
 		return
 	}
 	set2, err := MakeSetFromSlice([]interface{}{"a", 1, true, 0.1})

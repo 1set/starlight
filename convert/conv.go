@@ -330,6 +330,7 @@ func FromDict(m *starlark.Dict) map[interface{}]interface{} {
 }
 
 // MakeSet makes a Set from the given map. The acceptable keys the same as ToValue.
+// For nil input, it returns an empty Set.
 func MakeSet(s map[interface{}]bool) (*starlark.Set, error) {
 	set := starlark.Set{}
 	for k := range s {
@@ -345,6 +346,7 @@ func MakeSet(s map[interface{}]bool) (*starlark.Set, error) {
 }
 
 // MakeSetFromSlice makes a Set from the given slice. The acceptable keys the same as ToValue.
+// For nil input, it returns an empty Set.
 func MakeSetFromSlice(s []interface{}) (*starlark.Set, error) {
 	set := starlark.Set{}
 	for i := range s {
