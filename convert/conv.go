@@ -401,14 +401,12 @@ func FromKwargs(kwargs []starlark.Tuple) ([]Kwarg, error) {
 	return args, nil
 }
 
-// MakeStarFn creates a wrapper around the given function that can be called from
-// a starlark script.  Argument support is the same as ToValue. If the last value
-// the function returns is an error, it will cause an error to be returned from
-// the starlark function.  If there are no other errors, the function will return
-// None.  If there's exactly one other value, the function will return the
-// starlark equivalent of that value.  If there is more than one return value,
-// they'll be returned as a tuple.  MakeStarFn will panic if you pass it
-// something other than a function.
+// MakeStarFn creates a wrapper around the given function that can be called from a starlark script. Argument support is the same as ToValue.
+// If the last value the function returns is an error, it will cause an error to be returned from the starlark function.
+// If there are no other errors, the function will return None.
+// If there's exactly one other value, the function will return the starlark equivalent of that value.
+// If there is more than one return value, they'll be returned as a tuple.
+// MakeStarFn will panic if you pass it something other than a function, like nil or a non-function.
 func MakeStarFn(name string, gofn interface{}) *starlark.Builtin {
 	v := reflect.ValueOf(gofn)
 	if v.Kind() != reflect.Func {

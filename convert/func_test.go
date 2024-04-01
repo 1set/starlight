@@ -384,6 +384,12 @@ func TestMakeStarFnArgumentType(t *testing.T) {
 	}
 	testCases := []testCase{
 		{
+			name:          "Nil",
+			funcToConvert: nil,
+			codeSnippet:   `x = boo()`,
+			shouldPanic:   true,
+		},
+		{
 			name:          "Non-function type",
 			funcToConvert: 123,
 			codeSnippet:   `x = boo()`,
