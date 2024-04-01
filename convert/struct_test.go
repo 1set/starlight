@@ -342,6 +342,34 @@ p.Value += 1
 	}
 }
 
+func TestMakeStringDict_Nil(t *testing.T) {
+	s1, err := convert.MakeStringDict(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s2, err := convert.MakeStringDictWithTag(nil, "star")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s1) != 0 || len(s2) != 0 {
+		t.Fatalf("expected empty string dict, but got %v and %v", s1, s2)
+	}
+}
+
+func TestMakeStringDict_Empty(t *testing.T) {
+	s1, err := convert.MakeStringDict(map[string]interface{}{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s2, err := convert.MakeStringDictWithTag(map[string]interface{}{}, "star")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s1) != 0 || len(s2) != 0 {
+		t.Fatalf("expected empty string dict, but got %v and %v", s1, s2)
+	}
+}
+
 func TestMakeStringDict(t *testing.T) {
 	type contact struct {
 		Name   string `sl:"name"`
