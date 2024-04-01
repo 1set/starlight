@@ -84,6 +84,14 @@ t2 = ("a", 1, True, 0.1)
 }
 
 func TestMakeList(t *testing.T) {
+	list0, err := MakeList([]interface{}{})
+	if err != nil {
+		t.Errorf("unexpected error 0: %v", err)
+		return
+	} else if list0 == nil {
+		t.Errorf("expected list0 to be non-nil")
+		return
+	}
 	list1, err := MakeList(nil)
 	if err != nil {
 		t.Errorf("unexpected error 1: %v", err)
