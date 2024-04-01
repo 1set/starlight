@@ -179,11 +179,13 @@ func FromValue(v starlark.Value) interface{} {
 }
 
 // MakeStringDict makes a StringDict from the given arg. The types supported are the same as ToValue.
+// It returns an empty dict for nil input.
 func MakeStringDict(m map[string]interface{}) (starlark.StringDict, error) {
 	return makeStringDictTag(m, emptyStr)
 }
 
 // MakeStringDictWithTag makes a StringDict from the given arg with custom tag. The types supported are the same as ToValueWithTag.
+// It returns an empty dict for nil input.
 func MakeStringDictWithTag(m map[string]interface{}, tagName string) (starlark.StringDict, error) {
 	return makeStringDictTag(m, tagName)
 }
@@ -210,6 +212,7 @@ func FromStringDict(m starlark.StringDict) map[string]interface{} {
 }
 
 // MakeTuple makes a Starlark Tuple from the given Go slice. The types supported are the same as ToValue.
+// It returns an empty tuple for nil input.
 func MakeTuple(v []interface{}) (starlark.Tuple, error) {
 	tuple := make(starlark.Tuple, len(v))
 	for i, val := range v {
@@ -232,6 +235,7 @@ func FromTuple(v starlark.Tuple) []interface{} {
 }
 
 // MakeList makes a Starlark List from the given Go slice. The types supported are the same as ToValue.
+// It returns an empty list for nil input.
 func MakeList(v []interface{}) (*starlark.List, error) {
 	values := make([]starlark.Value, len(v))
 	for i := range v {
@@ -265,33 +269,38 @@ func FromList(l *starlark.List) []interface{} {
 }
 
 // MakeDict makes a Dict from the given map. The acceptable keys and values are the same as ToValue.
+// For nil input, it returns an empty Dict. It panics if the input is not a map.
 func MakeDict(v interface{}) (starlark.Value, error) {
 	return makeDictTag(reflect.ValueOf(v), emptyStr)
 }
 
 // MakeDictWithTag makes a Dict from the given map with custom tag. The acceptable keys and values are the same as ToValueWithTag.
+// For nil input, it returns an empty Dict. It panics if the input is not a map.
 func MakeDictWithTag(v interface{}, tagName string) (starlark.Value, error) {
 	return makeDictTag(reflect.ValueOf(v), tagName)
 }
 
 func makeDictTag(val reflect.Value, tagName string) (starlark.Value, error) {
-	if val.Kind() != reflect.Map {
+	dict := starlark.NewDict(1)
+	// check if the value is not nil and is a map
+	if valid := val.IsValid(); valid && val.Kind() != reflect.Map {
+		// panic if not a map
 		panic(fmt.Errorf("can't make map of %T", val.Interface()))
-	}
-
-	dict := starlark.Dict{}
-	for _, k := range val.MapKeys() {
-		vk, err := adjustedToValue(k, tagName)
-		if err != nil {
-			return nil, err
+	} else if valid {
+		// iterate over the map and convert each key and value
+		for _, k := range val.MapKeys() {
+			vk, err := adjustedToValue(k, tagName)
+			if err != nil {
+				return nil, err
+			}
+			vv, err := adjustedToValue(val.MapIndex(k), tagName)
+			if err != nil {
+				return nil, err
+			}
+			dict.SetKey(vk, vv)
 		}
-		vv, err := adjustedToValue(val.MapIndex(k), tagName)
-		if err != nil {
-			return nil, err
-		}
-		dict.SetKey(vk, vv)
 	}
-	return &dict, nil
+	return dict, nil
 }
 
 // Helper method that checks the input value for interface{} and adjusts the conversion accordingly.
@@ -323,6 +332,7 @@ func FromDict(m *starlark.Dict) map[interface{}]interface{} {
 }
 
 // MakeSet makes a Set from the given map. The acceptable keys the same as ToValue.
+// For nil input, it returns an empty Set.
 func MakeSet(s map[interface{}]bool) (*starlark.Set, error) {
 	set := starlark.Set{}
 	for k := range s {
@@ -338,6 +348,7 @@ func MakeSet(s map[interface{}]bool) (*starlark.Set, error) {
 }
 
 // MakeSetFromSlice makes a Set from the given slice. The acceptable keys the same as ToValue.
+// For nil input, it returns an empty Set.
 func MakeSetFromSlice(s []interface{}) (*starlark.Set, error) {
 	set := starlark.Set{}
 	for i := range s {
@@ -390,14 +401,12 @@ func FromKwargs(kwargs []starlark.Tuple) ([]Kwarg, error) {
 	return args, nil
 }
 
-// MakeStarFn creates a wrapper around the given function that can be called from
-// a starlark script.  Argument support is the same as ToValue. If the last value
-// the function returns is an error, it will cause an error to be returned from
-// the starlark function.  If there are no other errors, the function will return
-// None.  If there's exactly one other value, the function will return the
-// starlark equivalent of that value.  If there is more than one return value,
-// they'll be returned as a tuple.  MakeStarFn will panic if you pass it
-// something other than a function.
+// MakeStarFn creates a wrapper around the given function that can be called from a starlark script. Argument support is the same as ToValue.
+// If the last value the function returns is an error, it will cause an error to be returned from the starlark function.
+// If there are no other errors, the function will return None.
+// If there's exactly one other value, the function will return the starlark equivalent of that value.
+// If there is more than one return value, they'll be returned as a tuple.
+// MakeStarFn will panic if you pass it something other than a function, like nil or a non-function.
 func MakeStarFn(name string, gofn interface{}) *starlark.Builtin {
 	v := reflect.ValueOf(gofn)
 	if v.Kind() != reflect.Func {
