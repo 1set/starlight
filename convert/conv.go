@@ -210,6 +210,7 @@ func FromStringDict(m starlark.StringDict) map[string]interface{} {
 }
 
 // MakeTuple makes a Starlark Tuple from the given Go slice. The types supported are the same as ToValue.
+// It returns an empty tuple for nil input.
 func MakeTuple(v []interface{}) (starlark.Tuple, error) {
 	tuple := make(starlark.Tuple, len(v))
 	for i, val := range v {

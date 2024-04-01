@@ -9,6 +9,14 @@ import (
 )
 
 func TestMakeTuple(t *testing.T) {
+	tuple0, err := MakeTuple([]interface{}{})
+	if err != nil {
+		t.Errorf("unexpected error 0: %v", err)
+		return
+	} else if tuple0 == nil {
+		t.Errorf("expected tuple0 to be non-nil")
+		return
+	}
 	tuple1, err := MakeTuple(nil)
 	if err != nil {
 		t.Errorf("unexpected error 1: %v", err)
