@@ -469,6 +469,8 @@ def double(x):
 }
 
 func TestMakeDict(t *testing.T) {
+	sd0 := starlark.NewDict(0)
+
 	sd1 := starlark.NewDict(1)
 	_ = sd1.SetKey(starlark.String("a"), starlark.String("b"))
 
@@ -495,6 +497,16 @@ func TestMakeDict(t *testing.T) {
 		wantErr  bool
 		strMatch bool
 	}{
+		{
+			name: "nil",
+			v:    nil,
+			want: sd0,
+		},
+		{
+			name: "empty",
+			v:    map[string]interface{}{},
+			want: sd0,
+		},
 		{
 			name: "map[string]string",
 			v:    map[string]string{"a": "b"},

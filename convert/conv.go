@@ -275,23 +275,26 @@ func MakeDictWithTag(v interface{}, tagName string) (starlark.Value, error) {
 }
 
 func makeDictTag(val reflect.Value, tagName string) (starlark.Value, error) {
-	if val.Kind() != reflect.Map {
+	dict := starlark.NewDict(1)
+	// check if the value is not nil and is a map
+	if valid := val.IsValid(); valid && val.Kind() != reflect.Map {
+		// panic if not a map
 		panic(fmt.Errorf("can't make map of %T", val.Interface()))
-	}
-
-	dict := starlark.Dict{}
-	for _, k := range val.MapKeys() {
-		vk, err := adjustedToValue(k, tagName)
-		if err != nil {
-			return nil, err
+	} else if valid {
+		// iterate over the map and convert each key and value
+		for _, k := range val.MapKeys() {
+			vk, err := adjustedToValue(k, tagName)
+			if err != nil {
+				return nil, err
+			}
+			vv, err := adjustedToValue(val.MapIndex(k), tagName)
+			if err != nil {
+				return nil, err
+			}
+			dict.SetKey(vk, vv)
 		}
-		vv, err := adjustedToValue(val.MapIndex(k), tagName)
-		if err != nil {
-			return nil, err
-		}
-		dict.SetKey(vk, vv)
 	}
-	return &dict, nil
+	return dict, nil
 }
 
 // Helper method that checks the input value for interface{} and adjusts the conversion accordingly.
