@@ -4,135 +4,139 @@
 [![codecov](https://codecov.io/github/1set/starlight/branch/master/graph/badge.svg?token=yDu7JCcMHv)](https://codecov.io/github/1set/starlight)
 [![codacy](https://app.codacy.com/project/badge/Grade/211835be0f0241269e38fd8913648e1e)](https://app.codacy.com/gh/1set/starlight/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 [![codeclimate](https://api.codeclimate.com/v1/badges/20035dc9703387ad14c6/maintainability)](https://codeclimate.com/github/1set/starlight/maintainability)
+[![goreportcard](https://goreportcard.com/badge/github.com/1set/starlight)](https://goreportcard.com/report/github.com/1set/starlight)
 
-Welcome to Starlight Enhanced, a sophisticated fork of the original [Starlight](https://github.com/starlight-go/starlight) project. Our version builds upon the Starlight wrapper for [starlark-go](https://github.com/google/starlark-go) to facilitate smoother data conversion between Go and Starlark.
+Welcome to *Starlight Enhanced*, a sophisticated fork of the original [*Starlight*](https://github.com/starlight-go/starlight) project. Our version builds upon the *Starlight* wrapper for [*Starlark in Go*](https://github.com/google/starlark-go) to facilitate smoother data conversion between Go and Starlark.
 
-Due to the lack of ongoing maintenance of the original Starlight project, we saw an opportunity to breathe new life into it. We've optimized it to work seamlessly with the latest versions of starlark-go while addressing and rectifying bugs present in the original repository.
+Due to the lack of ongoing maintenance of the original [*Starlight*](https://github.com/starlight-go/starlight/commits/master) project, we saw an opportunity to breathe new life into it. We've optimized it to work seamlessly with the latest versions of *Starlark in Go* while addressing and rectifying bugs present in the original repository.
 
 The objectives of this enhanced fork include:
 
 - Identification and resolution of bugs and corner cases that were present in the original repository.
 - Extension of the library's capabilities by exposing additional functions, thereby enriching functionality.
-- Ensuring compatibility and support for the latest versions of starlark-go.
+- Ensuring compatibility and support for the latest versions of *Starlark in Go*.
 
-We hope that this improved iteration of Starlight will contribute to your projects and enhance your experience with starlark-go. Your contributions and feedback are always welcome.
+We hope that this improved iteration of Starlight will contribute to your projects and enhance your experience with Starlark. Your contributions and feedback are always welcome.
 
-# Here's the original README.md
+## Features
 
-# <img src="https://user-images.githubusercontent.com/3185864/49534746-5b90de80-f890-11e8-9fd6-5417cf915c67.png"/> Starlight [![GoDoc](https://godoc.org/github.com/starlight-go/starlight?status.svg)](https://godoc.org/github.com/starlight-go/starlight) [![Build Status](https://travis-ci.org/starlight-go/starlight.svg?branch=master)](https://travis-ci.org/starlight-go/starlight)
+A set of powerful features is provided to facilitate the integration of Starlark scripts into Go applications:
 
+### Seamless Data Conversion
 
-<p align="center" style="font-weight:bold">!! Starlight is still a WIP !!<p/>
+Starlight offers robust support for seamless data conversion between Go and Starlark types. Conversion functions are provided through the `convert` package.
 
+Leveraging the `convert.ToValue` and `convert.FromValue` utilities, Starlight enables the smooth transition of Go's rich data types and methods into the Starlark scripting environment. This feature supports a wide array of Go types, including structs, slices, maps, and functions, making them readily accessible and manipulable within Starlark scripts. The only exceptions are Go channels and complexes, which are not supported due to their concurrency nature.
 
-Starlight is a wrapper library for google's [starlark](https://github.com/google/starlark-go)
-embedded python-like language. Starlight is intended to give you an easier-to-use
-interface for running starlark scripts directly from your Go programs.  Starlark
-is a dialect of python, and has a Go native interpreter, so you can let your
-users extend your application without any external requirements.
+### Efficient Caching Mechanism
 
+Starlight introduces an efficient caching mechanism that significantly optimizes script execution performance. By caching scripts upon their first execution, Starlight minimizes the overhead associated with re-reading and re-parsing files in subsequent runs. This caching is compliant with the Starlark `Thread.Load` standards, ensuring that scripts are efficiently loaded and executed while adhering to Starlark's loading semantics. This feature is particularly beneficial for applications that frequently execute Starlark scripts, as it dramatically reduces execution times and resource consumption.
 
-## Sample
+### Simplified Script Execution
 
-You can call a script from go thusly:
+The `Eval` function encapsulates the complexities of setting up and executing Starlark scripts, providing a streamlined interface for developers. This encapsulation allows for easy execution of Starlark scripts with full access to the script's global variables, enhancing script interoperability and flexibility. Additionally, Starlight supports the Starlark `load()` function, enabling scripts to load and execute other scripts seamlessly. This feature simplifies the integration of Starlark scripting into Go applications, reducing the need for repetitive boilerplate code and fostering a more efficient development process.
 
-```go
+## Installation
 
-import (
-    "fmt"
-    "github.com/starlight-go/starlight"
-)
+To install *Starlight Enhanced*, use the following Go command under your project directory:
 
-type contact struct {
-    Name string
-}
-
-func main() {
-    c := &contact{Name: "Bob"}
-    globals := map[string]interface{}{
-        "contact":c, 
-        "Println":fmt.Println,
-    }
-
-    script := []byte(`
-contact.Name = "Phil"
-Println("hello " + contact.Name)
-`)
-    // errors will tell you about syntax/runtime errors.
-    _, err := starlight.Eval(script, globals, nil)
-}
-
-// prints "hello Phil"
-// also the value of c's Name field will now be Phil when referenced from Go code as well.
+```bash
+go get github.com/1set/starlight
 ```
-
-Eval expects either a filename, slice of bytes, or io.Reader as its argument
-containing the code, and then a map of global variables to populate the script
-with.
 
 ## Usage
 
-Starlight.New creates a script cache that will read and compile scripts on the fly, caching those it has already run.
+*Starlight* can be used to easily integrate Starlark scripting into your Go applications. Here's a quick example:
 
-Starlight.Eval does all the compilation at call time.
+```go
+package main
 
-## Inputs and Outputs
+import (
+	"fmt"
 
-Starlark scripts (and starlight scripts by extension) use global variables in the
-script as the input.
+	"github.com/1set/starlight"
+)
 
-Thus if args are `map[string]interface{}{"input":"hello"}`, the script may act
-on the variable called input thusly:
+func main() {
+    // Define your Go function
+	name := "Starlight"
+	globals := map[string]interface{}{
+		"target": name,
+		"greet": func(name string) string {
+			return fmt.Sprintf("Hello, %s!", name)
+		},
+	}
 
-```python
-output = input + "world!"
+    // Run a Starlark script with the global variables
+	script := `text = greet(target); print("Starlark:", text)`
+	res, err := starlight.Eval([]byte(script), globals, nil)
+
+    // Check for errors and results
+	if err != nil {
+		fmt.Println("Error executing script:", err)
+	}
+	fmt.Println("Go:", res["text"].(string))
+}
 ```
 
-When run, this script will create a value in the map returned with the
-key "output" and with the value "hello world!".
+The `convert` package can be used to convert data between Go and Starlark, making it simpler to pass data and functions back and forth between the two contexts. Here's an example of converting a Go struct to a Starlark value and modifying it in a script:
 
-## Types
+```go
+package main
 
-Starlight automatically translates go types to starlark types. Starlight
-supports almost every go type except channels.   You may also pass in types that
-implement starlark.Value themselves, in which case they will be passed to the
-script as-is (this is useful if you need custom behavior).
+import (
+	"fmt"
 
-## Functions
+	"github.com/1set/starlight"
+	"github.com/1set/starlight/convert"
+)
 
-You can pass go functions that the script can call by passing your function in
-with the rest of the globals. Positional args are passed to your function and
-converted to their appropriate go type if possible. Kwargs passed from starlark
-scripts are currently ignored.
+func main() {
+	// Define your Go data structure
+	type Contact struct {
+		Name  string
+		Email string
+		Age   uint
+	}
+	contact := Contact{Name: "Bob", Email: "bob@example.com", Age: 30}
 
-## Caching
+	// Convert Go data structure to Starlark value
+	starlarkValue, err := convert.ToValue(&contact)
+	if err != nil {
+		panic(err)
+	}
+	globals := map[string]interface{}{
+		"candidate": "Leon",
+		"contact":   starlarkValue,
+	}
 
-Since parsing scripts is non-zero work, starlight caches the scripts it finds
-after the first time they get run, so that further runs of the script will not
-incur the disk read and parsing overhead. To make starlight reparse a file
-(perhaps because it has changed) use the Forget method for the specific file, or
-Reset to remove all cached files.
+	// Run a Starlark script with the global variables
+	script := `
+contact.Name = "".join(reversed(candidate.codepoints())).title()
+contact.Age += 2
+summary = "%s [%d] %s" % (contact.Name, contact.Age, contact.Email)
+`
+	res, err := starlight.Eval([]byte(script), globals, nil)
 
-## Example
+	// Check for errors, results and modified data
+	if err != nil {
+		fmt.Println("Error executing script:", err)
+	}
+	fmt.Println("Updated:", contact)
+	fmt.Println("Summary:", res["summary"].(string))
+}
+```
 
-The [example](https://github.com/starlight-go/starlight/tree/master/example)
-directory shows an example of using starlight to run scripts that modify the
-output of a running web server.
+## Contributing
 
-## Why?
+We welcome contributions to the *Starlight Enhanced* project. If you encounter any issues or have suggestions for improvements, please feel free to open an issue or submit a pull request. Before undertaking any significant changes, please let us know by filing an issue or claiming an existing one to ensure there is no duplication of effort.
 
-**Why not just use starlark-go directly?**
+## License
 
-Well, it's actually quite difficult to get go data *into* a starlark-go script. Starlark as written is made more for configuration, so you mostly get data *out* of scripts, and mostly just basic values.
+*Starlight Enhanced* is licensed under the [MIT License](LICENSE).
 
-For example, structs just aren't supported, unless you write a complicated wrapper (starlight does that for you). Adapting a function to starlark-go requires a bunch of boilerplate adapter and conversion code, and then if you're using anything other than basic types (int, string, bool, float, etc), you need adapters for those, too (starlight does that for you, too).
+## Acknowledgements
 
-**Why embed python in your Go application?**
+This project is a fork of the original [*Starlight*](https://github.com/starlight-go/starlight) project, authored by Nate Finch ([@natefinch](https://github.com/natefinch)). We would like to thank Nate and all the original authors and contributors for laying the foundation upon which this project builds, *Starlight Enhanced* would not have been possible without the original creation and development by Nate Finch 🎉
 
-Because it lets you add flexibility without having to recompile.  It lets users customize your application with just a few lines of python.
-
-Also, Starlark is *safe*.  You can run arbitrary code from third parties without worrying about it blowing up your machine or downloading nasty things from the internet (unless you give scripts the ability to do that).  Starlark code can only call the functions you allow.
-
-## How?
-
-Lots of reflection.  It's not as slow as you think.  Running a small pre-compiled script including the time to process the inputs using reflection, takes less than 2400ns on my 2017 macbook pro (that's 0.0024 milliseconds). 
+For historical reference, the original README from the Starlight project is preserved as [README-old.md](README-old.md) in this repository.
