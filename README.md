@@ -1,4 +1,4 @@
-# Starlight Enhanced
+# Starlight Enhanced 🌟
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/1set/starlight.svg)](https://pkg.go.dev/github.com/1set/starlight)
 [![codecov](https://codecov.io/github/1set/starlight/branch/master/graph/badge.svg?token=yDu7JCcMHv)](https://codecov.io/github/1set/starlight)
