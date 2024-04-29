@@ -1,4 +1,4 @@
-# Starlight Enhanced 🌟
+# :star2: Starlight Enhanced - Bridging Go and Starlark
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/1set/starlight.svg)](https://pkg.go.dev/github.com/1set/starlight)
 [![codecov](https://codecov.io/github/1set/starlight/branch/master/graph/badge.svg?token=yDu7JCcMHv)](https://codecov.io/github/1set/starlight)
@@ -16,7 +16,7 @@ The objectives of this enhanced fork include:
 - Extension of the library's capabilities by exposing additional functions, thereby enriching functionality.
 - Ensuring compatibility and support for the latest versions of *Starlark in Go*.
 
-We hope that this improved iteration of Starlight will contribute to your projects and enhance your experience with Starlark. Your contributions and feedback are always welcome.
+We hope that this improved iteration of *Starlight* will contribute to your projects and enhance your experience with Starlark. Your contributions and feedback are always welcome.
 
 ## Features
 
@@ -67,6 +67,7 @@ res, err := starlight.Eval([]byte(script), globals, nil)
 // Check for errors and results
 if err != nil {
     fmt.Println("Error executing script:", err)
+    return
 }
 fmt.Println("Go:", res["text"].(string))
 ```
@@ -108,6 +109,7 @@ res, err := starlight.Eval([]byte(script), globals, nil)
 // Check for errors, results and modified data
 if err != nil {
     fmt.Println("Error executing script:", err)
+    return
 }
 fmt.Println("Updated:", contact)
 fmt.Println("Summary:", res["summary"].(string))
