@@ -287,6 +287,164 @@ assert.Eq(sum.name, "Aloha! 201 20")
 	}
 }
 
+func TestStructWithMapAddress(t *testing.T) {
+	m := &mega{
+		String: "hi!",
+		Int64:  100,
+		Child: nested{
+			Truth:  true,
+			Name:   "alice",
+			Number: 100,
+			Value:  1.8,
+		},
+		Change: &nested{
+			Truth:  false,
+			Name:   "bob",
+			Number: 200,
+			Value:  2.8,
+		},
+		Multiple: []*nested{
+			{
+				Truth:  true,
+				Name:   "one",
+				Number: 1,
+			},
+			{
+				Truth:  true,
+				Name:   "two",
+				Number: 2,
+			},
+		},
+		MoreMap: map[string]*nested{
+			"one": {
+				Truth:  true,
+				Name:   "I",
+				Number: 1,
+			},
+			"two": {
+				Truth:  true,
+				Name:   "II",
+				Number: 2,
+			},
+		},
+	}
+	globals := map[string]interface{}{
+		"m":      convert.NewStructWithTag(m, "star"),
+		"assert": &assert{t: t},
+		"can":    &nested{Name: "candidate", Number: 100},
+	}
+	code := []byte(`
+a = m['love']
+b = m[b"hate"]
+m.love = "bye!"
+m.hate = 60
+print(dir(m), dir(m[b'children']), dir(m["change"]), dir(m.many[0]))
+print(m["more"]["two"])
+
+c = m['children']['name']
+d = m['children'].Truth
+
+m['change']['num'] = 100
+e = dir(m['children']) == dir(m.change)
+m.another = m.change
+f = dir(m.another) == dir(m.change)
+
+g = len(m.many) == 2
+m1 = m.many[0]
+h = dir(m1) == ["Truth", "name", "num"]
+
+i = len(m['more']) == 2
+m2 = m.more["one"]
+j = dir(m2) == ["Truth", "name", "num"]
+
+can.Truth = True
+can["Name"] = "Aloha"
+can.Number = 200
+can['Value'] = 10
+m.SetOne(can)
+ret = m.GetOne()
+sum = m.Summarize()
+
+print(can, ret)
+assert.Eq(ret.Truth, False)
+assert.Eq(ret.name, "Aloha!")
+assert.Eq(ret.num, 201)
+assert.Eq(sum.name, "Aloha! 201 20")
+`)
+	res, err := starlight.Eval(code, globals, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.String != "bye!" {
+		t.Fatalf("expected m.String to be 'bye!', but got %q", m.String)
+	}
+	if a := res["a"].(string); a != "hi!" {
+		t.Fatalf("expected a to be 'hi!', but got %q", a)
+	}
+	if b := res["b"].(int64); b != 100 {
+		t.Fatalf("expected b to be 100, but got %d", b)
+	}
+	if d := res["c"].(string); d != "alice" {
+		t.Fatalf("expected d to be 'alice', but got %q", d)
+	}
+
+	boolChecks := []string{"d", "e", "f", "g", "h", "i", "j"}
+	for _, label := range boolChecks {
+		if v := res[label].(bool); v != true {
+			t.Fatalf("expected %s to be true, but got %v", label, v)
+		}
+	}
+}
+
+func TestStructWithMapAddress_Error(t *testing.T) {
+	tests := []struct {
+		name string
+		code string
+	}{
+		{
+			name: "get: invalid key type",
+			code: `m[123]`,
+		},
+		{
+			name: "get: missing key",
+			code: `m["missing"]`,
+		},
+		{
+			name: "set: invalid key type",
+			code: `m[520] = "hi"`,
+		},
+		{
+			name: "set: missing key",
+			code: `m["not-exist"] = "hey"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &mega{
+				String: "hi!",
+				Int64:  100,
+				Child: nested{
+					Truth:  true,
+					Name:   "alice",
+					Number: 100,
+					Value:  1.8,
+				},
+			}
+			globals := map[string]interface{}{
+				"m":      convert.NewStructWithTag(m, "star"),
+				"assert": &assert{t: t},
+			}
+			_, err := starlight.Eval([]byte(tt.code), globals, nil)
+			if err == nil {
+				t.Errorf("expected error, but got none")
+			} else {
+				t.Logf("[%s] error: %v", tt.name, err)
+			}
+		})
+	}
+}
+
 func TestStructAddressable(t *testing.T) {
 	s := customStruct{
 		Name:  "Static",

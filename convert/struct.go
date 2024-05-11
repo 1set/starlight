@@ -44,6 +44,49 @@ type GoStruct struct {
 	tag string
 }
 
+var (
+	_ starlark.Mapping   = (*GoStruct)(nil)
+	_ starlark.HasSetKey = (*GoStruct)(nil)
+)
+
+// tryCastString tries to cast the given string or bytes to a string, returning an error if it fails.
+func tryCastString(in starlark.Value) (string, error) {
+	switch v := in.(type) {
+	case starlark.String:
+		return v.GoString(), nil
+	case starlark.Bytes:
+		return string(v), nil
+	default:
+		return emptyStr, fmt.Errorf("key must be a string or bytes, but got %s", in.Type())
+	}
+}
+
+// Get returns the value of the field with the given name, allowing the struct to be accessed like a dictionary.
+func (g *GoStruct) Get(in starlark.Value) (v starlark.Value, found bool, err error) {
+	// get the key
+	key, err := tryCastString(in)
+	if err != nil {
+		return nil, false, err
+	}
+	// get the value
+	val, err := g.Attr(key)
+	if err != nil {
+		return nil, false, err
+	}
+	return val, val != nil, nil
+}
+
+// SetKey implements the starlark.HasSetKey interface, allowing the struct to be used like a dictionary.
+func (g *GoStruct) SetKey(k, v starlark.Value) error {
+	// get the key
+	key, err := tryCastString(k)
+	if err != nil {
+		return err
+	}
+	// set the value
+	return g.SetField(key, v)
+}
+
 // Attr returns a Starlark value that wraps the method or field with the given name.
 func (g *GoStruct) Attr(name string) (starlark.Value, error) {
 	// check for its methods and its pointer's methods
