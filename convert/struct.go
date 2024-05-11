@@ -49,6 +49,7 @@ var (
 	_ starlark.HasSetKey = (*GoStruct)(nil)
 )
 
+// tryCastString tries to cast the given string or bytes to a string, returning an error if it fails.
 func tryCastString(in starlark.Value) (string, error) {
 	switch v := in.(type) {
 	case starlark.String:
@@ -60,6 +61,7 @@ func tryCastString(in starlark.Value) (string, error) {
 	}
 }
 
+// Get returns the value of the field with the given name, allowing the struct to be accessed like a dictionary.
 func (g *GoStruct) Get(in starlark.Value) (v starlark.Value, found bool, err error) {
 	// get the key
 	key, err := tryCastString(in)
@@ -74,6 +76,7 @@ func (g *GoStruct) Get(in starlark.Value) (v starlark.Value, found bool, err err
 	return val, val != nil, nil
 }
 
+// SetKey implements the starlark.HasSetKey interface, allowing the struct to be used like a dictionary.
 func (g *GoStruct) SetKey(k, v starlark.Value) error {
 	// get the key
 	key, err := tryCastString(k)
