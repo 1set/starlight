@@ -44,6 +44,21 @@ type GoStruct struct {
 	tag string
 }
 
+var (
+	_ starlark.Mapping   = (*GoStruct)(nil)
+	_ starlark.HasSetKey = (*GoStruct)(nil)
+)
+
+func (g *GoStruct) Get(value starlark.Value) (v starlark.Value, found bool, err error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (g *GoStruct) SetKey(k, v starlark.Value) error {
+	//TODO implement me
+	panic("implement me")
+}
+
 // Attr returns a Starlark value that wraps the method or field with the given name.
 func (g *GoStruct) Attr(name string) (starlark.Value, error) {
 	// check for its methods and its pointer's methods
