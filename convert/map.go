@@ -23,6 +23,11 @@ type GoMap struct {
 	frozen bool
 }
 
+var (
+	_ starlark.Mapping   = (*GoMap)(nil)
+	_ starlark.HasSetKey = (*GoMap)(nil)
+)
+
 // NewGoMap wraps the given map m in a new GoMap.
 // This function will panic if m is nil or not a map.
 func NewGoMap(m interface{}) *GoMap {
