@@ -49,14 +49,39 @@ var (
 	_ starlark.HasSetKey = (*GoStruct)(nil)
 )
 
-func (g *GoStruct) Get(value starlark.Value) (v starlark.Value, found bool, err error) {
-	//TODO implement me
-	panic("implement me")
+func tryCastString(in starlark.Value) (string, error) {
+	switch v := in.(type) {
+	case starlark.String:
+		return v.GoString(), nil
+	case starlark.Bytes:
+		return string(v), nil
+	default:
+		return emptyStr, fmt.Errorf("key must be a string or bytes, but got %s", in.Type())
+	}
+}
+
+func (g *GoStruct) Get(in starlark.Value) (v starlark.Value, found bool, err error) {
+	// get the key
+	key, err := tryCastString(in)
+	if err != nil {
+		return nil, false, err
+	}
+	// get the value
+	val, err := g.Attr(key)
+	if err != nil {
+		return nil, false, err
+	}
+	return val, val != nil, nil
 }
 
 func (g *GoStruct) SetKey(k, v starlark.Value) error {
-	//TODO implement me
-	panic("implement me")
+	// get the key
+	key, err := tryCastString(k)
+	if err != nil {
+		return err
+	}
+	// set the value
+	return g.SetField(key, v)
 }
 
 // Attr returns a Starlark value that wraps the method or field with the given name.
