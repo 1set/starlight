@@ -13,6 +13,13 @@ type assert struct {
 	t *testing.T
 }
 
+func (a *assert) Neq(expected, got interface{}) {
+	if reflect.DeepEqual(expected, got) {
+		_, file, line, _ := runtime.Caller(13)
+		a.t.Fatalf("\n%v:%v: - expected %#v (%T) to be different from %#v (%T)\n", file, line, expected, expected, got, got)
+	}
+}
+
 func (a *assert) Eq(expected, got interface{}) {
 	if !reflect.DeepEqual(expected, got) {
 		_, file, line, _ := runtime.Caller(13)

@@ -180,25 +180,40 @@ b2 = m.Bytes
 
 func TestStructSliceModify(t *testing.T) {
 	code := []byte(`
-print(type(m))
-print(type(m.String))
-print(type(m.Bytes))
+# scratch
+p0 = ptr(m)
+p1 = ptr(m.Multiple)
+p2 = ptr(m.Multiple)
+print(0, type(m), p0)
+print(1, type(m.Multiple), p1, p2)
+assert.Eq(p1, p2)
 
-s1 = m.String
-m.String = "bravo"
-m.String = b"banana"
-s2 = m.String
+# inline modify -- nothing
+m.Multiple.append(m.Multiple[0])
+p3 = ptr(m.Multiple)
+print(2, type(m.Multiple), p3)
+assert.Eq(len(m.Multiple), 2)
 
-b1 = m.Bytes
-m.Bytes = "banana"
-m.Bytes = b"bravo"
-b2 = m.Bytes
+# outside modify
+mm = m.Multiple
+p4 = ptr(mm)
+mm.append(mm[0])
+p5 = ptr(mm)
+print(3, type(mm), p4, p5)
+assert.Eq(len(mm), 3)
+assert.Neq(p4, p5)
 `)
 	globals := map[string]interface{}{
 		"assert": &assert{t: t},
+		"ptr": func(x interface{}) string {
+			return fmt.Sprintf("%p", x)
+		},
 		"m": &mega{
 			String: "apple",
-			Bytes:  []byte("aloha"),
+			Multiple: []*nested{
+				{Truth: true, Name: "one", Number: 1},
+				{Truth: false, Name: "two", Number: 2},
+			},
 		},
 	}
 	out, err := starlight.Eval(code, globals, nil)
