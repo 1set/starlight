@@ -226,6 +226,46 @@ assert.Eq(bananas.index('s', -1000, 7), 6) # bananaS
 	expectFails(t, tests, globals)
 }
 
+func TestSliceFind(t *testing.T) {
+	bananas := []string{"b", "a", "n", "a", "n", "a", "s"}
+
+	globals := map[string]interface{}{
+		"assert":  &assert{t: t},
+		"bananas": bananas,
+	}
+
+	code := []byte(`
+assert.Eq(bananas.find('a'), 1) # bAnanas
+# start
+assert.Eq(bananas.find('a', -1000), 1) # bAnanas
+assert.Eq(bananas.find('a', 0), 1)     # bAnanas
+assert.Eq(bananas.find('a', 1), 1)     # bAnanas
+assert.Eq(bananas.find('a', 2), 3)     # banAnas
+assert.Eq(bananas.find('a', 3), 3)     # banAnas
+assert.Eq(bananas.find('b', 0), 0)     # Bananas
+assert.Eq(bananas.find('n', -3), 4)    # banaNas
+assert.Eq(bananas.find('s', -2), 6)    # bananaS
+# start, end
+assert.Eq(bananas.find('s', -1000, 7), 6) # bananaS
+# not found
+assert.Eq(bananas.find('b', 1), -1)
+assert.Eq(bananas.find('n', -2), -1)
+assert.Eq(bananas.find('d'), -1)
+assert.Eq(bananas.find('s', -1000, 6), -1)
+assert.Eq(bananas.find('d', -1000, 1000), -1)
+`)
+	_, err := starlight.Eval(code, globals, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []fail{
+		{`bananas.find([], 0, 0)`, `find: value of type []interface {} cannot be converted to type string`},
+		{`bananas.find(None, 0, 0)`, `find: value of type None cannot be converted to non-nullable type string`},
+	}
+	expectFails(t, tests, globals)
+}
+
 func TestSliceInsert(t *testing.T) {
 	globals := map[string]interface{}{
 		"assert":   &assert{t: t},

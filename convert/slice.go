@@ -151,6 +151,7 @@ var sliceMethods = map[string]builtinSliceMethod{
 	"append": list_append,
 	"clear":  list_clear,
 	"extend": list_extend,
+	"find":   list_find,
 	"index":  list_index,
 	"insert": list_insert,
 	"pop":    list_pop,
@@ -304,7 +305,7 @@ func findElement(fnname string, g *GoSlice, args starlark.Tuple, kwargs []starla
 
 	value, err := tryConv(args[0], g.v.Type().Elem())
 	if err != nil {
-		return -1, fmt.Errorf("index: %v", err)
+		return -1, fmt.Errorf("%s: %v", fnname, err)
 	}
 
 	start, end, err := indices(start_, end_, g.v.Len())
