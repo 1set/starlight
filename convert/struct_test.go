@@ -209,6 +209,8 @@ mm.append(mm[0])
 p5 = ptr(mm)
 print(3, type(mm), p4, p5)
 assert.Eq(len(mm), 3)
+assert.Eq(p1, p3)
+assert.Eq(p3, p4)
 assert.Neq(p4, p5)
 `)
 	globals := map[string]interface{}{
