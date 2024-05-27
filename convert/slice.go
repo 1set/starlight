@@ -269,7 +269,7 @@ func list_index(fnname string, g *GoSlice, args starlark.Tuple, kwargs []starlar
 	var start_, end_ starlark.Value
 	switch len(args) {
 	default:
-		return nil, fmt.Errorf("index: expected 1-3 args, got %d", len(args))
+		return nil, fmt.Errorf("%s: expected 1-3 args, got %d", fnname, len(args))
 	case 3:
 		end_ = args[2]
 		fallthrough
@@ -295,7 +295,13 @@ func list_index(fnname string, g *GoSlice, args starlark.Tuple, kwargs []starlar
 			return starlark.MakeInt(i), nil
 		}
 	}
-	return nil, fmt.Errorf("index: value %v not in list", value)
+	return nil, fmt.Errorf("%s: value %v not in list", fnname, value)
+}
+
+// list_find is a helper function for list_index that returns the index of the first occurrence of value in the slice.
+// It returns -1 if value is not found, which is different from list_index.
+func list_find(fnname string, g *GoSlice, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+
 }
 
 // https://github.com/google/starlark-go/blob/master/doc/spec.md#list·insert
