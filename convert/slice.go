@@ -266,28 +266,28 @@ func list_extend(fnname string, g *GoSlice, args starlark.Tuple, kwargs []starla
 
 // https://github.com/google/starlark-go/blob/master/doc/spec.md#list·index
 func list_index(fnname string, g *GoSlice, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	index, value, err := findElement(fnname, g, args, kwargs)
+	index, err := findElement(fnname, g, args, kwargs)
 	if err != nil {
 		return nil, err
 	}
 	if index == -1 {
 		return nil, fmt.Errorf("%s: value %v not in list", fnname, args[0])
 	}
-	return value, nil
+	return starlark.MakeInt(index), nil
 }
 
 // list_find is a helper function for list_index that returns the index of the first occurrence of value in the slice.
 // It returns -1 if value is not found, which is different from list_index.
 func list_find(fnname string, g *GoSlice, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	_, value, err := findElement(fnname, g, args, kwargs)
+	index, err := findElement(fnname, g, args, kwargs)
 	if err != nil {
 		return nil, err
 	}
-	return value, nil
+	return starlark.MakeInt(index), nil
 }
 
 // Shared logic for finding an element in the list.
-func findElement(fnname string, g *GoSlice, args starlark.Tuple, kwargs []starlark.Tuple) (int, starlark.Value, error) {
+func findElement(fnname string, g *GoSlice, args starlark.Tuple, kwargs []starlark.Tuple) (int, error) {
 	var start_, end_ starlark.Value
 	switch len(args) {
 	case 3:
@@ -299,25 +299,25 @@ func findElement(fnname string, g *GoSlice, args starlark.Tuple, kwargs []starla
 	case 1:
 		// ok
 	default:
-		return -1, nil, fmt.Errorf("%s: expected 1-3 args, got %d", fnname, len(args))
+		return -1, fmt.Errorf("%s: expected 1-3 args, got %d", fnname, len(args))
 	}
 
 	value, err := tryConv(args[0], g.v.Type().Elem())
 	if err != nil {
-		return -1, nil, fmt.Errorf("index: %v", err)
+		return -1, fmt.Errorf("index: %v", err)
 	}
 
 	start, end, err := indices(start_, end_, g.v.Len())
 	if err != nil {
-		return -1, nil, fmt.Errorf("%s: %s", fnname, err)
+		return -1, fmt.Errorf("%s: %s", fnname, err)
 	}
 
 	for i := start; i < end; i++ {
 		if reflect.DeepEqual(g.v.Index(i).Interface(), value.Interface()) {
-			return i, starlark.MakeInt(i), nil
+			return i, nil
 		}
 	}
-	return -1, starlark.MakeInt(-1), nil
+	return -1, nil
 }
 
 // https://github.com/google/starlark-go/blob/master/doc/spec.md#list·insert
