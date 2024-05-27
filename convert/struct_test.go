@@ -178,6 +178,36 @@ b2 = m.Bytes
 	}
 }
 
+func TestStructSliceModify(t *testing.T) {
+	code := []byte(`
+print(type(m))
+print(type(m.String))
+print(type(m.Bytes))
+
+s1 = m.String
+m.String = "bravo"
+m.String = b"banana"
+s2 = m.String
+
+b1 = m.Bytes
+m.Bytes = "banana"
+m.Bytes = b"bravo"
+b2 = m.Bytes
+`)
+	globals := map[string]interface{}{
+		"assert": &assert{t: t},
+		"m": &mega{
+			String: "apple",
+			Bytes:  []byte("aloha"),
+		},
+	}
+	out, err := starlight.Eval(code, globals, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("out: %v", out)
+}
+
 func TestStructWithCustomTag(t *testing.T) {
 	m := &mega{
 		String: "hi!",
