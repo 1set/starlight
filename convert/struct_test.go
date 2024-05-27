@@ -55,6 +55,14 @@ func (m *mega) SetOne(n *nested) {
 	m.Another = &nn
 }
 
+func (m *mega) GetAddr() string {
+	return fmt.Sprintf("%p", m)
+}
+
+func (m *mega) GetSliceAddr() string {
+	return fmt.Sprintf("%p", m.Multiple)
+}
+
 func (m *mega) GetOne() *nested {
 	return m.Another
 }
