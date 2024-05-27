@@ -240,6 +240,7 @@ e = dir(m.children) == dir(m.change)
 m.another = m.change
 f = dir(m.another) == dir(m.change)
 
+m.many.append(m.many[0])
 g = len(m.many) == 2
 m1 = m.many[0]
 h = dir(m1) == ["Truth", "name", "num"]
