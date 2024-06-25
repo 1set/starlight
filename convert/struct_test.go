@@ -55,6 +55,14 @@ func (m *mega) SetOne(n *nested) {
 	m.Another = &nn
 }
 
+func (m *mega) GetAddr() string {
+	return fmt.Sprintf("%p", m)
+}
+
+func (m *mega) GetSliceAddr() string {
+	return fmt.Sprintf("%p", m.Multiple)
+}
+
 func (m *mega) GetOne() *nested {
 	return m.Another
 }
@@ -178,6 +186,53 @@ b2 = m.Bytes
 	}
 }
 
+func TestStructSliceModify(t *testing.T) {
+	code := []byte(`
+# scratch
+p0 = ptr(m)
+p1 = ptr(m.Multiple)
+p2 = ptr(m.Multiple)
+print(0, type(m), p0)
+print(1, type(m.Multiple), p1, p2)
+assert.Eq(p1, p2)
+
+# inline modify -- nothing
+m.Multiple.append(m.Multiple[0])
+p3 = ptr(m.Multiple)
+print(2, type(m.Multiple), p3)
+assert.Eq(len(m.Multiple), 2)
+
+# outside modify
+mm = m.Multiple
+p4 = ptr(mm)
+mm.append(mm[0])
+p5 = ptr(mm)
+print(3, type(mm), p4, p5)
+assert.Eq(len(mm), 3)
+assert.Eq(p1, p3)
+assert.Eq(p3, p4)
+assert.Neq(p4, p5)
+`)
+	globals := map[string]interface{}{
+		"assert": &assert{t: t},
+		"ptr": func(x interface{}) string {
+			return fmt.Sprintf("%p", x)
+		},
+		"m": &mega{
+			String: "apple",
+			Multiple: []*nested{
+				{Truth: true, Name: "one", Number: 1},
+				{Truth: false, Name: "two", Number: 2},
+			},
+		},
+	}
+	out, err := starlight.Eval(code, globals, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("out: %v", out)
+}
+
 func TestStructWithCustomTag(t *testing.T) {
 	m := &mega{
 		String: "hi!",
@@ -240,6 +295,7 @@ e = dir(m.children) == dir(m.change)
 m.another = m.change
 f = dir(m.another) == dir(m.change)
 
+m.many.append(m.many[0])
 g = len(m.many) == 2
 m1 = m.many[0]
 h = dir(m1) == ["Truth", "name", "num"]
