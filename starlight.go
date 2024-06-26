@@ -46,11 +46,11 @@ func Eval(src interface{}, globals map[string]interface{}, load LoadFunc) (map[s
 	return convert.FromStringDict(dict), nil
 }
 
-// Cache is a cache of scripts to avoid re-reading files and reparsing them.
+// Cache is a cache of scripts to avoid re-reading files and re-parsing them.
 type Cache struct {
-	dirs  []string
-	cache *cache
-
+	_       [0]func() // disallow ==
+	dirs    []string
+	cache   *cache
 	mu      sync.Mutex
 	scripts map[string]*starlark.Program
 }
