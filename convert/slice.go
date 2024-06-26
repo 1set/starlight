@@ -16,7 +16,7 @@ import (
 
 // GoSlice is a wrapper around a Go slice to adapt it for use with starlark.
 type GoSlice struct {
-	_      [0]func() // disallow ==
+	DoNotCompare
 	v      reflect.Value
 	numIt  int
 	tag    string

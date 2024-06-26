@@ -48,7 +48,7 @@ func Eval(src interface{}, globals map[string]interface{}, load LoadFunc) (map[s
 
 // Cache is a cache of scripts to avoid re-reading files and re-parsing them.
 type Cache struct {
-	_       [0]func() // disallow ==
+	convert.DoNotCompare
 	dirs    []string
 	cache   *cache
 	mu      sync.Mutex

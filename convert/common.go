@@ -5,6 +5,9 @@ import (
 	"sync"
 )
 
+// DoNotCompare is an embedded zero-sized struct used to disallow comparison operations (== and !=) on the containing struct.
+type DoNotCompare [0]func()
+
 var (
 	emptyStr string
 	errType  = reflect.TypeOf((*error)(nil)).Elem()
