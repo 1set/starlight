@@ -17,7 +17,7 @@ import (
 // GoMap is a wrapper around a Go map that makes it satisfy starlark's
 // expectations of a starlark dict.
 type GoMap struct {
-	DoNotCompare
+	_      DoNotCompare
 	v      reflect.Value
 	numIt  int
 	tag    string

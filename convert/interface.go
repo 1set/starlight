@@ -40,7 +40,7 @@ func makeGoInterface(val reflect.Value) (*GoInterface, bool) {
 // types will not behave as their base type (you can't add 2 to an ID, even if
 // it is an int underneath).
 type GoInterface struct {
-	DoNotCompare
+	_   DoNotCompare
 	v   reflect.Value
 	tag string
 }

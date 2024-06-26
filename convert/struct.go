@@ -40,7 +40,7 @@ func NewStructWithTag(strct interface{}, tagName string) *GoStruct {
 
 // GoStruct is a wrapper around a Go struct to let it be manipulated by Starlark scripts.
 type GoStruct struct {
-	DoNotCompare
+	_   DoNotCompare
 	v   reflect.Value
 	tag string
 }
