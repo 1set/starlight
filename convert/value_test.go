@@ -282,6 +282,10 @@ func TestFromValue(t *testing.T) {
 	slDict := starlark.NewDict(2)
 	slDict.SetKey(starlark.String("a"), starlark.String("b"))
 
+	slDict2 := starlark.NewDict(2)
+	slDict2.SetKey(starlark.Tuple{starlark.String("A"), starlark.MakeInt(1)}, starlark.Bool(true))
+	slDict2.SetKey(starlark.Tuple{starlark.String("B"), starlark.MakeInt(2)}, starlark.Bool(false))
+
 	slSet := starlark.NewSet(2)
 	slSet.Insert(starlark.String("a"))
 	slSet.Insert(starlark.String("b"))
@@ -352,6 +356,11 @@ func TestFromValue(t *testing.T) {
 			name: "Dict",
 			v:    slDict,
 			want: map[interface{}]interface{}{"a": "b"},
+		},
+		{
+			name: "Dict2",
+			v:    slDict2,
+			want: map[interface{}]interface{}{"[A 1]": true, "[B 2]": false},
 		},
 		{
 			name: "Set",

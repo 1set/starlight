@@ -323,9 +323,13 @@ func FromDict(m *starlark.Dict) map[interface{}]interface{} {
 	ret := make(map[interface{}]interface{}, m.Len())
 	for _, k := range m.Keys() {
 		key := FromValue(k)
+		// HACK: this is a hack to panic if the key is not hashable
+		if !isHashable(key) {
+			key = fmt.Sprintf("%v", key)
+		}
+
 		// should never be not found or unhashable, so ignore err and found.
 		val, _, _ := m.Get(k)
-		//ret[key] = val
 		ret[key] = FromValue(val)
 	}
 	return ret
