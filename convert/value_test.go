@@ -286,6 +286,10 @@ func TestFromValue(t *testing.T) {
 	slSet.Insert(starlark.String("a"))
 	slSet.Insert(starlark.String("b"))
 
+	slSet2 := starlark.NewSet(3)
+	slSet2.Insert(starlark.Tuple{starlark.MakeInt(1), starlark.String("A")})
+	slSet2.Insert(starlark.Tuple{starlark.MakeInt(2), starlark.String("B")})
+
 	testBuiltin := convert.MakeStarFn("fn", func() string { return "test" })
 	testFunction := getTestStarlarkFunc()
 	testModule := starlarkstruct.Module{Name: "atest"}
@@ -352,6 +356,11 @@ func TestFromValue(t *testing.T) {
 		{
 			name: "Set",
 			v:    slSet,
+			want: map[interface{}]bool{"a": true, "b": true},
+		},
+		{
+			name: "Set2",
+			v:    slSet2,
 			want: map[interface{}]bool{"a": true, "b": true},
 		},
 		{
