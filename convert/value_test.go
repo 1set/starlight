@@ -361,7 +361,7 @@ func TestFromValue(t *testing.T) {
 		{
 			name: "Set2",
 			v:    slSet2,
-			want: map[interface{}]bool{"a": true, "b": true},
+			want: map[interface{}]bool{"[1 A]": true, "[2 B]": true},
 		},
 		{
 			name: "None",

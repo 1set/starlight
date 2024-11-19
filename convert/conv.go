@@ -371,9 +371,39 @@ func FromSet(s *starlark.Set) map[interface{}]bool {
 	defer i.Done()
 	for i.Next(&v) {
 		val := FromValue(v)
+		// HACK: this is a hack to panic if the value is not hashable
+		if !isHashable(val) {
+			val = fmt.Sprintf("%v", val)
+		}
 		ret[val] = true
 	}
 	return ret
+}
+
+// isHashable checks if a given value is hashable in Go.
+func isHashable(v interface{}) bool {
+	if v == nil {
+		return false
+	}
+	val := reflect.ValueOf(v)
+	switch val.Kind() {
+	case reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
+		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128,
+		reflect.String, reflect.Chan, reflect.Func,
+		reflect.UnsafePointer:
+		return true
+	case reflect.Ptr:
+		return val.Pointer() != 0
+	case reflect.Struct:
+		for i := 0; i < val.NumField(); i++ {
+			if !isHashable(val.Field(i).Interface()) {
+				return false
+			}
+		}
+		return true
+	}
+	return false
 }
 
 // Kwarg is a single instance of a python foo=bar style named argument.
