@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"sync/atomic"
 
 	"go.starlark.net/starlark"
 )
@@ -21,7 +22,7 @@ import (
 type GoSlice struct {
 	_      DoNotCompare
 	v      reflect.Value
-	numIt  int
+	numIt  int32 // accessed atomically: concurrent iterations are allowed
 	tag    string
 	frozen bool
 }
@@ -67,12 +68,10 @@ func (g *GoSlice) Value() reflect.Value {
 	return g.v
 }
 
-// Freeze causes the value, and all values transitively
-// reachable from it through collections and closures, to be
-// marked as frozen.  All subsequent mutations to the data
-// structure through this API will fail dynamically, making the
-// data structure immutable and safe for publishing to other
-// Starlark interpreters running concurrently.
+// Freeze marks this wrapper as frozen: mutations through this GoSlice
+// fail afterwards. The freeze is shallow — it does not propagate to the
+// wrapped Go slice, which the host (or other wrappers around the same
+// value) can still mutate.
 func (g *GoSlice) Freeze() {
 	g.frozen = true
 }
@@ -150,7 +149,7 @@ func (g *GoSlice) Len() int {
 }
 
 func (g *GoSlice) Iterate() starlark.Iterator {
-	g.numIt++
+	atomic.AddInt32(&g.numIt, 1)
 	return &sliceIterator{
 		g: g,
 	}
@@ -223,14 +222,14 @@ func (g *GoSlice) checkMutable(verb string) error {
 	if g.frozen {
 		return fmt.Errorf("cannot %s frozen slice", verb)
 	}
-	if g.numIt > 0 {
+	if atomic.LoadInt32(&g.numIt) > 0 {
 		return fmt.Errorf("cannot %s slice during iteration", verb)
 	}
 	return nil
 }
 
 func (it *sliceIterator) Done() {
-	it.g.numIt--
+	atomic.AddInt32(&it.g.numIt, -1)
 }
 
 // https://github.com/google/starlark-go/blob/master/doc/spec.md#list·append

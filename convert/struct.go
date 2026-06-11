@@ -40,9 +40,10 @@ func NewStructWithTag(strct interface{}, tagName string) *GoStruct {
 
 // GoStruct is a wrapper around a Go struct to let it be manipulated by Starlark scripts.
 type GoStruct struct {
-	_   DoNotCompare
-	v   reflect.Value
-	tag string
+	_      DoNotCompare
+	v      reflect.Value
+	tag    string
+	frozen bool
 }
 
 var (
@@ -79,6 +80,9 @@ func (g *GoStruct) Get(in starlark.Value) (v starlark.Value, found bool, err err
 
 // SetKey implements the starlark.HasSetKey interface, allowing the struct to be used like a dictionary.
 func (g *GoStruct) SetKey(k, v starlark.Value) error {
+	if g.frozen {
+		return fmt.Errorf("cannot set field on frozen struct")
+	}
 	// get the key
 	key, err := tryCastString(k)
 	if err != nil {
@@ -190,6 +194,9 @@ func (g *GoStruct) AttrNames() []string {
 
 // SetField sets the struct field with the given name with the given value.
 func (g *GoStruct) SetField(name string, val starlark.Value) error {
+	if g.frozen {
+		return fmt.Errorf("cannot set field on frozen struct")
+	}
 	v := g.v
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
@@ -252,13 +259,13 @@ func (g *GoStruct) Value() reflect.Value {
 	return g.v
 }
 
-// Freeze causes the value, and all values transitively
-// reachable from it through collections and closures, to be
-// marked as frozen.  All subsequent mutations to the data
-// structure through this API will fail dynamically, making the
-// data structure immutable and safe for publishing to other
-// Starlark interpreters running concurrently.
-func (g *GoStruct) Freeze() {}
+// Freeze marks this wrapper as frozen: writes through this GoStruct
+// (attribute or index assignment) fail afterwards. The freeze is shallow —
+// it does not propagate to the wrapped Go struct, which the host (or other
+// wrappers around the same value) can still mutate.
+func (g *GoStruct) Freeze() {
+	g.frozen = true
+}
 
 // Truth returns the truth value of an object.
 func (g *GoStruct) Truth() starlark.Bool {

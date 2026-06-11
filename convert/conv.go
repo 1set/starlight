@@ -188,6 +188,17 @@ func checkCollectionElemTypes(t reflect.Type, visited map[reflect.Type]bool) err
 
 // FromValue converts a starlark value to a go value.
 func FromValue(v starlark.Value) interface{} {
+	return fromValue(v, nil)
+}
+
+// fromValue implements FromValue; visited tracks the lists/dicts on the
+// current conversion path so self-referential structures convert their
+// cyclic references to nil instead of recursing forever. It is passed down
+// the call chain instead of living in a package-level detector: a shared
+// detector made concurrent conversions of the same value spuriously see
+// each other's in-progress markers and silently return nil. Pass nil to
+// start.
+func fromValue(v starlark.Value, visited map[uintptr]bool) interface{} {
 	switch v := v.(type) {
 	case starlark.Bool:
 		return bool(v)
@@ -209,11 +220,11 @@ func FromValue(v starlark.Value) interface{} {
 	case starlark.Bytes:
 		return []byte(v)
 	case *starlark.List:
-		return FromList(v)
+		return fromList(v, visited)
 	case starlark.Tuple:
-		return FromTuple(v)
+		return fromTuple(v, visited)
 	case *starlark.Dict:
-		return FromDict(v)
+		return fromDict(v, visited)
 	case *starlark.Set:
 		return FromSet(v)
 	case starlark.NoneType:
@@ -285,9 +296,13 @@ func MakeTuple(v []interface{}) (starlark.Tuple, error) {
 
 // FromTuple converts a starlark.Tuple into a []interface{}.
 func FromTuple(v starlark.Tuple) []interface{} {
+	return fromTuple(v, nil)
+}
+
+func fromTuple(v starlark.Tuple, visited map[uintptr]bool) []interface{} {
 	ret := make([]interface{}, len(v))
 	for i := range v {
-		ret[i] = FromValue(v[i])
+		ret[i] = fromValue(v[i], visited)
 	}
 	return ret
 }
@@ -306,21 +321,30 @@ func MakeList(v []interface{}) (*starlark.List, error) {
 	return starlark.NewList(values), nil
 }
 
-// FromList creates a go slice from the given starlark list.
+// FromList creates a go slice from the given starlark list. A list that
+// reaches itself converts its cyclic reference to nil.
 func FromList(l *starlark.List) []interface{} {
+	return fromList(l, nil)
+}
+
+func fromList(l *starlark.List, visited map[uintptr]bool) []interface{} {
 	// return nil to avoid infinite recursion
-	if rd.hasVisited(l) {
+	p := reflect.ValueOf(l).Pointer()
+	if visited[p] {
 		return nil
 	}
-	rd.setVisited(l)
-	defer rd.clearVisited(l)
+	if visited == nil {
+		visited = make(map[uintptr]bool)
+	}
+	visited[p] = true
+	defer delete(visited, p)
 
 	ret := make([]interface{}, 0, l.Len())
 	var v starlark.Value
 	i := l.Iterate()
 	defer i.Done()
 	for i.Next(&v) {
-		val := FromValue(v)
+		val := fromValue(v, visited)
 		ret = append(ret, val)
 	}
 	return ret
@@ -445,12 +469,20 @@ func tryKeyConv(v starlark.Value, t reflect.Type) (reflect.Value, error) {
 // entry is preserved instead of panicking. Use TryFromDict to detect such
 // keys instead of silently accepting the fallback.
 func FromDict(m *starlark.Dict) map[interface{}]interface{} {
+	return fromDict(m, nil)
+}
+
+func fromDict(m *starlark.Dict, visited map[uintptr]bool) map[interface{}]interface{} {
 	// return nil to avoid infinite recursion
-	if rd.hasVisited(m) {
+	p := reflect.ValueOf(m).Pointer()
+	if visited[p] {
 		return nil
 	}
-	rd.setVisited(m)
-	defer rd.clearVisited(m)
+	if visited == nil {
+		visited = make(map[uintptr]bool)
+	}
+	visited[p] = true
+	defer delete(visited, p)
 
 	ret := make(map[interface{}]interface{}, m.Len())
 	for _, k := range m.Keys() {
@@ -462,7 +494,7 @@ func FromDict(m *starlark.Dict) map[interface{}]interface{} {
 		}
 		// should never be not found or unhashable, so ignore err and found.
 		val, _, _ := m.Get(k)
-		ret[key] = FromValue(val)
+		ret[key] = fromValue(val, visited)
 	}
 	return ret
 }
@@ -472,13 +504,6 @@ func FromDict(m *starlark.Dict) map[interface{}]interface{} {
 // Go form (e.g. a custom value that converts to a non-comparable Go type)
 // instead of falling back to the key's printed form.
 func TryFromDict(m *starlark.Dict) (map[interface{}]interface{}, error) {
-	// return nil to avoid infinite recursion
-	if rd.hasVisited(m) {
-		return nil, nil
-	}
-	rd.setVisited(m)
-	defer rd.clearVisited(m)
-
 	ret := make(map[interface{}]interface{}, m.Len())
 	for _, k := range m.Keys() {
 		key, err := hashableGoValue(k)
@@ -487,7 +512,7 @@ func TryFromDict(m *starlark.Dict) (map[interface{}]interface{}, error) {
 		}
 		// should never be not found or unhashable, so ignore err and found.
 		val, _, _ := m.Get(k)
-		ret[key] = FromValue(val)
+		ret[key] = fromValue(val, nil)
 	}
 	return ret, nil
 }
