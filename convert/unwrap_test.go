@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/1set/starlight"
+	"github.com/1set/starlight/convert"
 )
 
 // Regression tests for empty-interface unwrapping: JSON-shaped data
@@ -67,4 +68,44 @@ assert.Eq(e.Error(), "boom")
 		t.Fatal(err)
 	}
 	_ = errors.New // keep errors imported alongside the error-shaped fixture
+}
+
+// TestGoInterfaceWrapperBasics pins the wrapper's value semantics directly:
+// printable, truthy, unhashable, and freezable as a no-op.
+func TestGoInterfaceWrapperBasics(t *testing.T) {
+	m := map[string]error{"e": wrappedError{msg: "boom"}}
+	globals := map[string]interface{}{
+		"assert": &assert{t: t},
+		"m":      m,
+	}
+	code := []byte(`
+e = m["e"]
+assert.Eq(str(e), "boom")
+assert.Eq(bool(e), True)
+d = {}
+ok = "no error"
+`)
+	if _, err := starlight.Eval(code, globals, nil); err != nil {
+		t.Fatal(err)
+	}
+	// unhashable: using the wrapper as a dict key must error, not panic
+	_, err := starlight.Eval([]byte(`d = {m["e"]: 1}`), globals, nil)
+	if err == nil {
+		t.Fatal("expected unhashable error for wrapper as dict key")
+	}
+	// Freeze is a documented no-op (no write path) and must not affect use
+	v, err := convert.ToValue(loudInt(3))
+	if err != nil {
+		t.Fatal(err)
+	}
+	v.Freeze()
+	if v.Truth() != true {
+		t.Fatalf("expected truthy wrapper after freeze")
+	}
+	if _, err := v.(*convert.GoInterface).Hash(); err == nil {
+		t.Fatal("expected hash error for interface wrapper")
+	}
+	if s := v.String(); s != "3" {
+		t.Fatalf("expected 3, got %q", s)
+	}
 }
