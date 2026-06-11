@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 	"time"
 
 	startime "go.starlark.net/lib/time"
@@ -102,14 +103,14 @@ func toValue(val reflect.Value, tagName string) (result starlark.Value, err erro
 	case reflect.Func:
 		return makeStarFn("fn", val, tagName), nil
 	case reflect.Map:
-		if err := checkCollectionElemTypes(val.Type(), nil); err != nil {
+		if err := checkCollectionElemTypesCached(val.Type()); err != nil {
 			return nil, err
 		}
 		return &GoMap{v: val, tag: tagName}, nil
 	case reflect.String:
 		return starlark.String(val.String()), nil
 	case reflect.Slice, reflect.Array:
-		if err := checkCollectionElemTypes(val.Type(), nil); err != nil {
+		if err := checkCollectionElemTypesCached(val.Type()); err != nil {
 			return nil, err
 		}
 		return &GoSlice{v: arrayToSlice(val), tag: tagName}, nil
@@ -132,6 +133,26 @@ func toValue(val reflect.Value, tagName string) (result starlark.Value, err erro
 	}
 
 	return nil, fmt.Errorf("type %T is not a supported starlark type", val.Interface())
+}
+
+// elemTypeCheckCache memoizes checkCollectionElemTypes per reflect.Type:
+// collections are wrapped on every element access, but the set of types a
+// process converts is small and fixed, so the cache never grows
+// unboundedly. The stored value is the (possibly nil) error.
+var elemTypeCheckCache sync.Map // reflect.Type -> error
+
+// checkCollectionElemTypesCached is the cached front of
+// checkCollectionElemTypes; use this on conversion hot paths.
+func checkCollectionElemTypesCached(t reflect.Type) error {
+	if v, ok := elemTypeCheckCache.Load(t); ok {
+		if v == nil {
+			return nil
+		}
+		return v.(error)
+	}
+	err := checkCollectionElemTypes(t, nil)
+	elemTypeCheckCache.Store(t, err)
+	return err
 }
 
 // checkCollectionElemTypes verifies that the key and element types of a map,

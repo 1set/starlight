@@ -26,67 +26,122 @@ var (
 // map iteration order, which would otherwise leak into Starlark everywhere
 // a wrapped Go map is materialized (keys/items/values/iteration/popitem and
 // MakeDict) and make script output non-reproducible across runs.
+//
+// The sort key for every map key is extracted exactly once up front
+// (decorate-sort-undecorate), so the comparison function stays free of
+// reflection.
 func sortedMapKeys(m reflect.Value) []reflect.Value {
 	keys := m.MapKeys()
-	sort.SliceStable(keys, func(i, j int) bool { return keyLess(keys[i], keys[j]) })
+	decorated := make(sortableKeys, len(keys))
+	for i, k := range keys {
+		decorated[i] = decorateKey(k)
+	}
+	sort.Sort(decorated)
+	for i := range decorated {
+		keys[i] = decorated[i].orig
+	}
 	return keys
 }
 
-// keyRank classifies a map key for sorting: it unwraps interface keys to
-// their dynamic value and returns the type rank along with the unwrapped
-// value used for same-rank comparison.
-func keyRank(v reflect.Value) (int, reflect.Value) {
-	if v.Kind() == reflect.Interface {
-		if v.IsNil() {
-			return 0, v
-		}
-		v = v.Elem()
-	}
-	switch v.Kind() {
-	case reflect.Bool:
-		return 1, v
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return 2, v
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-		return 3, v
-	case reflect.Float32, reflect.Float64:
-		return 4, v
-	case reflect.String:
-		return 5, v
-	}
-	return 6, v
+// sortableKeys implements sort.Interface with concrete methods (the
+// reflect-based swapping of sort.Slice* is measurably slower here).
+type sortableKeys []sortableKey
+
+func (s sortableKeys) Len() int           { return len(s) }
+func (s sortableKeys) Less(i, j int) bool { return sortableKeyLess(s[i], s[j]) }
+func (s sortableKeys) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+
+// sortableKey carries a map key's type rank and its primitive sort key,
+// extracted once so sorting does not call into reflect per comparison.
+type sortableKey struct {
+	rank int
+	i    int64
+	u    uint64
+	f    float64
+	s    string
+	orig reflect.Value
 }
 
-// keyLess is the strict weak ordering used by sortedMapKeys.
-func keyLess(a, b reflect.Value) bool {
-	ra, va := keyRank(a)
-	rb, vb := keyRank(b)
-	if ra != rb {
-		return ra < rb
+// decorateKey classifies a map key for sorting: it unwraps interface keys
+// to their dynamic value and extracts the primitive used for same-rank
+// comparison.
+func decorateKey(v reflect.Value) sortableKey {
+	k := sortableKey{orig: v}
+	u := v
+	if u.Kind() == reflect.Interface {
+		if u.IsNil() {
+			return k // rank 0: nil sorts first
+		}
+		u = u.Elem()
 	}
-	switch ra {
-	case 1:
-		return !va.Bool() && vb.Bool()
-	case 2:
-		return va.Int() < vb.Int()
-	case 3:
-		return va.Uint() < vb.Uint()
+	switch u.Kind() {
+	case reflect.Bool:
+		k.rank = 1
+		if u.Bool() {
+			k.i = 1
+		}
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		k.rank = 2
+		k.i = u.Int()
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		k.rank = 3
+		k.u = u.Uint()
+	case reflect.Float32, reflect.Float64:
+		k.rank = 4
+		k.f = u.Float()
+	case reflect.String:
+		k.rank = 5
+		k.s = u.String()
+	default:
+		k.rank = 6
+		k.s = fmt.Sprint(u.Interface())
+	}
+	return k
+}
+
+// sortableKeyLess is the strict weak ordering used by sortedMapKeys. Keys
+// of different concrete types can tie on rank and value (e.g. int8(5) and
+// int64(5) in an interface-keyed map); the tie is broken by the concrete
+// type name, lazily, so the order stays fully deterministic without paying
+// for type-name extraction on every key.
+func sortableKeyLess(a, b sortableKey) bool {
+	if a.rank != b.rank {
+		return a.rank < b.rank
+	}
+	switch a.rank {
+	case 1, 2:
+		if a.i != b.i {
+			return a.i < b.i
+		}
 	case 4:
-		fa, fb := va.Float(), vb.Float()
 		// NaN sorts before all other floats so the order stays total
-		if math.IsNaN(fa) {
-			return !math.IsNaN(fb)
+		an, bn := math.IsNaN(a.f), math.IsNaN(b.f)
+		if an || bn {
+			return an && !bn
 		}
-		if math.IsNaN(fb) {
-			return false
+		if a.f != b.f {
+			return a.f < b.f
 		}
-		return fa < fb
-	case 5:
-		return va.String() < vb.String()
-	case 6:
-		return fmt.Sprint(va.Interface()) < fmt.Sprint(vb.Interface())
+	case 3:
+		if a.u != b.u {
+			return a.u < b.u
+		}
+	case 5, 6:
+		if a.s != b.s {
+			return a.s < b.s
+		}
+	default:
+		return false
 	}
-	return false
+	return keyTypeName(a.orig) < keyTypeName(b.orig)
+}
+
+// keyTypeName names the concrete type of a map key for tie-breaking.
+func keyTypeName(v reflect.Value) string {
+	if v.Kind() == reflect.Interface && !v.IsNil() {
+		v = v.Elem()
+	}
+	return v.Type().String()
 }
 
 // maxSafeStringDepth bounds the pre-scan in safeGoString; values nested
@@ -99,15 +154,68 @@ const maxSafeStringDepth = 100
 // that reaches itself, killing the process with an unrecoverable fatal
 // stack overflow. Values containing a cycle (or nested deeper than
 // maxSafeStringDepth) format as "<cyclic TYPE>" instead; all other values
-// format exactly as fmt.Sprint does.
+// format exactly as fmt.Sprint does. The scan is skipped entirely for
+// types that cannot hold a cycle (see typeCanCycle).
 func safeGoString(v reflect.Value) string {
 	if !v.IsValid() {
 		return "<invalid>"
 	}
-	if hasRefCycle(v, make(map[uintptr]bool), 0) {
+	if typeCanCycle(v.Type()) && hasRefCycle(v, make(map[uintptr]bool), 0) {
 		return fmt.Sprintf("<cyclic %s>", v.Type())
 	}
 	return fmt.Sprint(v.Interface())
+}
+
+// typeCanCycleCache memoizes typeCanCycle per reflect.Type; the set of
+// types a process converts is small and fixed, so this never grows
+// unboundedly.
+var typeCanCycleCache sync.Map // reflect.Type -> bool
+
+// typeCanCycle reports whether a value of type t can possibly contain a
+// reference cycle: that requires reaching an interface kind (which can hold
+// anything, including the value itself) or a recursive type definition
+// (e.g. type M map[string]M). For statically acyclic types like
+// map[string]int the cycle pre-scan in safeGoString is pure overhead and
+// is skipped.
+func typeCanCycle(t reflect.Type) bool {
+	if c, ok := typeCanCycleCache.Load(t); ok {
+		return c.(bool)
+	}
+	c := typeCanCycleWalk(t, nil)
+	typeCanCycleCache.Store(t, c)
+	return c
+}
+
+// typeCanCycleWalk is the uncached recursion behind typeCanCycle; onPath
+// tracks the types on the current descent so recursive type definitions
+// are detected (pass nil to start).
+func typeCanCycleWalk(t reflect.Type, onPath map[reflect.Type]bool) bool {
+	if onPath[t] {
+		return true // recursive type definition
+	}
+	switch t.Kind() {
+	case reflect.Interface:
+		return true
+	case reflect.Map, reflect.Slice, reflect.Array, reflect.Ptr, reflect.Struct:
+		if onPath == nil {
+			onPath = make(map[reflect.Type]bool)
+		}
+		onPath[t] = true
+		defer delete(onPath, t)
+		switch t.Kind() {
+		case reflect.Map:
+			return typeCanCycleWalk(t.Key(), onPath) || typeCanCycleWalk(t.Elem(), onPath)
+		case reflect.Slice, reflect.Array, reflect.Ptr:
+			return typeCanCycleWalk(t.Elem(), onPath)
+		case reflect.Struct:
+			for i := 0; i < t.NumField(); i++ {
+				if typeCanCycleWalk(t.Field(i).Type, onPath) {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // hasRefCycle reports whether v reaches itself through maps, slices,

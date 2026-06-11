@@ -73,6 +73,33 @@ func TestGoMapMixedKeyTypeOrder(t *testing.T) {
 	}
 }
 
+// TestGoMapKeyTieBreak verifies that keys of different concrete types with
+// equal rank and value (int8(5) vs int64(5)) still come out in a
+// deterministic order — ties break on the concrete type name.
+func TestGoMapKeyTieBreak(t *testing.T) {
+	var want []string
+	for run := 0; run < 20; run++ {
+		m := map[interface{}]interface{}{
+			int8(5):  "a",
+			int64(5): "b",
+			int32(5): "c",
+		}
+		var got []string
+		for _, k := range convert.NewGoMap(m).Keys() {
+			got = append(got, fmt.Sprintf("%T", convert.FromValue(k)))
+		}
+		if run == 0 {
+			want = got
+			continue
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Fatalf("run %d: key order changed: %v vs %v", run, got, want)
+			}
+		}
+	}
+}
+
 // TestMakeDictDeterministicOrder verifies MakeDict materializes Go map
 // entries into the Starlark dict in sorted key order (Starlark dicts
 // preserve insertion order, so this is script-visible).
