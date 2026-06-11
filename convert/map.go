@@ -48,7 +48,7 @@ func (g *GoMap) SetKey(k, v starlark.Value) (err error) {
 		return fmt.Errorf("cannot insert into map during iteration")
 	}
 
-	key, err := tryConv(k, g.v.Type().Key())
+	key, err := tryKeyConv(k, g.v.Type().Key())
 	if err != nil {
 		return fmt.Errorf("setkey key: %v", err)
 	}
@@ -64,7 +64,7 @@ func (g *GoMap) SetKey(k, v starlark.Value) (err error) {
 // Get implements starlark.Mapping.
 func (g *GoMap) Get(in starlark.Value) (out starlark.Value, found bool, err error) {
 	//v := g.v.MapIndex(conv(in, g.v.Type().Key()))
-	key, err := tryConv(in, g.v.Type().Key())
+	key, err := tryKeyConv(in, g.v.Type().Key())
 	if err != nil {
 		return nil, false, fmt.Errorf("get: %v", err)
 	}
@@ -139,7 +139,7 @@ func (g *GoMap) Delete(k starlark.Value) (v starlark.Value, found bool, err erro
 	if g.numIt > 0 {
 		return nil, false, fmt.Errorf("cannot delete from map during iteration")
 	}
-	key, err := tryConv(k, g.v.Type().Key())
+	key, err := tryKeyConv(k, g.v.Type().Key())
 	if err != nil {
 		return nil, false, fmt.Errorf("delete: %v", err)
 	}

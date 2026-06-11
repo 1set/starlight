@@ -9,9 +9,11 @@ import (
 type DoNotCompare [0]func()
 
 var (
-	emptyStr string
-	errType  = reflect.TypeOf((*error)(nil)).Elem()
-	rd       = newRecursionDetector()
+	emptyStr       string
+	errType        = reflect.TypeOf((*error)(nil)).Elem()
+	emptyIfaceType = reflect.TypeOf((*interface{})(nil)).Elem()
+	byteType       = reflect.TypeOf(byte(0))
+	rd             = newRecursionDetector()
 )
 
 func newRecursionDetector() *recursionDetector {

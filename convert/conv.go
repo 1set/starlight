@@ -311,7 +311,79 @@ func adjustedToValue(val reflect.Value, tagName string) (starlark.Value, error) 
 	return toValue(val, tagName)
 }
 
-// FromDict converts a starlark.Dict to a map[interface{}]interface{}
+// hashableGoValue converts a Starlark value into a Go value whose dynamic
+// type is comparable, so it is safe to use as a Go map key. It matches
+// FromValue except for the types whose natural Go form is not comparable:
+//
+//   - starlark.Tuple becomes a fixed-size [N]interface{} array (elements are
+//     converted recursively), so equal tuples stay equal as map keys;
+//   - starlark.Bytes becomes a fixed-size [N]byte array, which keeps bytes
+//     keys distinct from equal string keys.
+//
+// It returns an error for values with no comparable Go form (e.g. dicts,
+// lists, sets, or custom values that convert to non-comparable Go types);
+// using such a value as a Go map key would otherwise escape as a runtime
+// "hash of unhashable type" panic and kill the host process.
+func hashableGoValue(v starlark.Value) (interface{}, error) {
+	switch v := v.(type) {
+	case starlark.Tuple:
+		arr := reflect.New(reflect.ArrayOf(len(v), emptyIfaceType)).Elem()
+		for i, elem := range v {
+			g, err := hashableGoValue(elem)
+			if err != nil {
+				return nil, err
+			}
+			if g != nil {
+				arr.Index(i).Set(reflect.ValueOf(g))
+			}
+		}
+		return arr.Interface(), nil
+	case starlark.Bytes:
+		arr := reflect.New(reflect.ArrayOf(len(v), byteType)).Elem()
+		reflect.Copy(arr, reflect.ValueOf([]byte(v)))
+		return arr.Interface(), nil
+	}
+	g := FromValue(v)
+	if g == nil {
+		return nil, nil
+	}
+	if !reflect.TypeOf(g).Comparable() {
+		return nil, fmt.Errorf("value of type %s converts to Go type %T which is not hashable", v.Type(), g)
+	}
+	return g, nil
+}
+
+// tryKeyConv converts a Starlark value used as a map key into a
+// reflect.Value suitable for indexing a Go map with key type t. Unlike
+// tryConv, it guarantees the result is usable as a Go map key: for
+// interface key types it routes through hashableGoValue, so tuples become
+// comparable arrays and values with no comparable Go form yield an error
+// instead of a runtime "hash of unhashable type" panic.
+func tryKeyConv(v starlark.Value, t reflect.Type) (reflect.Value, error) {
+	if t.Kind() == reflect.Interface {
+		g, err := hashableGoValue(v)
+		if err != nil {
+			return reflect.Value{}, err
+		}
+		if g == nil {
+			return reflect.Zero(t), nil
+		}
+		out := reflect.ValueOf(g)
+		if t.NumMethod() > 0 && !out.Type().Implements(t) {
+			return reflect.Value{}, fmt.Errorf("value of type %s cannot be converted to type %s", out.Type(), t)
+		}
+		return out, nil
+	}
+	// Non-interface Go map key types are comparable by construction, so the
+	// regular conversion is already safe.
+	return tryConv(v, t)
+}
+
+// FromDict converts a starlark.Dict to a map[interface{}]interface{}.
+// Keys are converted with the same rules as TryFromDict; a key with no
+// comparable Go form falls back to its printed form (k.String()) so the
+// entry is preserved instead of panicking. Use TryFromDict to detect such
+// keys instead of silently accepting the fallback.
 func FromDict(m *starlark.Dict) map[interface{}]interface{} {
 	// return nil to avoid infinite recursion
 	if rd.hasVisited(m) {
@@ -322,13 +394,42 @@ func FromDict(m *starlark.Dict) map[interface{}]interface{} {
 
 	ret := make(map[interface{}]interface{}, m.Len())
 	for _, k := range m.Keys() {
-		key := FromValue(k)
+		key, err := hashableGoValue(k)
+		if err != nil {
+			// no comparable Go form: keep the entry under its printed form
+			// rather than panicking or dropping it silently
+			key = k.String()
+		}
 		// should never be not found or unhashable, so ignore err and found.
 		val, _, _ := m.Get(k)
-		//ret[key] = val
 		ret[key] = FromValue(val)
 	}
 	return ret
+}
+
+// TryFromDict converts a starlark.Dict to a map[interface{}]interface{}.
+// It works like FromDict, but returns an error if any key has no comparable
+// Go form (e.g. a custom value that converts to a non-comparable Go type)
+// instead of falling back to the key's printed form.
+func TryFromDict(m *starlark.Dict) (map[interface{}]interface{}, error) {
+	// return nil to avoid infinite recursion
+	if rd.hasVisited(m) {
+		return nil, nil
+	}
+	rd.setVisited(m)
+	defer rd.clearVisited(m)
+
+	ret := make(map[interface{}]interface{}, m.Len())
+	for _, k := range m.Keys() {
+		key, err := hashableGoValue(k)
+		if err != nil {
+			return nil, fmt.Errorf("dict key %s: %v", k.String(), err)
+		}
+		// should never be not found or unhashable, so ignore err and found.
+		val, _, _ := m.Get(k)
+		ret[key] = FromValue(val)
+	}
+	return ret, nil
 }
 
 // MakeSet makes a Set from the given map. The acceptable keys the same as ToValue.
@@ -363,17 +464,45 @@ func MakeSetFromSlice(s []interface{}) (*starlark.Set, error) {
 	return &set, nil
 }
 
-// FromSet converts a starlark.Set to a map[interface{}]bool
+// FromSet converts a starlark.Set to a map[interface{}]bool.
+// Elements are converted with the same rules as TryFromSet; an element with
+// no comparable Go form falls back to its printed form (v.String()) so the
+// member is preserved instead of panicking. Use TryFromSet to detect such
+// elements instead of silently accepting the fallback.
 func FromSet(s *starlark.Set) map[interface{}]bool {
 	ret := make(map[interface{}]bool, s.Len())
 	var v starlark.Value
 	i := s.Iterate()
 	defer i.Done()
 	for i.Next(&v) {
-		val := FromValue(v)
+		val, err := hashableGoValue(v)
+		if err != nil {
+			// no comparable Go form: keep the member under its printed form
+			// rather than panicking or dropping it silently
+			val = v.String()
+		}
 		ret[val] = true
 	}
 	return ret
+}
+
+// TryFromSet converts a starlark.Set to a map[interface{}]bool.
+// It works like FromSet, but returns an error if any element has no
+// comparable Go form (e.g. a custom value that converts to a non-comparable
+// Go type) instead of falling back to the element's printed form.
+func TryFromSet(s *starlark.Set) (map[interface{}]bool, error) {
+	ret := make(map[interface{}]bool, s.Len())
+	var v starlark.Value
+	i := s.Iterate()
+	defer i.Done()
+	for i.Next(&v) {
+		val, err := hashableGoValue(v)
+		if err != nil {
+			return nil, fmt.Errorf("set element %s: %v", v.String(), err)
+		}
+		ret[val] = true
+	}
+	return ret, nil
 }
 
 // Kwarg is a single instance of a python foo=bar style named argument.
