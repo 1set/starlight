@@ -1,7 +1,10 @@
 package convert
 
 import (
+	"fmt"
+	"math"
 	"reflect"
+	"sort"
 	"sync"
 )
 
@@ -15,6 +18,76 @@ var (
 	byteType       = reflect.TypeOf(byte(0))
 	rd             = newRecursionDetector()
 )
+
+// sortedMapKeys returns the keys of the given map value in a deterministic
+// order: keys are sorted by type rank (nil < bool < int < uint < float <
+// string < other), then by value within the same rank; "other" keys compare
+// by their printed form. reflect's MapKeys returns keys in Go's randomized
+// map iteration order, which would otherwise leak into Starlark everywhere
+// a wrapped Go map is materialized (keys/items/values/iteration/popitem and
+// MakeDict) and make script output non-reproducible across runs.
+func sortedMapKeys(m reflect.Value) []reflect.Value {
+	keys := m.MapKeys()
+	sort.SliceStable(keys, func(i, j int) bool { return keyLess(keys[i], keys[j]) })
+	return keys
+}
+
+// keyRank classifies a map key for sorting: it unwraps interface keys to
+// their dynamic value and returns the type rank along with the unwrapped
+// value used for same-rank comparison.
+func keyRank(v reflect.Value) (int, reflect.Value) {
+	if v.Kind() == reflect.Interface {
+		if v.IsNil() {
+			return 0, v
+		}
+		v = v.Elem()
+	}
+	switch v.Kind() {
+	case reflect.Bool:
+		return 1, v
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return 2, v
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return 3, v
+	case reflect.Float32, reflect.Float64:
+		return 4, v
+	case reflect.String:
+		return 5, v
+	}
+	return 6, v
+}
+
+// keyLess is the strict weak ordering used by sortedMapKeys.
+func keyLess(a, b reflect.Value) bool {
+	ra, va := keyRank(a)
+	rb, vb := keyRank(b)
+	if ra != rb {
+		return ra < rb
+	}
+	switch ra {
+	case 1:
+		return !va.Bool() && vb.Bool()
+	case 2:
+		return va.Int() < vb.Int()
+	case 3:
+		return va.Uint() < vb.Uint()
+	case 4:
+		fa, fb := va.Float(), vb.Float()
+		// NaN sorts before all other floats so the order stays total
+		if math.IsNaN(fa) {
+			return !math.IsNaN(fb)
+		}
+		if math.IsNaN(fb) {
+			return false
+		}
+		return fa < fb
+	case 5:
+		return va.String() < vb.String()
+	case 6:
+		return fmt.Sprint(va.Interface()) < fmt.Sprint(vb.Interface())
+	}
+	return false
+}
 
 func newRecursionDetector() *recursionDetector {
 	return &recursionDetector{visited: make(map[uintptr]struct{})}

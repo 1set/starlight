@@ -287,8 +287,10 @@ func makeDictTag(val reflect.Value, tagName string) (starlark.Value, error) {
 		// panic if not a map
 		panic(fmt.Errorf("can't make map of %T", val.Interface()))
 	} else if valid {
-		// iterate over the map and convert each key and value
-		for _, k := range val.MapKeys() {
+		// iterate over the map and convert each key and value, in
+		// deterministic key order: Starlark dicts preserve insertion order,
+		// so the random order of MapKeys would be script-visible
+		for _, k := range sortedMapKeys(val) {
 			vk, err := adjustedToValue(k, tagName)
 			if err != nil {
 				return nil, err
@@ -462,6 +464,21 @@ func MakeSetFromSlice(s []interface{}) (*starlark.Set, error) {
 		}
 	}
 	return &set, nil
+}
+
+// FromSetToSlice converts a starlark.Set into a []interface{}, preserving
+// the set's iteration (insertion) order. Use it instead of FromSet when the
+// order of members matters: FromSet returns a Go map, which has no defined
+// iteration order.
+func FromSetToSlice(s *starlark.Set) []interface{} {
+	ret := make([]interface{}, 0, s.Len())
+	var v starlark.Value
+	i := s.Iterate()
+	defer i.Done()
+	for i.Next(&v) {
+		ret = append(ret, FromValue(v))
+	}
+	return ret
 }
 
 // FromSet converts a starlark.Set to a map[interface{}]bool.
