@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"sync/atomic"
 
 	"go.starlark.net/starlark"
 )
@@ -19,7 +20,7 @@ import (
 type GoMap struct {
 	_      DoNotCompare
 	v      reflect.Value
-	numIt  int
+	numIt  int32 // accessed atomically: concurrent iterations are allowed
 	tag    string
 	frozen bool
 }
@@ -44,7 +45,7 @@ func (g *GoMap) SetKey(k, v starlark.Value) (err error) {
 	if g.frozen {
 		return fmt.Errorf("cannot insert into frozen map")
 	}
-	if g.numIt > 0 {
+	if atomic.LoadInt32(&g.numIt) > 0 {
 		return fmt.Errorf("cannot insert into map during iteration")
 	}
 	if g.v.IsNil() {
@@ -103,12 +104,10 @@ func (g *GoMap) Value() reflect.Value {
 	return g.v
 }
 
-// Freeze causes the value, and all values transitively
-// reachable from it through collections and closures, to be
-// marked as frozen.  All subsequent mutations to the data
-// structure through this API will fail dynamically, making the
-// data structure immutable and safe for publishing to other
-// Starlark interpreters running concurrently.
+// Freeze marks this wrapper as frozen: mutations through this GoMap
+// fail afterwards. The freeze is shallow — it does not propagate to the
+// wrapped Go map, which the host (or other wrappers around the same
+// value) can still mutate.
 func (g *GoMap) Freeze() {
 	g.frozen = true
 }
@@ -129,7 +128,7 @@ func (g *GoMap) Clear() error {
 	if g.frozen {
 		return fmt.Errorf("cannot clear frozen map")
 	}
-	if g.numIt > 0 {
+	if atomic.LoadInt32(&g.numIt) > 0 {
 		return fmt.Errorf("cannot clear map during iteration")
 	}
 	for _, k := range g.v.MapKeys() {
@@ -142,7 +141,7 @@ func (g *GoMap) Delete(k starlark.Value) (v starlark.Value, found bool, err erro
 	if g.frozen {
 		return nil, false, fmt.Errorf("cannot delete from frozen map")
 	}
-	if g.numIt > 0 {
+	if atomic.LoadInt32(&g.numIt) > 0 {
 		return nil, false, fmt.Errorf("cannot delete from map during iteration")
 	}
 	key, err := tryKeyConv(k, g.v.Type().Key())
@@ -201,7 +200,7 @@ func (g *GoMap) Len() int {
 }
 
 func (g *GoMap) Iterate() starlark.Iterator {
-	g.numIt++
+	atomic.AddInt32(&g.numIt, 1)
 	return &mapIterator{
 		g:    g,
 		keys: sortedMapKeys(g.v),
@@ -273,7 +272,7 @@ func (it *mapIterator) Next(p *starlark.Value) bool {
 }
 
 func (it *mapIterator) Done() {
-	it.g.numIt--
+	atomic.AddInt32(&it.g.numIt, -1)
 }
 
 // https://github.com/google/starlark-go/blob/master/doc/spec.md#dict·get

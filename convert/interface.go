@@ -108,12 +108,9 @@ func (g *GoInterface) Value() reflect.Value {
 	return g.v
 }
 
-// Freeze causes the value, and all values transitively
-// reachable from it through collections and closures, to be
-// marked as frozen.  All subsequent mutations to the data
-// structure through this API will fail dynamically, making the
-// data structure immutable and safe for publishing to other
-// Starlark interpreters running concurrently.
+// Freeze is a no-op: GoInterface exposes no write path, so there is
+// nothing to freeze. The wrapped Go value itself is not protected — the
+// host can still mutate it.
 func (g *GoInterface) Freeze() {}
 
 // Truth returns the truth value of an object.
