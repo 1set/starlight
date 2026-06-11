@@ -4,6 +4,7 @@ package convert
 import (
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"sync"
 	"time"
@@ -765,16 +766,25 @@ func makeOut(out []reflect.Value, tagName string) (starlark.Value, error) {
 	return starlark.Tuple(res), err
 }
 
-// convertReflectValue converts a reflect.Value to a given type.
+// convertReflectValue converts a reflect.Value to a given type. Conversions
+// go through checkedConvert, so values that ConvertibleTo would silently
+// corrupt (codepoint conversion, wrap-around, truncation) are errors. An
+// invalid val (a Starlark None) is accepted only for nullable types, the
+// same policy tryConv applies (it used to be silently zeroed here).
 func convertReflectValue(val reflect.Value, argT reflect.Type) (reflect.Value, error) {
 	if !val.IsValid() {
-		return reflect.Zero(argT), nil
+		switch argT.Kind() {
+		case reflect.Ptr, reflect.Slice, reflect.Map, reflect.Interface, reflect.Func:
+			return reflect.Zero(argT), nil
+		default:
+			return reflect.Value{}, fmt.Errorf("value of type None cannot be converted to non-nullable type %s", argT)
+		}
 	}
 	if val.Type().AssignableTo(argT) {
 		return val, nil
 	}
 	if val.Type().ConvertibleTo(argT) {
-		return val.Convert(argT), nil
+		return checkedConvert(val, argT)
 	}
 	if val.Kind() == reflect.Slice && argT.Kind() == reflect.Slice {
 		return convertSlice(val, argT)
@@ -796,9 +806,17 @@ func convertSlice(val reflect.Value, argT reflect.Type) (reflect.Value, error) {
 		if elem.Type().AssignableTo(argElem) {
 			newSlice.Index(i).Set(elem)
 		} else if elem.Type().ConvertibleTo(argElem) {
-			newSlice.Index(i).Set(elem.Convert(argElem))
+			cv, err := checkedConvert(elem, argElem)
+			if err != nil {
+				return reflect.Value{}, fmt.Errorf("slice element %d: %v", i, err)
+			}
+			newSlice.Index(i).Set(cv)
 		} else if elem.Elem().Type().ConvertibleTo(argElem) {
-			newSlice.Index(i).Set(elem.Elem().Convert(argElem))
+			cv, err := checkedConvert(elem.Elem(), argElem)
+			if err != nil {
+				return reflect.Value{}, fmt.Errorf("slice element %d: %v", i, err)
+			}
+			newSlice.Index(i).Set(cv)
 		} else {
 			return reflect.Value{}, fmt.Errorf("expected slice element type %v got %v", argElem, elem.Type())
 		}
@@ -832,17 +850,17 @@ func convertMap(val reflect.Value, argT reflect.Type) (reflect.Value, error) {
 
 func convertElemValue(val reflect.Value, targetType reflect.Type) (reflect.Value, error) {
 	if val.Type().AssignableTo(targetType) || val.Type().ConvertibleTo(targetType) {
-		return val.Convert(targetType), nil
+		return checkedConvert(val, targetType)
 	} else if val.Kind() == reflect.Ptr || val.Kind() == reflect.Interface {
 		if val.IsNil() {
 			return reflect.Value{}, fmt.Errorf("nil value cannot be converted to type %v", targetType)
 		}
 		if val.Elem().Type().ConvertibleTo(targetType) {
-			return val.Elem().Convert(targetType), nil
+			return checkedConvert(val.Elem(), targetType)
 		} else if val.Type().Kind() == reflect.Interface {
 			unwrapped := val.Elem()
 			if unwrapped.Type().ConvertibleTo(targetType) {
-				return unwrapped.Convert(targetType), nil
+				return checkedConvert(unwrapped, targetType)
 			} else if sv, ok := unwrapped.Interface().(starlark.Value); ok {
 				// TODO: this path is not reachable in the current test, maybe we can remove it?
 				goVal := FromValue(sv)
@@ -901,11 +919,83 @@ func tryConv(v starlark.Value, t reflect.Type) (reflect.Value, error) {
 		}
 	}
 	out := reflect.ValueOf(FromValue(v))
-	if !out.Type().AssignableTo(t) {
-		if out.Type().ConvertibleTo(t) {
-			return out.Convert(t), nil
-		}
-		return reflect.Value{}, fmt.Errorf("value of type %s cannot be converted to type %s", out.Type(), t)
+	return checkedConvert(out, t)
+}
+
+// checkedConvert converts val to type t like reflect's Convert, but refuses
+// the conversions ConvertibleTo permits that silently corrupt the value on
+// the way through:
+//
+//   - integer -> string is Go's codepoint conversion (65 -> "A"), never
+//     what a script means;
+//   - numeric narrowing that overflows the target wraps around
+//     (1000 -> int8(-24));
+//   - float -> integer conversion truncates (3.9 -> 3); whole floats
+//     convert fine.
+//
+// Values already assignable to t pass through untouched.
+func checkedConvert(val reflect.Value, t reflect.Type) (reflect.Value, error) {
+	if val.Type().AssignableTo(t) {
+		return val, nil
 	}
-	return out, nil
+	if !val.Type().ConvertibleTo(t) {
+		return reflect.Value{}, fmt.Errorf("value of type %s cannot be converted to type %s", val.Type(), t)
+	}
+	zt := reflect.Zero(t)
+	switch t.Kind() {
+	case reflect.String:
+		switch val.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+			reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			return reflect.Value{}, fmt.Errorf("value of type %s cannot be converted to type %s (integer to string would be a codepoint conversion)", val.Type(), t)
+		}
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		switch val.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			if zt.OverflowInt(val.Int()) {
+				return reflect.Value{}, fmt.Errorf("value %d out of range for type %s", val.Int(), t)
+			}
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			u := val.Uint()
+			if u > math.MaxInt64 || zt.OverflowInt(int64(u)) {
+				return reflect.Value{}, fmt.Errorf("value %d out of range for type %s", u, t)
+			}
+		case reflect.Float32, reflect.Float64:
+			f := val.Float()
+			if math.IsNaN(f) || math.IsInf(f, 0) || f != math.Trunc(f) {
+				return reflect.Value{}, fmt.Errorf("value %v would be truncated when converted to type %s", f, t)
+			}
+			if f < math.MinInt64 || f >= math.MaxInt64 || zt.OverflowInt(int64(f)) {
+				return reflect.Value{}, fmt.Errorf("value %v out of range for type %s", f, t)
+			}
+		}
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		switch val.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			i := val.Int()
+			if i < 0 || zt.OverflowUint(uint64(i)) {
+				return reflect.Value{}, fmt.Errorf("value %d out of range for type %s", i, t)
+			}
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			if zt.OverflowUint(val.Uint()) {
+				return reflect.Value{}, fmt.Errorf("value %d out of range for type %s", val.Uint(), t)
+			}
+		case reflect.Float32, reflect.Float64:
+			f := val.Float()
+			if math.IsNaN(f) || math.IsInf(f, 0) || f != math.Trunc(f) {
+				return reflect.Value{}, fmt.Errorf("value %v would be truncated when converted to type %s", f, t)
+			}
+			if f < 0 || f >= math.MaxUint64 || zt.OverflowUint(uint64(f)) {
+				return reflect.Value{}, fmt.Errorf("value %v out of range for type %s", f, t)
+			}
+		}
+	case reflect.Float32, reflect.Float64:
+		switch val.Kind() {
+		case reflect.Float32, reflect.Float64:
+			if zt.OverflowFloat(val.Float()) {
+				return reflect.Value{}, fmt.Errorf("value %v out of range for type %s", val.Float(), t)
+			}
+		}
+	}
+	return val.Convert(t), nil
 }
