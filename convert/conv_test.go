@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"go.starlark.net/starlark"
+	"go.starlark.net/syntax"
 )
 
 func TestMakeTuple(t *testing.T) {
@@ -59,7 +60,7 @@ t2d = type(tuple_has[3])
 		"t2c": starlark.String("bool"),
 		"t2d": starlark.String("float"),
 	}
-	res, err := starlark.ExecFile(&starlark.Thread{}, "foo.star", []byte(code), globals)
+	res, err := starlark.ExecFileOptions(testFileOptions, &starlark.Thread{}, "foo.star", []byte(code), globals)
 	if err != nil {
 		t.Errorf("unexpected error to exec: %v", err)
 		return
@@ -80,7 +81,7 @@ t2 = ("a", 1, True, 0.1)
 		"t1": {int64(10)},
 		"t2": {"a", int64(1), true, 0.1},
 	}
-	res, err := starlark.ExecFile(&starlark.Thread{}, "foo.star", []byte(code), nil)
+	res, err := starlark.ExecFileOptions(testFileOptions, &starlark.Thread{}, "foo.star", []byte(code), nil)
 	if err != nil {
 		t.Errorf("unexpected error to exec: %v", err)
 		return
@@ -144,7 +145,7 @@ t2d = type(list_has[3])
 		"t2c": starlark.String("bool"),
 		"t2d": starlark.String("float"),
 	}
-	res, err := starlark.ExecFile(&starlark.Thread{}, "foo.star", []byte(code), globals)
+	res, err := starlark.ExecFileOptions(testFileOptions, &starlark.Thread{}, "foo.star", []byte(code), globals)
 	if err != nil {
 		t.Errorf("unexpected error to exec: %v", err)
 		return
@@ -227,7 +228,7 @@ a = all([x in set_has for x in ["a", 1, True, 0.1]])
 		"t2": starlark.String("set"),
 		"a":  starlark.True,
 	}
-	res, err := starlark.ExecFile(&starlark.Thread{}, "foo.star", []byte(code), globals)
+	res, err := starlark.ExecFileOptions(testFileOptions, &starlark.Thread{}, "foo.star", []byte(code), globals)
 	if err != nil {
 		t.Errorf("unexpected error to exec: %v", err)
 		return
@@ -236,6 +237,10 @@ a = all([x in set_has for x in ["a", 1, True, 0.1]])
 		t.Errorf("expected %v, got %v", expRes, res)
 	}
 }
+
+// testFileOptions is the dialect used by white-box tests that compile
+// scripts directly: the standard language plus the 'set' built-in.
+var testFileOptions = &syntax.FileOptions{Set: true}
 
 func TestAppendItself(t *testing.T) {
 	l, _ := MakeList([]interface{}{4, 5, 6})
@@ -267,7 +272,7 @@ m["e"] = m
 # print("map", m)
 mm = m
 `
-	res, err := starlark.ExecFile(&starlark.Thread{}, "foo.star", []byte(code), globals)
+	res, err := starlark.ExecFileOptions(testFileOptions, &starlark.Thread{}, "foo.star", []byte(code), globals)
 	if err != nil {
 		t.Errorf("0 unexpected error to exec: %v", err)
 		return
@@ -310,7 +315,7 @@ func("a", 1, foo=1, bar=2)
 	globals := map[string]starlark.Value{
 		"func": starlark.NewBuiltin("func", fn),
 	}
-	_, err := starlark.ExecFile(thread, "foo.star", data, globals)
+	_, err := starlark.ExecFileOptions(testFileOptions, thread, "foo.star", data, globals)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -349,7 +354,7 @@ b = 0.1
 	envs := map[string]starlark.Value{
 		"boo": skyf,
 	}
-	globals, err := starlark.ExecFile(thread, "foo.star", data, envs)
+	globals, err := starlark.ExecFileOptions(testFileOptions, thread, "foo.star", data, envs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -370,7 +375,7 @@ func verifyTestStructValues(t *testing.T, v starlark.Value, script string) {
 	}
 
 	// read the value
-	globals, err := starlark.ExecFile(thread, "foo.star", code, envs)
+	globals, err := starlark.ExecFileOptions(testFileOptions, thread, "foo.star", code, envs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -572,7 +577,7 @@ phone = contact.phone
 	}
 
 	// read the value
-	globals, err := starlark.ExecFile(thread, "foo.star", code, envs)
+	globals, err := starlark.ExecFileOptions(testFileOptions, thread, "foo.star", code, envs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -589,7 +594,7 @@ phone = contact.phone
 contact.Name = "alice"
 contact.phone = "456"
 `)
-	globals, err = starlark.ExecFile(thread, "foo.star", code, envs)
+	globals, err = starlark.ExecFileOptions(testFileOptions, thread, "foo.star", code, envs)
 	if err != nil {
 		t.Fatal(err)
 	}

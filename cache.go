@@ -92,7 +92,7 @@ func (c *cache) doLoad(cc *cycleChecker, module string) (starlark.StringDict, er
 	if err != nil {
 		return nil, err
 	}
-	return starlark.ExecFile(thread, module, b, c.globals)
+	return starlark.ExecFileOptions(dialectOptions, thread, module, b, c.globals)
 }
 
 // -- concurrent cycle checking --
