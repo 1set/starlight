@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"sort"
 	"sync"
+	"time"
 )
 
 // DoNotCompare is an embedded zero-sized struct used to disallow comparison operations (== and !=) on the containing struct.
@@ -16,6 +17,7 @@ var (
 	errType        = reflect.TypeOf((*error)(nil)).Elem()
 	emptyIfaceType = reflect.TypeOf((*interface{})(nil)).Elem()
 	byteType       = reflect.TypeOf(byte(0))
+	durationType   = reflect.TypeOf(time.Duration(0))
 )
 
 // sortedMapKeys returns the keys of the given map value in a deterministic

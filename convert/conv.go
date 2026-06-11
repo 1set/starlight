@@ -76,6 +76,12 @@ func toValue(val reflect.Value, tagName string) (result starlark.Value, err erro
 			// let Starlark values pass through, no conversion needed
 			return val.Interface().(starlark.Value), nil
 		}
+		// time.Duration maps to the standard Starlark time.duration, the
+		// mirror of the FromValue case below; without this it would be
+		// grabbed by the method check and wrapped as an opaque interface
+		if val.Type() == durationType {
+			return startime.Duration(val.Interface().(time.Duration)), nil
+		}
 		if hasMethods(val) {
 			// this handles all basic types with methods (numbers, strings, booleans)
 			ifc, ok := makeGoInterface(val)
@@ -204,6 +210,11 @@ func checkCollectionElemTypes(t reflect.Type, visited map[reflect.Type]bool) err
 }
 
 // FromValue converts a starlark value to a go value.
+//
+// Integer contract: a starlark.Int converts down a fixed ladder — int64 if
+// the value fits, else uint64 if it fits, else *math/big.Int. The Go type
+// of a round-tripped integer therefore depends on its magnitude and is not
+// guaranteed to be identical to what was originally converted in.
 func FromValue(v starlark.Value) interface{} {
 	return fromValue(v, nil)
 }
@@ -220,7 +231,8 @@ func fromValue(v starlark.Value, visited map[uintptr]bool) interface{} {
 	case starlark.Bool:
 		return bool(v)
 	case starlark.Int:
-		// starlark ints can be signed or unsigned
+		// the integer ladder documented on FromValue:
+		// int64 -> uint64 -> *big.Int
 		if i, ok := v.Int64(); ok {
 			return i
 		}
@@ -228,8 +240,6 @@ func fromValue(v starlark.Value, visited map[uintptr]bool) interface{} {
 			return i
 		}
 		return v.BigInt()
-		// buh... maybe > maxint64?  Dunno
-		// panic(fmt.Errorf("can't convert starlark.Int %v to int", v))
 	case starlark.Float:
 		return float64(v)
 	case starlark.String:
@@ -248,6 +258,8 @@ func fromValue(v starlark.Value, visited map[uintptr]bool) interface{} {
 		return nil
 	case startime.Time:
 		return time.Time(v)
+	case startime.Duration:
+		return time.Duration(v)
 	case *GoStruct:
 		return v.v.Interface()
 	case *GoInterface:
