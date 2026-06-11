@@ -85,6 +85,52 @@ func TestCheckedFuncArgs(t *testing.T) {
 	}
 }
 
+// TestCheckedUintAndEdgeSources covers the remaining numeric source
+// classes: huge Starlark ints arrive as uint64 (too big for int64), floats
+// can be NaN/negative, and huge uints must not fit smaller uints either.
+func TestCheckedUintAndEdgeSources(t *testing.T) {
+	var gotI8 int8
+	var gotU8 uint8
+	var gotU uint
+	var gotI int
+	var gotS string
+	var gotF32 float32
+	globals := map[string]interface{}{
+		"fnI8":  func(i int8) { gotI8 = i },
+		"fnU8":  func(u uint8) { gotU8 = u },
+		"fnU":   func(u uint) { gotU = u },
+		"fnI":   func(i int) { gotI = i },
+		"fnS":   func(s string) { gotS = s },
+		"fnF32": func(f float32) { gotF32 = f },
+	}
+
+	// 1e19 > MaxInt64: arrives as uint64
+	evalErr(t, `fnI8(10000000000000000000)`, globals, "out of range")
+	evalErr(t, `fnI(10000000000000000000)`, globals, "out of range")
+	evalErr(t, `fnU8(10000000000000000000)`, globals, "out of range")
+	evalErr(t, `fnS(10000000000000000000)`, globals, "cannot be converted")
+	// float sources into integer targets
+	evalErr(t, `fnU(3.9)`, globals, "would be truncated")
+	evalErr(t, `fnU(-1.0)`, globals, "out of range")
+	evalErr(t, `fnI(float("nan"))`, globals, "would be truncated")
+	evalErr(t, `fnI(float("inf"))`, globals, "would be truncated")
+	evalErr(t, `fnI8(1e30)`, globals, "out of range") // whole float, but far too large
+	if gotI8 != 0 || gotU8 != 0 || gotU != 0 || gotI != 0 || gotS != "" || gotF32 != 0 {
+		t.Fatalf("corrupted values leaked through: %d %d %d %d %q %g", gotI8, gotU8, gotU, gotI, gotS, gotF32)
+	}
+
+	// huge uint64 fits the wide targets
+	evalOK(t, `fnU(10000000000000000000)`, globals)
+	if gotU != 10000000000000000000 {
+		t.Fatalf("expected 1e19, got %d", gotU)
+	}
+	// whole floats fit unsigned targets
+	evalOK(t, `fnU8(200.0)`, globals)
+	if gotU8 != 200 {
+		t.Fatalf("expected 200, got %d", gotU8)
+	}
+}
+
 // TestCheckedNoneArgs verifies None stays valid for nullable parameter
 // types and is rejected for non-nullable ones (the two entry points used
 // to disagree: one zeroed, one errored).
