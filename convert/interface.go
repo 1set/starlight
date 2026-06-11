@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sort"
 
 	"go.starlark.net/starlark"
 )
@@ -61,34 +62,41 @@ func (g *GoInterface) Attr(name string) (starlark.Value, error) {
 	}
 
 	method := g.v.MethodByName(name)
-	if method.Kind() != reflect.Invalid {
+	if method.Kind() != reflect.Invalid && method.CanInterface() {
 		return makeStarFn(name, method, g.tag), nil
 	}
 	return nil, nil
 }
 
-// AttrNames returns the list of all fields and methods on this struct.
+// interfaceAttrNames are the synthetic conversion attributes every
+// GoInterface supports through Attr, in addition to the wrapped value's
+// own methods.
+var interfaceAttrNames = []string{"toBool", "toFloat", "toInt", "toString", "toUint"}
+
+// AttrNames returns the names Attr resolves for this value: the wrapped
+// value's methods plus the synthetic to* conversion attributes, sorted and
+// without duplicates.
 func (g *GoInterface) AttrNames() []string {
 	if !g.v.IsValid() {
 		return nil
 	}
 
-	count := g.v.NumMethod()
-	if g.v.Kind() == reflect.Ptr && !g.v.IsNil() {
-		count += g.v.Elem().NumMethod()
-	}
-
-	names := make([]string, 0, count)
+	names := make([]string, 0, g.v.NumMethod()+len(interfaceAttrNames))
+	names = append(names, interfaceAttrNames...)
+	// a pointer's method set already includes its element's methods, so a
+	// single pass over g.v covers both
 	for i := 0; i < g.v.NumMethod(); i++ {
 		names = append(names, g.v.Type().Method(i).Name)
 	}
-	if g.v.Kind() == reflect.Ptr && !g.v.IsNil() {
-		t := g.v.Elem().Type()
-		for i := 0; i < t.NumMethod(); i++ {
-			names = append(names, t.Method(i).Name)
+	sort.Strings(names)
+	// deduplicate (a method may shadow a synthetic name)
+	nn := names[:0]
+	for i, n := range names {
+		if i == 0 || n != names[i-1] {
+			nn = append(nn, n)
 		}
 	}
-	return names
+	return nn
 }
 
 // String returns the string representation of the value.
