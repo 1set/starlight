@@ -405,23 +405,28 @@ assert.Eq(x4, intSlice([3,4]))
 }
 
 func TestSliceUnsupportedType(t *testing.T) {
-	globals := map[string]interface{}{
-		"assert": &assert{t: t},
-		"s1":     []chan int{},
-		"s2":     []chan int{make(chan int), make(chan int, 1), make(chan int, 2)},
+	// slices with element types that toValue cannot convert are rejected at
+	// conversion time, before any script runs (previously they wrapped fine
+	// and every later access errored or panicked)
+	for _, sl := range []interface{}{
+		[]chan int{},
+		[]chan int{make(chan int), make(chan int, 1), make(chan int, 2)},
+	} {
+		_, err := starlight.Eval([]byte(`x = 1`), map[string]interface{}{"s": sl}, nil)
+		expectErr(t, err, "type chan int is not a supported starlark type")
 	}
 
-	code := []byte(`s1.append(1)`)
+	// indexing errors on supported slices stay graceful
+	globals := map[string]interface{}{
+		"s2": []int{1, 2, 3},
+	}
+	code := []byte(`val = s2[]`)
 	_, err := starlight.Eval(code, globals, nil)
-	expectErr(t, err, "append: value of type int64 cannot be converted to type chan int")
-
-	code = []byte(`val = s2[]`)
-	_, err = starlight.Eval(code, globals, nil)
 	expectErr(t, err, "eval.sky:1:11: got ']', want primary expression")
 
 	code = []byte(`val = s2["foo"]`)
 	_, err = starlight.Eval(code, globals, nil)
-	expectErr(t, err, "starlight_slice<[]chan int> index: got string, want int")
+	expectErr(t, err, "starlight_slice<[]int> index: got string, want int")
 }
 
 // func TestSlicePlus(t *testing.T) {

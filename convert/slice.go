@@ -14,7 +14,10 @@ import (
 // https://github.com/google/starlark-go/blob/master/starlark/value.go#L666
 // Which is Copyright 2017 The Bazel Authors and uses a BSD 3-clause license.
 
-// GoSlice is a wrapper around a Go slice to adapt it for use with starlark.
+// GoSlice is a wrapper around a Go slice or array to adapt it for use with
+// starlark. Arrays are copied into a slice at wrap time: they arrive by
+// value (unaddressable) through interface{}, so in-place mutation could
+// never reach the host's array anyway — mutations affect the copy only.
 type GoSlice struct {
 	_      DoNotCompare
 	v      reflect.Value
@@ -23,14 +26,28 @@ type GoSlice struct {
 	frozen bool
 }
 
-// NewGoSlice wraps the given slice in a new GoSlice.
-// This function will panic if m is nil or not a slice nor array.
+// NewGoSlice wraps the given slice or array in a new GoSlice; arrays are
+// copied into a slice (see the GoSlice doc).
+// This function will panic if the argument is not a slice nor an array.
 func NewGoSlice(slice interface{}) *GoSlice {
 	v := reflect.ValueOf(slice)
 	if v.Kind() != reflect.Slice && v.Kind() != reflect.Array {
 		panic(fmt.Errorf("NewGoSlice expects a slice or array, but got %T", slice))
 	}
-	return &GoSlice{v: v}
+	return &GoSlice{v: arrayToSlice(v)}
+}
+
+// arrayToSlice returns v unchanged for slices, and a freshly allocated
+// slice copy for arrays: reflect.Append and Index().Set panic on array
+// values (they are unaddressable copies), so wrapping the copy is the only
+// way to make arrays usable from scripts.
+func arrayToSlice(v reflect.Value) reflect.Value {
+	if v.Kind() != reflect.Array {
+		return v
+	}
+	s := reflect.MakeSlice(reflect.SliceOf(v.Type().Elem()), v.Len(), v.Len())
+	reflect.Copy(s, v)
+	return s
 }
 
 // String returns the string representation of the value.
@@ -108,7 +125,7 @@ func (g *GoSlice) Slice(start, end, step int) starlark.Value {
 		reflect.Copy(cp, g.v.Slice(start, end))
 		return &GoSlice{v: cp}
 	}
-	cp := reflect.MakeSlice(g.v.Type().Elem(), 0, 0)
+	cp := reflect.MakeSlice(g.v.Type(), 0, 0)
 	sign := signOf(step)
 	for i := start; signOf(end-i) == sign; i += step {
 		cp = reflect.Append(cp, g.v.Index(i))
