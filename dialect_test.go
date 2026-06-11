@@ -1,6 +1,8 @@
 package starlight
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"go.starlark.net/resolve"
@@ -48,5 +50,46 @@ d = outer()
 		if res[k] != want {
 			t.Fatalf("expected %s == %v, got %v (%T)", k, want, res[k], res[k])
 		}
+	}
+}
+
+// TestCacheDialect verifies the cache's compile paths — Run's
+// SourceProgram compile and load()'s ExecFile — use the same explicit
+// dialect (the set built-in must work in both the entry script and a
+// loaded module).
+func TestCacheDialect(t *testing.T) {
+	dir := t.TempDir()
+	module := `
+loaded = set(["x", "y"])
+count = len(loaded)
+`
+	script := `
+load("mod.star", "count")
+s = set([1, 2, 3])
+total = len(s) + count
+`
+	if err := os.WriteFile(filepath.Join(dir, "mod.star"), []byte(module), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "main.star"), []byte(script), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	c := New(dir)
+	res, err := c.Run("main.star", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res["total"] != int64(5) {
+		t.Fatalf("expected total 5, got %v (%T)", res["total"], res["total"])
+	}
+
+	// second run takes the cached-program path
+	res, err = c.Run("main.star", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res["total"] != int64(5) {
+		t.Fatalf("expected cached total 5, got %v", res["total"])
 	}
 }
