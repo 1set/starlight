@@ -145,12 +145,18 @@ func toValue(val reflect.Value, tagName string) (result starlark.Value, err erro
 		}
 		return &GoStruct{v: val, tag: tagName}, nil
 	case reflect.Interface:
+		// unwrap empty interfaces to their dynamic value: JSON-shaped data
+		// (map[string]interface{}, []interface{}) was unusable otherwise,
+		// since the opaque wrapper supports no comparison or arithmetic
+		// (m["a"] == 1 was False, m["a"] + 1 failed). Interfaces with
+		// methods keep the wrapper, which exposes those methods.
+		if val.Type().NumMethod() == 0 {
+			if val.IsNil() {
+				return starlark.None, nil
+			}
+			return toValue(val.Elem(), tagName)
+		}
 		return &GoInterface{v: val, tag: tagName}, nil
-		//if innerVal, ok := val.Interface().(interface{}); ok {
-		//	return ToValueWithTag(innerVal, tagName)
-		//} else {
-		//	return &GoInterface{v: val, tag: tagName}, nil
-		//}
 	case reflect.Invalid:
 		return starlark.None, nil
 	}
@@ -402,11 +408,11 @@ func makeDictTag(val reflect.Value, tagName string) (starlark.Value, error) {
 		// deterministic key order: Starlark dicts preserve insertion order,
 		// so the random order of MapKeys would be script-visible
 		for _, k := range sortedMapKeys(val) {
-			vk, err := adjustedToValue(k, tagName)
+			vk, err := toValue(k, tagName)
 			if err != nil {
 				return nil, err
 			}
-			vv, err := adjustedToValue(val.MapIndex(k), tagName)
+			vv, err := toValue(val.MapIndex(k), tagName)
 			if err != nil {
 				return nil, err
 			}
@@ -418,14 +424,6 @@ func makeDictTag(val reflect.Value, tagName string) (starlark.Value, error) {
 		}
 	}
 	return dict, nil
-}
-
-// Helper method that checks the input value for interface{} and adjusts the conversion accordingly.
-func adjustedToValue(val reflect.Value, tagName string) (starlark.Value, error) {
-	if val.Kind() == reflect.Interface && val.NumMethod() == 0 && val.Elem().IsValid() {
-		val = val.Elem()
-	}
-	return toValue(val, tagName)
 }
 
 // hashableGoValue converts a Starlark value into a Go value whose dynamic
