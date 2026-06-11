@@ -4,20 +4,15 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"go.starlark.net/resolve"
 )
 
-// TestNoGlobalDialectMutation verifies that importing starlight (and,
-// transitively, convert) no longer mutates the process-global resolve
-// flags: the dialect is passed explicitly to every compile/exec call.
-// Before, any import of these packages rewrote the dialect for every other
-// Starlark user in the same process.
-func TestNoGlobalDialectMutation(t *testing.T) {
-	if resolve.AllowSet {
-		t.Fatal("resolve.AllowSet was mutated by import")
-	}
-}
+// Importing starlight (and, transitively, convert) must not mutate any
+// process-global state: the dialect is passed explicitly to every
+// compile/exec call. On the current go.starlark.net baseline the historic
+// resolve.* flags are deprecated constants (the set built-in joined the
+// standard dialect), so there is nothing left to assert about them — the
+// guarantee is structural (no init functions exist) and the capability
+// side is pinned by TestDialectCapabilities and TestCacheDialect below.
 
 // TestDialectCapabilities verifies the starlight entry points still compile
 // the full dialect (set built-in plus the standard nested def / lambda /
