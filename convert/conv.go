@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -16,6 +17,21 @@ import (
 
 func init() {
 	resolve.AllowSet = true // allow the 'set' built-in
+}
+
+// PanicError reports a panic recovered at the conversion boundary. The
+// conversion entry points are not supposed to panic; if this error
+// surfaces, it indicates a bug in starlight (or a misbehaving custom
+// type), and the captured stack identifies where the panic started.
+type PanicError struct {
+	Value interface{} // the recovered panic value
+	Stack []byte      // the goroutine stack captured at recovery
+}
+
+// Error implements the error interface. The message keeps the historic
+// "panic recovered" prefix and appends the captured stack.
+func (e *PanicError) Error() string {
+	return fmt.Sprintf("panic recovered: %v\n%s", e.Value, e.Stack)
 }
 
 // ToValue attempts to convert the given value to a starlark.Value.
@@ -51,7 +67,7 @@ func hasMethods(val reflect.Value) bool {
 func toValue(val reflect.Value, tagName string) (result starlark.Value, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("panic recovered: %v", r)
+			err = &PanicError{Value: r, Stack: debug.Stack()}
 		}
 	}()
 
