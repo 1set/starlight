@@ -11,13 +11,8 @@ import (
 	"time"
 
 	startime "go.starlark.net/lib/time"
-	"go.starlark.net/resolve"
 	"go.starlark.net/starlark"
 )
-
-func init() {
-	resolve.AllowSet = true // allow the 'set' built-in
-}
 
 // PanicError reports a panic recovered at the conversion boundary. The
 // conversion entry points are not supposed to panic; if this error

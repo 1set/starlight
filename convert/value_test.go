@@ -461,7 +461,7 @@ def double(x):
 	return x*2
 `
 	thread := &starlark.Thread{Name: "test"}
-	globals, err := starlark.ExecFile(thread, "mock.star", code, nil)
+	globals, err := starlark.ExecFileOptions(testFileOptions, thread, "mock.star", code, nil)
 	if err != nil {
 		panic(err)
 	}

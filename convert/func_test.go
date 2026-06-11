@@ -9,7 +9,13 @@ import (
 	"github.com/1set/starlight"
 	"github.com/1set/starlight/convert"
 	"go.starlark.net/starlark"
+	"go.starlark.net/syntax"
 )
+
+// testFileOptions is the dialect used by tests that compile scripts
+// directly: the standard language plus the 'set' built-in, matching what
+// the starlight entry points pass explicitly.
+var testFileOptions = &syntax.FileOptions{Set: true}
 
 // Helper function to execute a Starlark script with given global functions and data
 func execStarlark(script string, envs map[string]starlark.Value) (map[string]interface{}, error) {
@@ -18,7 +24,9 @@ func execStarlark(script string, envs map[string]starlark.Value) (map[string]int
 	}
 
 	data := []byte(script)
-	globals, err := starlark.ExecFile(thread, "foo.star", data, envs)
+	// compile with the same dialect starlight uses (standard + set),
+	// passed explicitly instead of relying on process-global flags
+	globals, err := starlark.ExecFileOptions(testFileOptions, thread, "foo.star", data, envs)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +87,7 @@ a = boo("starlight")
 	globals := map[string]starlark.Value{
 		"boo": skyf,
 	}
-	globals, err := starlark.ExecFile(thread, "foo.star", data, globals)
+	globals, err := starlark.ExecFileOptions(testFileOptions, thread, "foo.star", data, globals)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +318,7 @@ b = 0.1
 	globals := map[string]starlark.Value{
 		"boo": skyf,
 	}
-	globals, err := starlark.ExecFile(thread, "foo.star", data, globals)
+	globals, err := starlark.ExecFileOptions(testFileOptions, thread, "foo.star", data, globals)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,7 +371,7 @@ b = 0.1
 	globals := map[string]starlark.Value{
 		"boo": skyf,
 	}
-	globals, err := starlark.ExecFile(thread, "foo.star", data, globals)
+	globals, err := starlark.ExecFileOptions(testFileOptions, thread, "foo.star", data, globals)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -655,7 +663,7 @@ func TestMakeStarFnArgumentType(t *testing.T) {
 				globals["val"] = sv
 			}
 
-			_, err := starlark.ExecFile(thread, "script.star", script, globals)
+			_, err := starlark.ExecFileOptions(testFileOptions, thread, "script.star", script, globals)
 			if tc.wantErr && err == nil {
 				t.Errorf("Expected error, but got none")
 			} else if !tc.wantErr && err != nil {

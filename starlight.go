@@ -8,17 +8,17 @@ import (
 	"sync"
 
 	"github.com/1set/starlight/convert"
-	"go.starlark.net/resolve"
 	"go.starlark.net/starlark"
+	"go.starlark.net/syntax"
 )
 
-func init() {
-	resolve.AllowNestedDef = true // allow def statements within function bodies
-	resolve.AllowLambda = true    // allow lambda expressions
-	resolve.AllowFloat = true     // allow floating point literals, the 'float' built-in, and x / y
-	resolve.AllowSet = true       // allow the 'set' built-in
-	resolve.AllowBitwise = true   // allow bitwise operations
-}
+// dialectOptions is the Starlark dialect starlight compiles with: the
+// standard language plus the 'set' built-in. It is passed explicitly to
+// every compile/exec call instead of mutating the process-global resolve
+// flags, so importing this package has no side effects on other Starlark
+// users in the same process. (Nested def, lambda, float, and bitwise
+// operations are part of the standard dialect already.)
+var dialectOptions = &syntax.FileOptions{Set: true}
 
 // LoadFunc is a function that tells starlark how to find and load other scripts
 // using the load() function.  If you don't use load() in your scripts, you can pass in nil.
@@ -36,9 +36,9 @@ func Eval(src interface{}, globals map[string]interface{}, load LoadFunc) (map[s
 	}
 	filename, ok := src.(string)
 	if ok {
-		dict, err = starlark.ExecFile(thread, filename, nil, dict)
+		dict, err = starlark.ExecFileOptions(dialectOptions, thread, filename, nil, dict)
 	} else {
-		dict, err = starlark.ExecFile(thread, "eval.sky", src, dict)
+		dict, err = starlark.ExecFileOptions(dialectOptions, thread, "eval.sky", src, dict)
 	}
 	if err != nil {
 		return nil, err
@@ -125,7 +125,7 @@ func (c *Cache) Run(filename string, globals map[string]interface{}) (map[string
 	if err != nil {
 		return nil, err
 	}
-	_, p, err := starlark.SourceProgram(filename, b, dict.Has)
+	_, p, err := starlark.SourceProgramOptions(dialectOptions, filename, b, dict.Has)
 	if err != nil {
 		return nil, err
 	}
