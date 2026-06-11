@@ -163,7 +163,7 @@ func (g *GoMap) delete(key reflect.Value) (v starlark.Value, found bool, err err
 func (g *GoMap) Items() []starlark.Tuple {
 	tuples := make([]starlark.Tuple, 0, g.v.Len())
 	var err error
-	for _, k := range g.v.MapKeys() {
+	for _, k := range sortedMapKeys(g.v) {
 		tuple := make(starlark.Tuple, 2)
 		tuple[0], err = toValue(k, g.tag)
 		if err != nil {
@@ -180,7 +180,7 @@ func (g *GoMap) Items() []starlark.Tuple {
 
 func (g *GoMap) Keys() []starlark.Value {
 	keys := make([]starlark.Value, 0, g.v.Len())
-	for _, k := range g.v.MapKeys() {
+	for _, k := range sortedMapKeys(g.v) {
 		key, err := toValue(k, g.tag)
 		if err != nil {
 			panic(err)
@@ -198,7 +198,7 @@ func (g *GoMap) Iterate() starlark.Iterator {
 	g.numIt++
 	return &mapIterator{
 		g:    g,
-		keys: g.v.MapKeys(),
+		keys: sortedMapKeys(g.v),
 	}
 }
 
@@ -336,7 +336,7 @@ func dict_popitem(fnname string, g *GoMap, args starlark.Tuple, _ []starlark.Tup
 	if len(args) > 0 {
 		return nil, fmt.Errorf("%s: wanted 0 args, got %d", fnname, len(args))
 	}
-	keys := g.v.MapKeys()
+	keys := sortedMapKeys(g.v)
 	if len(keys) == 0 {
 		return nil, fmt.Errorf("popitem: empty dict")
 	}
