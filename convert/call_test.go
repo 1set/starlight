@@ -160,7 +160,8 @@ test()
 			name:        "slice of interface",
 			goValue:     []interface{}{123, "world"},
 			codeSnippet: `exp = [123, "world"]` + codeCompareList,
-			wantErrExec: true, // for []interface{}, convert to GoSlice+GoInterface
+			// empty-interface elements unwrap to their dynamic values now,
+			// so the element comparison succeeds
 		},
 		{
 			name:        "complex slice of interface",
@@ -187,7 +188,8 @@ test()
 			name:        "array of interface",
 			goValue:     [2]interface{}{123, "world"},
 			codeSnippet: `exp = [123, "world"]` + codeCompareList,
-			wantErrExec: true, // for [2]interface{}, convert to GoSlice+GoInterface
+			// empty-interface elements unwrap to their dynamic values now,
+			// so the element comparison succeeds
 		},
 		{
 			name:        "complex array of interface",
@@ -1022,8 +1024,11 @@ out = pn
 			checkEqual: func(_ *personStruct, m map[string]interface{}) error {
 				if v, ok := m["foo"]; !ok {
 					return fmt.Errorf(`expected "foo" to be in globals, but not found`)
-				} else if n, ok := v.(int16); !ok {
-					return fmt.Errorf(`expected "foo" to be an int16, but got %T`, v)
+				} else if n, ok := v.(int64); !ok {
+					// empty-interface map elements unwrap to Starlark values,
+					// so the number round-trips as int64 (the FromValue ladder),
+					// not the original int16
+					return fmt.Errorf(`expected "foo" to be an int64, but got %T`, v)
 				} else if n != 12345 {
 					return fmt.Errorf(`expected "foo" to be 12345, but got %v`, n)
 				}

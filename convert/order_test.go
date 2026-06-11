@@ -61,8 +61,9 @@ func TestGoMapMixedKeyTypeOrder(t *testing.T) {
 		got = append(got, k.String())
 	}
 	// bool < int < uint < float < string; within a rank, by value
-	// (interface-typed keys come out wrapped, hence the plain formatting)
-	want := []string{"false", "true", "5", "7", "9", "2.5", "a", "b"}
+	// (interface-typed keys unwrap to Starlark values, hence the Starlark
+	// formatting: capitalized bools, quoted strings)
+	want := []string{"False", "True", "5", "7", "9", "2.5", `"a"`, `"b"`}
 	if len(got) != len(want) {
 		t.Fatalf("expected %v, got %v", want, got)
 	}

@@ -1046,7 +1046,8 @@ print(type(r), dir(r))
 assert.Eq(type(r), "starlight_struct<*strings.Reader>")
 
 s = data["S"]
-assert.Eq(type(s), "starlight_interface<<nil>>")
+assert.Eq(type(s), "NoneType")
+assert.Eq(s, None)
 
 t = data["T"]
 assert.Eq(type(t), "starlight_struct<convert_test.mockStr>")
