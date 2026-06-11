@@ -382,7 +382,11 @@ func makeDictTag(val reflect.Value, tagName string) (starlark.Value, error) {
 			if err != nil {
 				return nil, err
 			}
-			dict.SetKey(vk, vv)
+			// SetKey fails for keys that are unhashable on the Starlark
+			// side; dropping the entry silently is data loss
+			if err := dict.SetKey(vk, vv); err != nil {
+				return nil, fmt.Errorf("dict key %s: %v", vk.String(), err)
+			}
 		}
 	}
 	return dict, nil
@@ -657,11 +661,14 @@ func makeStarFn(name string, gofn reflect.Value, tagName string) *starlark.Built
 			}
 		}()
 
+		if len(kwargs) > 0 {
+			return starlark.None, fmt.Errorf("%s: unexpected keyword argument %q (wrapped Go functions accept positional arguments only)", name, kwargs[0][0])
+		}
 		if len(args) != gofn.Type().NumIn() {
 			return starlark.None, fmt.Errorf("expected %d args but got %d", gofn.Type().NumIn(), len(args))
 		}
 
-		// convert all the args, but kwargs are ignored
+		// convert all the args
 		vals := FromTuple(args)
 		rvs := make([]reflect.Value, 0, len(vals))
 		for i, v := range vals {
@@ -691,12 +698,15 @@ func makeVariadicStarFn(name string, gofn reflect.Value, tagName string) *starla
 			}
 		}()
 
+		if len(kwargs) > 0 {
+			return starlark.None, fmt.Errorf("%s: unexpected keyword argument %q (wrapped Go functions accept positional arguments only)", name, kwargs[0][0])
+		}
 		minArgs := gofn.Type().NumIn() - 1
 		if len(args) < minArgs {
 			return starlark.None, fmt.Errorf("expected at least %d args but got %d", minArgs, len(args))
 		}
 
-		// convert all the args, but kwargs are ignored
+		// convert all the args
 		vals := FromTuple(args)
 		rvs := make([]reflect.Value, 0, len(args))
 
@@ -738,9 +748,17 @@ func makeOut(out []reflect.Value, tagName string) (starlark.Value, error) {
 	}
 	last := out[len(out)-1]
 	var err error
-	if last.Type() == errType {
-		if v := last.Interface(); v != nil {
-			err = v.(error)
+	// the error-return convention matches any type implementing error, not
+	// just the error interface itself: a concrete error type in the last
+	// position used to leak through as a regular value instead of raising
+	if last.Type() == errType || last.Type().Implements(errType) {
+		isNil := false
+		switch last.Kind() {
+		case reflect.Ptr, reflect.Interface, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan:
+			isNil = last.IsNil()
+		}
+		if !isNil {
+			err = last.Interface().(error)
 		}
 		out = out[:len(out)-1]
 	}

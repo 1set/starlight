@@ -102,7 +102,12 @@ func (g *GoStruct) Attr(name string) (starlark.Value, error) {
 	v := g.v
 	if g.v.Kind() == reflect.Ptr {
 		v = v.Elem()
-		method = g.v.MethodByName(name)
+	} else if g.v.CanAddr() {
+		// pointer-receiver methods are not in a struct value's method set;
+		// for addressable values (e.g. fields of a wrapped pointer) they
+		// are reachable through the address, and their mutations stay
+		// visible to the host
+		method = g.v.Addr().MethodByName(name)
 		if method.Kind() != reflect.Invalid && method.CanInterface() {
 			return makeStarFn(name, method, g.tag), nil
 		}
@@ -142,9 +147,15 @@ func (g *GoStruct) Attr(name string) (starlark.Value, error) {
 
 // AttrNames returns the list of all fields and methods on this struct.
 func (g *GoStruct) AttrNames() []string {
-	// count the number of methods and fields
+	// count the number of methods and fields; addressable struct values
+	// expose pointer-receiver methods too (see Attr), so list the pointer
+	// type's method set for them
 	v := g.v
-	count := v.NumMethod()
+	mv := v
+	if v.Kind() != reflect.Ptr && v.CanAddr() {
+		mv = v.Addr()
+	}
+	count := mv.NumMethod()
 	if v.Kind() == reflect.Ptr {
 		elem := v.Elem()
 		count += elem.NumField() + elem.NumMethod()
@@ -163,8 +174,8 @@ func (g *GoStruct) AttrNames() []string {
 	}
 
 	// check each methods and fields
-	for i := 0; i < v.NumMethod(); i++ {
-		names = append(names, v.Type().Method(i).Name)
+	for i := 0; i < mv.NumMethod(); i++ {
+		names = append(names, mv.Type().Method(i).Name)
 	}
 	if v.Kind() == reflect.Ptr {
 		t := v.Elem().Type()
