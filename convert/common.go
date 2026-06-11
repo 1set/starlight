@@ -89,6 +89,74 @@ func keyLess(a, b reflect.Value) bool {
 	return false
 }
 
+// maxSafeStringDepth bounds the pre-scan in safeGoString; values nested
+// deeper than this are treated as unsafe to print, since fmt.Sprint would
+// recurse at least as deep on them.
+const maxSafeStringDepth = 100
+
+// safeGoString formats a wrapped Go value like fmt.Sprint, but first scans
+// it for reference cycles: fmt.Sprint recurses forever on a map or slice
+// that reaches itself, killing the process with an unrecoverable fatal
+// stack overflow. Values containing a cycle (or nested deeper than
+// maxSafeStringDepth) format as "<cyclic TYPE>" instead; all other values
+// format exactly as fmt.Sprint does.
+func safeGoString(v reflect.Value) string {
+	if !v.IsValid() {
+		return "<invalid>"
+	}
+	if hasRefCycle(v, make(map[uintptr]bool), 0) {
+		return fmt.Sprintf("<cyclic %s>", v.Type())
+	}
+	return fmt.Sprint(v.Interface())
+}
+
+// hasRefCycle reports whether v reaches itself through maps, slices,
+// pointers, or interfaces, or nests deeper than maxSafeStringDepth. The
+// visited set tracks pointers on the current DFS path only, so shared
+// (but acyclic) substructures are not misreported.
+func hasRefCycle(v reflect.Value, visited map[uintptr]bool, depth int) bool {
+	if depth > maxSafeStringDepth {
+		return true
+	}
+	switch v.Kind() {
+	case reflect.Map, reflect.Slice, reflect.Ptr:
+		if v.IsNil() {
+			return false
+		}
+		p := v.Pointer()
+		if visited[p] {
+			return true
+		}
+		visited[p] = true
+		defer delete(visited, p)
+	}
+	switch v.Kind() {
+	case reflect.Map:
+		for _, k := range v.MapKeys() {
+			if hasRefCycle(k, visited, depth+1) || hasRefCycle(v.MapIndex(k), visited, depth+1) {
+				return true
+			}
+		}
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < v.Len(); i++ {
+			if hasRefCycle(v.Index(i), visited, depth+1) {
+				return true
+			}
+		}
+	case reflect.Ptr, reflect.Interface:
+		if !v.IsNil() {
+			return hasRefCycle(v.Elem(), visited, depth+1)
+		}
+	case reflect.Struct:
+		for i := 0; i < v.NumField(); i++ {
+			if hasRefCycle(v.Field(i), visited, depth+1) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func newRecursionDetector() *recursionDetector {
 	return &recursionDetector{visited: make(map[uintptr]struct{})}
 }

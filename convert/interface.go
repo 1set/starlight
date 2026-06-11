@@ -92,9 +92,10 @@ func (g *GoInterface) AttrNames() []string {
 }
 
 // String returns the string representation of the value.
-// Starlark string values are quoted as if by Python's repr.
+// Cyclic or overly deep values are elided as "<cyclic TYPE>" instead of
+// overflowing the stack; see safeGoString.
 func (g *GoInterface) String() string {
-	return fmt.Sprint(g.v.Interface())
+	return safeGoString(g.v)
 }
 
 // Type returns a short string describing the value's type.
