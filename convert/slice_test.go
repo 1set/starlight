@@ -422,7 +422,7 @@ func TestSliceUnsupportedType(t *testing.T) {
 	}
 	code := []byte(`val = s2[]`)
 	_, err := starlight.Eval(code, globals, nil)
-	expectErr(t, err, "eval.sky:1:11: got ']', want primary expression")
+	expectErr(t, err, "eval.sky:1:10: got ']', want primary expression")
 
 	code = []byte(`val = s2["foo"]`)
 	_, err = starlight.Eval(code, globals, nil)
