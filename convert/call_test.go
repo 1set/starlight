@@ -442,13 +442,14 @@ func TestCallGoFunctionInStarlark(t *testing.T) {
 			wantErrExec: true,
 		},
 		{
-			name: "fuzzy func(string) int",
+			// integer arguments no longer fuzzy-match string parameters:
+			// the old behavior was Go's codepoint conversion (42 -> "*")
+			name: "int for string param is an error: func(string) int",
 			goFunc: func(name string) int {
 				return len(name)
 			},
-			codeSnippet:  `sl_value = go_func(42)`,
-			expectResult: int64(1),
-			wantEqual:    true,
+			codeSnippet: `sl_value = go_func(42)`,
+			wantErrExec: true,
 		},
 		{
 			name: "pointer as invalid argument: func(*string) string",

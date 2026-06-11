@@ -279,11 +279,9 @@ mm = m
 	if exp := []interface{}{1, 2, 3, []interface{}{1, 2, 3}}; !reflect.DeepEqual(cnv["ss"], exp) {
 		t.Errorf("2 expected %v, got %v", exp, cnv["ss"])
 	}
-	// TODO: fix it
-	//if exp := map[interface{}]interface{}{"c": 3, "d": 4, "f": (map[interface{}]interface{})(nil)}; !reflect.DeepEqual(cnv["dd"], exp) {
-	//	t.Errorf("3 expected %#v, got %#v", exp, cnv["dd"])
-	//}
-	//t.Logf("converted results: %v", cnv)
+	if exp := map[interface{}]interface{}{"c": int64(3), "d": int64(4), "f": (map[interface{}]interface{})(nil)}; !reflect.DeepEqual(cnv["dd"], exp) {
+		t.Errorf("3 expected %#v, got %#v", exp, cnv["dd"])
+	}
 }
 
 func TestKwargs(t *testing.T) {
