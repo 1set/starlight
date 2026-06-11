@@ -47,6 +47,11 @@ func (g *GoMap) SetKey(k, v starlark.Value) (err error) {
 	if g.numIt > 0 {
 		return fmt.Errorf("cannot insert into map during iteration")
 	}
+	if g.v.IsNil() {
+		// writing to a nil Go map is a runtime panic in Go; surface it as a
+		// regular error (the host must initialize the map before sharing it)
+		return fmt.Errorf("cannot insert into nil map")
+	}
 
 	key, err := tryKeyConv(k, g.v.Type().Key())
 	if err != nil {

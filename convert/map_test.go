@@ -501,27 +501,19 @@ f()
 }
 
 func TestMapUnsupportedType(t *testing.T) {
-	globals := map[string]interface{}{
-		"assert": &assert{t: t},
-		"m1":     map[chan int]int{make(chan int): 2},
-		"m2":     map[int]chan string{2: make(chan string)},
+	// maps with key or element types that toValue cannot convert are
+	// rejected at conversion time, before any script runs (previously they
+	// wrapped fine and every later access errored or panicked)
+	for _, tc := range []struct {
+		m   interface{}
+		err string
+	}{
+		{map[chan int]int{make(chan int): 2}, "type chan int is not a supported starlark type"},
+		{map[int]chan string{2: make(chan string)}, "type chan string is not a supported starlark type"},
+	} {
+		_, err := starlight.Eval([]byte(`x = 1`), map[string]interface{}{"m": tc.m}, nil)
+		expectErr(t, err, tc.err)
 	}
-
-	code := []byte(`m1[1] = 1`)
-	_, err := starlight.Eval(code, globals, nil)
-	expectErr(t, err, "setkey key: value of type int64 cannot be converted to type chan int")
-
-	code = []byte(`val = m1[2]`)
-	_, err = starlight.Eval(code, globals, nil)
-	expectErr(t, err, "get: value of type int64 cannot be converted to type chan int")
-
-	code = []byte(`m2[1] = "test"`)
-	_, err = starlight.Eval(code, globals, nil)
-	expectErr(t, err, "setkey value: value of type string cannot be converted to type chan string")
-
-	code = []byte(`val = m2[2]`)
-	_, err = starlight.Eval(code, globals, nil)
-	expectErr(t, err, "type chan string is not a supported starlark type")
 }
 
 // intMap converts from a starlark-created map to a map[int]int

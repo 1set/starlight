@@ -102,11 +102,17 @@ func toValue(val reflect.Value, tagName string) (result starlark.Value, err erro
 	case reflect.Func:
 		return makeStarFn("fn", val, tagName), nil
 	case reflect.Map:
+		if err := checkCollectionElemTypes(val.Type(), nil); err != nil {
+			return nil, err
+		}
 		return &GoMap{v: val, tag: tagName}, nil
 	case reflect.String:
 		return starlark.String(val.String()), nil
 	case reflect.Slice, reflect.Array:
-		return &GoSlice{v: val, tag: tagName}, nil
+		if err := checkCollectionElemTypes(val.Type(), nil); err != nil {
+			return nil, err
+		}
+		return &GoSlice{v: arrayToSlice(val), tag: tagName}, nil
 	case reflect.Struct:
 		// handle special case from standard starlark lib
 		switch val.Type() {
@@ -126,6 +132,37 @@ func toValue(val reflect.Value, tagName string) (result starlark.Value, err erro
 	}
 
 	return nil, fmt.Errorf("type %T is not a supported starlark type", val.Interface())
+}
+
+// checkCollectionElemTypes verifies that the key and element types of a map,
+// or the element type of a slice or array, are convertible by toValue,
+// recursing through nested collection and pointer types. Without this
+// pre-check, a collection like map[string]chan int converted fine and blew
+// up with a panic only later, when items() or iteration touched a value of
+// the unsupported type. Struct types are not descended into: their fields
+// are reached through GoStruct.Attr, which reports a regular error. The
+// visited set guards against recursive Go types (e.g. type M map[string]M);
+// pass nil to start.
+func checkCollectionElemTypes(t reflect.Type, visited map[reflect.Type]bool) error {
+	if visited[t] {
+		return nil
+	}
+	if visited == nil {
+		visited = make(map[reflect.Type]bool)
+	}
+	visited[t] = true
+	switch t.Kind() {
+	case reflect.Chan, reflect.Complex64, reflect.Complex128, reflect.UnsafePointer, reflect.Uintptr:
+		return fmt.Errorf("type %s is not a supported starlark type", t)
+	case reflect.Map:
+		if err := checkCollectionElemTypes(t.Key(), visited); err != nil {
+			return err
+		}
+		return checkCollectionElemTypes(t.Elem(), visited)
+	case reflect.Slice, reflect.Array, reflect.Ptr:
+		return checkCollectionElemTypes(t.Elem(), visited)
+	}
+	return nil
 }
 
 // FromValue converts a starlark value to a go value.
