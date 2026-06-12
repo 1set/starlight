@@ -7,7 +7,6 @@ import (
 	"math"
 	"reflect"
 	"runtime/debug"
-	"sync"
 	"time"
 
 	startime "go.starlark.net/lib/time"
@@ -172,20 +171,18 @@ func toValue(val reflect.Value, tagName string) (result starlark.Value, err erro
 // collections are wrapped on every element access, but the set of types a
 // process converts is small and fixed, so the cache never grows
 // unboundedly. The stored value is the (possibly nil) error.
-var elemTypeCheckCache sync.Map // reflect.Type -> error
+// elemTypeCacheCap bounds elemTypeCheckCache. Real hosts convert a small,
+// fixed set of declared collection types; the cap is the ceiling that keeps
+// script-minted array key types (see boundedTypeCache) from pinning
+// unbounded memory.
+const elemTypeCacheCap = 4096
+
+var elemTypeCheckCache = newBoundedTypeCache(elemTypeCacheCap) // reflect.Type -> error
 
 // checkCollectionElemTypesCached is the cached front of
 // checkCollectionElemTypes; use this on conversion hot paths.
 func checkCollectionElemTypesCached(t reflect.Type) error {
-	if v, ok := elemTypeCheckCache.Load(t); ok {
-		if v == nil {
-			return nil
-		}
-		return v.(error)
-	}
-	err := checkCollectionElemTypes(t, nil)
-	elemTypeCheckCache.Store(t, err)
-	return err
+	return elemTypeCheckCache.loadOrStore(t, checkCollectionElemTypes(t, nil))
 }
 
 // checkCollectionElemTypes verifies that the key and element types of a map,
