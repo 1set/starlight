@@ -689,7 +689,7 @@ func makeStarFn(name string, gofn reflect.Value, tagName string) *starlark.Built
 		}()
 
 		if len(kwargs) > 0 {
-			return starlark.None, fmt.Errorf("%s: unexpected keyword argument %q (wrapped Go functions accept positional arguments only)", name, kwargs[0][0])
+			return starlark.None, fmt.Errorf("%s: unexpected keyword argument %s (wrapped Go functions accept positional arguments only)", name, kwargs[0][0].String())
 		}
 		if len(args) != gofn.Type().NumIn() {
 			return starlark.None, fmt.Errorf("expected %d args but got %d", gofn.Type().NumIn(), len(args))
@@ -726,7 +726,7 @@ func makeVariadicStarFn(name string, gofn reflect.Value, tagName string) *starla
 		}()
 
 		if len(kwargs) > 0 {
-			return starlark.None, fmt.Errorf("%s: unexpected keyword argument %q (wrapped Go functions accept positional arguments only)", name, kwargs[0][0])
+			return starlark.None, fmt.Errorf("%s: unexpected keyword argument %s (wrapped Go functions accept positional arguments only)", name, kwargs[0][0].String())
 		}
 		minArgs := gofn.Type().NumIn() - 1
 		if len(args) < minArgs {
@@ -927,7 +927,10 @@ func convertElemValue(val reflect.Value, targetType reflect.Type) (reflect.Value
 			if unwrapped.Type().ConvertibleTo(targetType) {
 				return checkedConvert(unwrapped, targetType)
 			} else if sv, ok := unwrapped.Interface().(starlark.Value); ok {
-				// TODO: this path is not reachable in the current test, maybe we can remove it?
+				// reached when a host passes a custom starlark.Value inside a
+				// collection argument (e.g. map[string]interface{}{"k":
+				// myStarlarkValue}) to a typed Go parameter: FromValue leaves
+				// such values as-is, so we unwrap and re-narrow here
 				goVal := FromValue(sv)
 				goVal = convertNumericTypes(goVal, targetType)
 				if reflect.TypeOf(goVal) != targetType {
