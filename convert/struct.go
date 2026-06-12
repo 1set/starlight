@@ -21,7 +21,7 @@ func NewStruct(strct interface{}) *GoStruct {
 	if val.Kind() == reflect.Struct || (val.Kind() == reflect.Ptr && val.Elem().Kind() == reflect.Struct) {
 		return &GoStruct{v: val}
 	}
-	panic(fmt.Errorf("value must be a struct or pointer to a struct, but was %T", val.Interface()))
+	panic(fmt.Errorf("value must be a struct or pointer to a struct, but was %T", strct))
 }
 
 // NewStructWithTag makes a new Starlark-compatible Struct from the given struct or pointer to struct,
@@ -35,7 +35,7 @@ func NewStructWithTag(strct interface{}, tagName string) *GoStruct {
 		}
 		return &GoStruct{v: val, tag: tagName}
 	}
-	panic(fmt.Errorf("value must be a struct or pointer to a struct, but was %T", val.Interface()))
+	panic(fmt.Errorf("value must be a struct or pointer to a struct, but was %T", strct))
 }
 
 // GoStruct is a wrapper around a Go struct to let it be manipulated by Starlark scripts.
