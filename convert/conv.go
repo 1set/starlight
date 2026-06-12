@@ -146,6 +146,12 @@ func toValue(val reflect.Value, tagName string) (result starlark.Value, err erro
 		}
 		return &GoSlice{v: arrayToSlice(val), tag: tagName}, nil
 	case reflect.Struct:
+		// a *time.Time reaches here still as a pointer (the deref switch
+		// above skips struct pointers, to preserve *struct -> *GoStruct);
+		// deref ONLY *time.Time so it hits the time special case below
+		if val.Kind() == reflect.Ptr && !val.IsNil() && val.Elem().Type() == reflect.TypeOf(time.Time{}) {
+			val = val.Elem()
+		}
 		// handle special case from standard starlark lib
 		switch val.Type() {
 		case reflect.TypeOf(time.Time{}):
