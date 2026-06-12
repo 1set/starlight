@@ -91,14 +91,16 @@ func toValue(val reflect.Value, tagName string) (result starlark.Value, err erro
 	if kind == reflect.Ptr {
 		if val.Elem().IsValid() {
 			kind = val.Elem().Kind()
-			// for pointers to basic types, dereference them
+			// for pointers to basic/collection types and funcs, dereference
+			// them (a non-nil *func becomes a callable; without this the Func
+			// case would call makeStarFn on the pointer and panic)
 			switch kind {
 			case reflect.Bool,
 				reflect.String,
 				reflect.Float32, reflect.Float64,
 				reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 				reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
-				reflect.Slice, reflect.Array, reflect.Map:
+				reflect.Slice, reflect.Array, reflect.Map, reflect.Func:
 				val = val.Elem()
 			}
 		} else {
@@ -213,7 +215,15 @@ func checkCollectionElemTypes(t reflect.Type, visited map[reflect.Type]bool) err
 			return err
 		}
 		return checkCollectionElemTypes(t.Elem(), visited)
-	case reflect.Slice, reflect.Array, reflect.Ptr:
+	case reflect.Ptr:
+		// a *func element is unsupported: a nil one errors in toValue, and
+		// GoSlice.Index / iterators cannot return that error (they would
+		// panic). A direct func element is fine (it stays callable).
+		if t.Elem().Kind() == reflect.Func {
+			return fmt.Errorf("type %s is not a supported starlark type", t)
+		}
+		return checkCollectionElemTypes(t.Elem(), visited)
+	case reflect.Slice, reflect.Array:
 		return checkCollectionElemTypes(t.Elem(), visited)
 	}
 	return nil
