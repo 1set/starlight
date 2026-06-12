@@ -482,10 +482,43 @@ func hashableGoValue(v starlark.Value) (interface{}, error) {
 	if bi, ok := g.(*big.Int); ok {
 		return bigIntKey{s: bi.String()}, nil
 	}
-	if !reflect.TypeOf(g).Comparable() {
+	gt := reflect.TypeOf(g)
+	if !gt.Comparable() {
 		return nil, fmt.Errorf("value of type %s converts to Go type %T which is not hashable", v.Type(), g)
 	}
+	if !comparableByValue(gt) {
+		// Comparable() is true for pointers/chans, but they compare by
+		// identity, not value — so equal Starlark values (e.g. two equal
+		// structs, or a custom pointer-backed value) would become distinct,
+		// unretrievable Go map keys. Reject rather than silently misbehave,
+		// matching the unhashable-key contract. (*big.Int is intercepted
+		// above; FromDict falls back to the key's printed form.)
+		return nil, fmt.Errorf("value of type %s converts to Go type %T which compares by identity, not value, so it is not usable as a stable map key", v.Type(), g)
+	}
 	return g, nil
+}
+
+// comparableByValue reports whether two equal values of type t compare equal
+// as Go map keys by VALUE. reflect.Type.Comparable() is necessary but not
+// sufficient: pointers, channels, and unsafe.Pointers are comparable yet
+// compare by identity, and a struct or array is value-comparable only if
+// every element is. Interface fields are treated as identity (their dynamic
+// value is unknown).
+func comparableByValue(t reflect.Type) bool {
+	switch t.Kind() {
+	case reflect.Ptr, reflect.Chan, reflect.UnsafePointer, reflect.Interface:
+		return false
+	case reflect.Array:
+		return comparableByValue(t.Elem())
+	case reflect.Struct:
+		for i := 0; i < t.NumField(); i++ {
+			if !comparableByValue(t.Field(i).Type) {
+				return false
+			}
+		}
+		return true
+	}
+	return true
 }
 
 // tryKeyConv converts a Starlark value used as a map key into a
