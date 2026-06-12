@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -19,6 +20,61 @@ var (
 	byteType       = reflect.TypeOf(byte(0))
 	durationType   = reflect.TypeOf(time.Duration(0))
 )
+
+// boundedTypeCache memoizes a per-reflect.Type computation, but stops
+// storing new entries once it reaches a fixed cap. A plain unbounded cache
+// keyed by reflect.Type is a script-reachable memory leak: hashableGoValue
+// mints a distinct reflect.ArrayOf(N, ...) type for every tuple/bytes key
+// length N, and a script controls N without bound. Past the cap, results
+// are still computed correctly (the cache is only an optimization), so the
+// realistic small-and-fixed set of host types stays cached while untrusted
+// input cannot pin unbounded memory.
+type boundedTypeCache struct {
+	m   sync.Map // reflect.Type -> stored value (error or bool)
+	cap int64    // max distinct types to retain
+	n   int64    // current entry count, accessed atomically
+}
+
+func newBoundedTypeCache(cap int) *boundedTypeCache {
+	return &boundedTypeCache{cap: int64(cap)}
+}
+
+// store records v for t unless the cache is already at capacity.
+func (c *boundedTypeCache) store(t reflect.Type, v interface{}) {
+	if atomic.LoadInt64(&c.n) >= c.cap {
+		return
+	}
+	// only bump the counter when this call actually inserted the entry, so
+	// concurrent misses on the same type do not double-count
+	if _, loaded := c.m.LoadOrStore(t, v); !loaded {
+		atomic.AddInt64(&c.n, 1)
+	}
+}
+
+// loadOrStore returns the cached error for t if present; otherwise it stores
+// (subject to the cap) and returns compute.
+func (c *boundedTypeCache) loadOrStore(t reflect.Type, compute error) error {
+	if v, ok := c.m.Load(t); ok {
+		if v == nil {
+			return nil
+		}
+		return v.(error)
+	}
+	c.store(t, compute)
+	return compute
+}
+
+// loadOrStoreBool is the bool-valued analogue used by the cycle cache.
+func (c *boundedTypeCache) loadOrStoreBool(t reflect.Type, compute bool) bool {
+	if v, ok := c.m.Load(t); ok {
+		return v.(bool)
+	}
+	c.store(t, compute)
+	return compute
+}
+
+// size reports the number of retained entries (for tests).
+func (c *boundedTypeCache) size() int { return int(atomic.LoadInt64(&c.n)) }
 
 // sortedMapKeys returns the keys of the given map value in a deterministic
 // order: keys are sorted by type rank (nil < bool < int < uint < float <
@@ -167,10 +223,12 @@ func safeGoString(v reflect.Value) string {
 	return fmt.Sprint(v.Interface())
 }
 
-// typeCanCycleCache memoizes typeCanCycle per reflect.Type; the set of
-// types a process converts is small and fixed, so this never grows
-// unboundedly.
-var typeCanCycleCache sync.Map // reflect.Type -> bool
+// typeCanCycleCap bounds typeCanCycleCache. It is only ever keyed by the
+// static wrapper type g.v.Type(), so a real host stays far under this; the
+// cap is defense in depth against any future dynamic-type caller.
+const typeCanCycleCap = 4096
+
+var typeCanCycleCache = newBoundedTypeCache(typeCanCycleCap) // reflect.Type -> bool
 
 // typeCanCycle reports whether a value of type t can possibly contain a
 // reference cycle: that requires reaching an interface kind (which can hold
@@ -179,12 +237,7 @@ var typeCanCycleCache sync.Map // reflect.Type -> bool
 // map[string]int the cycle pre-scan in safeGoString is pure overhead and
 // is skipped.
 func typeCanCycle(t reflect.Type) bool {
-	if c, ok := typeCanCycleCache.Load(t); ok {
-		return c.(bool)
-	}
-	c := typeCanCycleWalk(t, nil)
-	typeCanCycleCache.Store(t, c)
-	return c
+	return typeCanCycleCache.loadOrStoreBool(t, typeCanCycleWalk(t, nil))
 }
 
 // typeCanCycleWalk is the uncached recursion behind typeCanCycle; onPath
