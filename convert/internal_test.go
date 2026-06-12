@@ -110,3 +110,44 @@ func TestToValuePanicSentinel(t *testing.T) {
 		t.Fatalf("expected stack to identify the conversion frame, got:\n%s", pe.Stack)
 	}
 }
+
+// TestComparableByValue covers every branch of the map-key value-comparability
+// check: scalars and value-only composites are value-comparable; pointers,
+// channels, unsafe.Pointers, interfaces, and any array/struct transitively
+// containing them are not.
+func TestComparableByValue(t *testing.T) {
+	type valStruct struct {
+		A int
+		B string
+	}
+	type ptrStruct struct {
+		A int
+		P *int
+	}
+	type ifaceStruct struct {
+		V interface{}
+	}
+	cases := []struct {
+		t    reflect.Type
+		want bool
+	}{
+		{reflect.TypeOf(0), true},               // scalar -> default true
+		{reflect.TypeOf(""), true},              // scalar
+		{reflect.TypeOf(1.5), true},             // scalar
+		{reflect.TypeOf((*int)(nil)), false},    // ptr
+		{reflect.TypeOf(make(chan int)), false}, // chan
+		{reflect.TypeOf([2]int{}), true},        // array of scalar
+		{reflect.TypeOf([2]*int{}), false},      // array of ptr
+		{reflect.TypeOf(valStruct{}), true},     // struct, all value
+		{reflect.TypeOf(ptrStruct{}), false},    // struct with ptr field
+		{reflect.TypeOf(ifaceStruct{}), false},  // struct with interface field
+		{reflect.TypeOf([1][2]int{}), true},     // nested array of scalar
+		{reflect.TypeOf([1]valStruct{}), true},  // array of value struct
+		{reflect.TypeOf([1]ptrStruct{}), false}, // array of ptr-bearing struct
+	}
+	for _, c := range cases {
+		if got := comparableByValue(c.t); got != c.want {
+			t.Errorf("comparableByValue(%s) = %v, want %v", c.t, got, c.want)
+		}
+	}
+}
