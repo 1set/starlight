@@ -1061,11 +1061,17 @@ assert.Eq(type(t), "starlight_struct<convert_test.mockStr>")
 			wantErrConv: true,
 		},
 		{
-			name: "invalid value",
+			// a value with no Starlark form degrades to the opaque wrapper
+			// (it must not error: the same conversion runs inside dict/list
+			// methods that cannot return errors)
+			name: "unsupported value degrades to wrapper",
 			data: map[interface{}]interface{}{
 				"b": complex(3, 4),
 			},
-			wantErrConv: true,
+			codeSnippet: `
+assert.Eq(type(data), "dict")
+assert.Eq(type(data["b"]).startswith("starlight_"), True)
+`,
 		},
 	}
 	for _, tc := range testCases {

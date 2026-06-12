@@ -149,7 +149,16 @@ func toValue(val reflect.Value, tagName string) (result starlark.Value, err erro
 			if val.IsNil() {
 				return starlark.None, nil
 			}
-			return toValue(val.Elem(), tagName)
+			if uv, err := toValue(val.Elem(), tagName); err == nil {
+				return uv, nil
+			}
+			// the dynamic value has no Starlark form (e.g. a chan, or a
+			// collection with an unsupported element type) — fall back to
+			// the opaque wrapper instead of erroring: the static pre-check
+			// cannot see through interface{}, and this error would
+			// otherwise surface inside methods that cannot return errors
+			// (Items, Index, iterators) and escape as a panic
+			return &GoInterface{v: val, tag: tagName}, nil
 		}
 		return &GoInterface{v: val, tag: tagName}, nil
 	case reflect.Invalid:
