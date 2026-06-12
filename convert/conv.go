@@ -1105,7 +1105,7 @@ func checkedConvert(val reflect.Value, t reflect.Type) (reflect.Value, error) {
 				return reflect.Value{}, fmt.Errorf("value %v out of range for type %s", f, t)
 			}
 		}
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
 		switch val.Kind() {
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 			i := val.Int()
