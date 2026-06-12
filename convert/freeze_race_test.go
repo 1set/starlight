@@ -156,3 +156,88 @@ func TestFromListCycle(t *testing.T) {
 		t.Fatalf("expected cyclic reference to convert to a nil slice, got %#v", got[1])
 	}
 }
+
+// TestFromDictCycle verifies a self-referential dict converts its cyclic
+// reference to nil instead of recursing forever. The package-level
+// recursion detector this used to rely on was replaced (#43) by a visited
+// set threaded through fromValue/fromDict; this and TestFromListCycle /
+// TestCrossCollectionCycle are the black-box coverage for that protection
+// (the old white-box recursionDetector unit test was removed with it).
+func TestFromDictCycle(t *testing.T) {
+	d := starlark.NewDict(1)
+	if err := d.SetKey(starlark.String("self"), d); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.SetKey(starlark.String("v"), starlark.MakeInt(1)); err != nil {
+		t.Fatal(err)
+	}
+	got := convert.FromDict(d)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 entries, got %#v", got)
+	}
+	if got["v"] != int64(1) {
+		t.Fatalf("expected v=1, got %#v", got["v"])
+	}
+	if m, ok := got["self"].(map[interface{}]interface{}); !ok || m != nil {
+		t.Fatalf("expected self-reference to convert to a nil map, got %#v", got["self"])
+	}
+}
+
+// TestCrossCollectionCycle verifies a cycle spanning multiple collection
+// kinds (list -> dict -> back to list) is broken at the revisit, not
+// followed into a stack overflow.
+func TestCrossCollectionCycle(t *testing.T) {
+	l := starlark.NewList(nil)
+	d := starlark.NewDict(1)
+	if err := d.SetKey(starlark.String("back"), l); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Append(starlark.MakeInt(1)); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Append(d); err != nil {
+		t.Fatal(err)
+	}
+	got := convert.FromList(l)
+	if len(got) != 2 || got[0] != int64(1) {
+		t.Fatalf("expected [1, {back:nil}], got %#v", got)
+	}
+	inner, ok := got[1].(map[interface{}]interface{})
+	if !ok {
+		t.Fatalf("expected inner dict, got %#v", got[1])
+	}
+	// the back-reference to the outer list is broken (nil), no stack overflow
+	if s, ok := inner["back"].([]interface{}); !ok || s != nil {
+		t.Fatalf("expected back-reference to convert to nil slice, got %#v", inner["back"])
+	}
+}
+
+// TestDeepNestingNoStackOverflow verifies very deep (but acyclic) nesting
+// converts without overflowing the stack — the visited set keys on the
+// pointers actually on the current path, so depth alone is fine.
+func TestDeepNestingNoStackOverflow(t *testing.T) {
+	const depth = 2000
+	cur := starlark.NewList(nil)
+	root := cur
+	for i := 0; i < depth; i++ {
+		next := starlark.NewList(nil)
+		if err := cur.Append(next); err != nil {
+			t.Fatal(err)
+		}
+		cur = next
+	}
+	got := convert.FromList(root)
+	// walk down to confirm it materialized fully
+	n := 0
+	for len(got) == 1 {
+		nxt, ok := got[0].([]interface{})
+		if !ok {
+			break
+		}
+		got = nxt
+		n++
+	}
+	if n != depth {
+		t.Fatalf("expected to walk %d levels, got %d", depth, n)
+	}
+}
