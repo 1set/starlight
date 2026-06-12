@@ -23,6 +23,28 @@ docker run --rm -v "$PWD":/src -v "$HOME/go/pkg/mod":/go/pkg/mod -w /src golang:
 
 CI (`.github/workflows/build.yml`): Go `1.19.x`/`1.25.x` × ubuntu-22.04 / macos-14 / windows-2022, plus CodeQL and the Codecov/Codacy coverage gate. The gate is the `codecov/project`+`codecov/patch` commit statuses, not the upload step (its `continue-on-error` only tolerates upload outages).
 
+## Downstream compatibility — a release gate
+
+starlight is the L1 foundation; `starlet` (via `dataconv`), `starbox`, and the `starpkg/*` modules all depend on it. A change can be locally green yet break a consumer. **Before tagging a release, run the two-leg matrix** — for each downstream (at least `starlet`, then `starbox` / `starpkg/base` / `starpkg/sqlite`):
+
+```bash
+# clone the downstream fresh to /tmp, then:
+#  baseline leg — its existing pins:
+docker run --rm -v <dst>:/src -v $HOME/go/pkg/mod:/go/pkg/mod -w /src golang:1.19 sh -c 'go build ./... && go test ./...'
+#  upgrade leg — point it at this starlight and re-tidy:
+( cd <dst> && go mod edit -replace github.com/1set/starlight=<this-repo> )
+docker run --rm -v <dst>:/src -v <this-repo>:/starlight-new -v $HOME/go/pkg/mod:/go/pkg/mod -w /src golang:1.19 \
+  sh -c 'go mod tidy && go build ./... && go test ./...'
+```
+
+Only failures that appear in the **upgrade leg but not the baseline** are regressions. Known pre-existing (not regressions): `starlet` `lib/file`/`lib/path` (need `/etc/sudoers` / a permission barrier absent under Docker-root); `starcli` build (goldmark needs go1.22). The replace also bumps `go.starlark.net` transitively via MVS — L0-caused breaks count too, and predict what the downstream's own pin-upgrade will face. `dataconv`/`dataconv/types` are the most load-bearing consumers — they must stay green.
+
+The `.star` module-test corpus lives at `starpkg/test/` (run via each module's harness, not from here).
+
+## Golden end-to-end tests
+
+`testdata/golden/*.star` are classic scripts run through the real interpreter (see `starlight_features_test.go` section 3): they exercise deterministic order, empty-interface unwrapping, tuple/big-int keys, `str()` safety, and the compiled dialect. Add a script there (and a `checks` map) when a fix has script-observable behavior — it's the cheapest end-to-end regression layer.
+
 ## Architecture
 
 Everything is the `convert` package's bidirectional bridge:

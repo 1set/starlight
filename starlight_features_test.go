@@ -12,6 +12,8 @@ import (
 //   1. Dialect: no global resolve.* mutation on import; set/lambda/float/
 //      bitwise/nested-def work; cache compile paths
 //   2. WithGlobals constructor (load()-module globals)
+//   3. Golden end-to-end .star scripts (testdata/golden/*.star) that exercise
+//      the conversion behaviors through the real interpreter
 
 // Importing starlight (and, transitively, convert) must not mutate any
 // process-global state: the dialect is passed explicitly to every
@@ -144,5 +146,85 @@ func TestWithGlobalsNoDirs(t *testing.T) {
 func TestWithGlobalsConvertError(t *testing.T) {
 	if _, err := WithGlobals(map[string]interface{}{"bad": make(chan int)}, t.TempDir()); err == nil {
 		t.Fatal("expected conversion error for an unsupported global type")
+	}
+}
+
+// ---- Section 3: golden end-to-end .star scripts ----
+
+// runGolden reads testdata/golden/<file>.star, runs it through Eval with the
+// given globals, and returns the resulting global namespace. A script error
+// fails the test (the scripts self-check via their out_* globals, asserted
+// by the caller).
+func runGolden(t *testing.T, file string, globals map[string]interface{}) map[string]interface{} {
+	t.Helper()
+	src, err := os.ReadFile(filepath.Join("testdata", "golden", file))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := Eval(src, globals, nil)
+	if err != nil {
+		t.Fatalf("%s: %v", file, err)
+	}
+	return res
+}
+
+// TestGoldenConversion runs testdata/golden/conversion.star against real Go
+// values and asserts the conversion behaviors hold end-to-end (deterministic
+// order, empty-interface unwrapping, tuple/big-int keys, str safety).
+func TestGoldenConversion(t *testing.T) {
+	pairs := map[interface{}]interface{}{}
+	globals := map[string]interface{}{
+		"nums": map[string]int{"c": 3, "a": 1, "b": 2, "e": 5, "d": 4},
+		"mixed": map[string]interface{}{
+			"a": 1, "b": 2, "inner": map[string]interface{}{"x": 42},
+		},
+		"pairs": pairs,
+	}
+	// seed the wrapped map with a tuple key and a big-int key via a setup script
+	setup, err := Eval([]byte(`
+p[(1, "a")] = "tuple-value"
+p[1 << 70] = "bigint-value"
+`), map[string]interface{}{"p": pairs}, nil)
+	_ = setup
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	res := runGolden(t, "conversion.star", globals)
+	checks := map[string]interface{}{
+		"out_keys_sorted":     true,
+		"out_keys_match_iter": true,
+		"out_items_match":     true,
+		"out_sum":             int64(3),
+		"out_a_type":          "int",
+		"out_eq":              true,
+		"out_nested":          int64(42),
+		"out_tuple_key":       "tuple-value",
+		"out_bigint_key":      "bigint-value",
+		"out_str_ok":          true,
+	}
+	for k, want := range checks {
+		if res[k] != want {
+			t.Errorf("conversion.star %s = %#v, want %#v", k, res[k], want)
+		}
+	}
+}
+
+// TestGoldenDialect runs testdata/golden/dialect.star to confirm the compiled
+// dialect (set/lambda/float/bitwise/nested-def) works through the explicit
+// FileOptions, with no globals supplied.
+func TestGoldenDialect(t *testing.T) {
+	res := runGolden(t, "dialect.star", nil)
+	checks := map[string]interface{}{
+		"out_set_len": int64(3),
+		"out_lambda":  int64(42),
+		"out_float":   float64(3),
+		"out_bitwise": int64(2),
+		"out_nested":  int64(7),
+	}
+	for k, want := range checks {
+		if res[k] != want {
+			t.Errorf("dialect.star %s = %#v, want %#v", k, res[k], want)
+		}
 	}
 }
