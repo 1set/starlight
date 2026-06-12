@@ -125,6 +125,59 @@ func TestFromDictBytesKey(t *testing.T) {
 	}
 }
 
+// TestGoMapBigIntKey verifies a Starlark int too large for int64/uint64
+// (which FromValue yields as a *big.Int) works as a Go map key. *big.Int is
+// comparable in Go but only by pointer identity, so without canonicalizing
+// the key, the same large int written and read back produced two different
+// pointers — the value was stored but could never be retrieved.
+func TestGoMapBigIntKey(t *testing.T) {
+	m := map[interface{}]interface{}{}
+	globals := map[string]interface{}{
+		"assert": &assert{t: t},
+		"m":      m,
+	}
+	code := []byte(`
+k = 1 << 70
+m[k] = "a"
+assert.Eq(m[k], "a")
+assert.Eq(k in m, True)
+assert.Eq(len(m), 1)
+# a second equal big int finds the same entry, not a new one
+m[1 << 70] = "b"
+assert.Eq(m[k], "b")
+assert.Eq(len(m), 1)
+`)
+	if _, err := starlight.Eval(code, globals, nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestFromDictBigIntKey verifies FromDict gives equal large-int keys a
+// single, value-stable Go key (distinct from a different large int).
+func TestFromDictBigIntKey(t *testing.T) {
+	d := starlark.NewDict(2)
+	big1 := starlark.MakeInt64(1).Lsh(70)
+	big2 := starlark.MakeInt64(1).Lsh(80)
+	if err := d.SetKey(big1, starlark.String("a")); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.SetKey(big2, starlark.String("b")); err != nil {
+		t.Fatal(err)
+	}
+	got := convert.FromDict(d)
+	if len(got) != 2 {
+		t.Fatalf("expected two distinct big-int keys, got %#v", got)
+	}
+	// the two equal-value keys must collapse to one comparable Go key
+	k1, err := convert.TryFromDict(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(k1) != 2 {
+		t.Fatalf("expected two keys via TryFromDict, got %#v", k1)
+	}
+}
+
 // TestFromSetTupleElem verifies FromSet converts tuple elements to
 // comparable arrays instead of panicking.
 func TestFromSetTupleElem(t *testing.T) {

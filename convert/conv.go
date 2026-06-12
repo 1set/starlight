@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"reflect"
 	"runtime/debug"
 	"time"
@@ -172,12 +173,9 @@ func toValue(val reflect.Value, tagName string) (result starlark.Value, err erro
 	return nil, fmt.Errorf("type %T is not a supported starlark type", val.Interface())
 }
 
-// elemTypeCheckCache memoizes checkCollectionElemTypes per reflect.Type:
-// collections are wrapped on every element access, but the set of types a
-// process converts is small and fixed, so the cache never grows
-// unboundedly. The stored value is the (possibly nil) error.
-// elemTypeCacheCap bounds elemTypeCheckCache. Real hosts convert a small,
-// fixed set of declared collection types; the cap is the ceiling that keeps
+// elemTypeCacheCap bounds elemTypeCheckCache. checkCollectionElemTypes is
+// run on every collection wrap; real hosts convert a small, fixed set of
+// declared collection types, and the cap is the ceiling that keeps
 // script-minted array key types (see boundedTypeCache) from pinning
 // unbounded memory.
 const elemTypeCacheCap = 4096
@@ -432,14 +430,27 @@ func makeDictTag(val reflect.Value, tagName string) (starlark.Value, error) {
 	return dict, nil
 }
 
+// bigIntKey is the comparable, value-stable Go map key form of a
+// starlark.Int too large for int64/uint64. FromValue yields such ints as
+// *big.Int, which is comparable only by pointer identity — so two equal
+// large ints would become two distinct map keys. Wrapping the decimal
+// string in a named struct keeps the key value-stable and distinct from a
+// plain string key of the same text (mirroring how bytes keys stay
+// distinct from string keys).
+type bigIntKey struct{ s string }
+
 // hashableGoValue converts a Starlark value into a Go value whose dynamic
-// type is comparable, so it is safe to use as a Go map key. It matches
-// FromValue except for the types whose natural Go form is not comparable:
+// type is comparable AND compares by value, so it is safe and correct as a
+// Go map key. It matches FromValue except for the types whose natural Go
+// form is unsuitable as a key:
 //
 //   - starlark.Tuple becomes a fixed-size [N]interface{} array (elements are
 //     converted recursively), so equal tuples stay equal as map keys;
 //   - starlark.Bytes becomes a fixed-size [N]byte array, which keeps bytes
-//     keys distinct from equal string keys.
+//     keys distinct from equal string keys;
+//   - a large starlark.Int (FromValue's *big.Int, comparable only by
+//     pointer identity) becomes a bigIntKey, so equal large ints map to the
+//     same Go key.
 //
 // It returns an error for values with no comparable Go form (e.g. dicts,
 // lists, sets, or custom values that convert to non-comparable Go types);
@@ -467,6 +478,9 @@ func hashableGoValue(v starlark.Value) (interface{}, error) {
 	g := FromValue(v)
 	if g == nil {
 		return nil, nil
+	}
+	if bi, ok := g.(*big.Int); ok {
+		return bigIntKey{s: bi.String()}, nil
 	}
 	if !reflect.TypeOf(g).Comparable() {
 		return nil, fmt.Errorf("value of type %s converts to Go type %T which is not hashable", v.Type(), g)
