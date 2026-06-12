@@ -5,6 +5,7 @@ import (
 	"math"
 	"reflect"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -131,6 +132,11 @@ func decorateKey(v reflect.Value) sortableKey {
 		}
 		u = u.Elem()
 	}
+	// unwrap pointers so a *scalar key classifies and sorts by its pointee
+	// value, not by its (run-varying) address
+	for u.Kind() == reflect.Ptr && !u.IsNil() {
+		u = u.Elem()
+	}
 	switch u.Kind() {
 	case reflect.Bool:
 		k.rank = 1
@@ -150,10 +156,67 @@ func decorateKey(v reflect.Value) sortableKey {
 		k.rank = 5
 		k.s = u.String()
 	default:
+		// composite or pointer-bearing keys: render address-free so equal
+		// values produce equal sort keys (fmt.Sprint would leak addresses)
 		k.rank = 6
-		k.s = fmt.Sprint(u.Interface())
+		k.s = stableKeyString(u)
 	}
 	return k
+}
+
+// stableKeyString renders a map key to an address-free, value-stable string
+// for deterministic sorting. It reads values through reflect accessors (so
+// it works on unexported struct fields) and renders pointers by their
+// pointee, never by address. Slices/maps/funcs cannot be map keys, so they
+// do not appear here; channels (comparable by identity) render as a kind
+// marker.
+func stableKeyString(v reflect.Value) string {
+	var b strings.Builder
+	writeStableKey(&b, v)
+	return b.String()
+}
+
+func writeStableKey(b *strings.Builder, v reflect.Value) {
+	switch v.Kind() {
+	case reflect.Bool:
+		fmt.Fprintf(b, "%t", v.Bool())
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		fmt.Fprintf(b, "%d", v.Int())
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		fmt.Fprintf(b, "%d", v.Uint())
+	case reflect.Float32, reflect.Float64:
+		fmt.Fprintf(b, "%g", v.Float())
+	case reflect.Complex64, reflect.Complex128:
+		fmt.Fprintf(b, "%v", v.Complex())
+	case reflect.String:
+		b.WriteString(v.String())
+	case reflect.Ptr, reflect.Interface:
+		if v.IsNil() {
+			b.WriteString("<nil>")
+		} else {
+			writeStableKey(b, v.Elem())
+		}
+	case reflect.Struct:
+		b.WriteByte('{')
+		for i := 0; i < v.NumField(); i++ {
+			if i > 0 {
+				b.WriteByte(' ')
+			}
+			writeStableKey(b, v.Field(i))
+		}
+		b.WriteByte('}')
+	case reflect.Array:
+		b.WriteByte('[')
+		for i := 0; i < v.Len(); i++ {
+			if i > 0 {
+				b.WriteByte(' ')
+			}
+			writeStableKey(b, v.Index(i))
+		}
+		b.WriteByte(']')
+	default:
+		fmt.Fprintf(b, "<%s>", v.Kind())
+	}
 }
 
 // sortableKeyLess is the strict weak ordering used by sortedMapKeys. Keys
