@@ -134,3 +134,32 @@ func TestUnsupportedElemType(t *testing.T) {
 		t.Fatal("expected conversion error for chan-valued map global")
 	}
 }
+
+// recursiveMapType is a genuinely recursive Go TYPE definition (its element
+// type is itself), unlike recMap above whose element type is interface{}.
+// It exercises the visited-set guard in checkCollectionElemTypes: without
+// it, the type pre-check would recurse forever on the type graph.
+type recursiveMapType map[string]recursiveMapType
+
+// recursiveSliceType is the slice analogue (element type is itself).
+type recursiveSliceType []recursiveSliceType
+
+// TestRecursiveTypeDefinition verifies the type pre-check terminates on
+// recursive type definitions (the documented purpose of the visited set).
+// A timeout/hang here is the failure mode being guarded against.
+func TestRecursiveTypeDefinition(t *testing.T) {
+	rm := recursiveMapType{"a": recursiveMapType{}}
+	if _, err := convert.ToValue(rm); err != nil {
+		t.Fatalf("recursive map type should convert, got %v", err)
+	}
+	rs := recursiveSliceType{recursiveSliceType{}}
+	if _, err := convert.ToValue(rs); err != nil {
+		t.Fatalf("recursive slice type should convert, got %v", err)
+	}
+	// a recursive type that bottoms out in an unsupported element still
+	// terminates and reports the error rather than hanging
+	type badRec map[string]chan int
+	if _, err := convert.ToValue(badRec{}); err == nil {
+		t.Fatal("expected error for recursive-shaped type with chan element")
+	}
+}
