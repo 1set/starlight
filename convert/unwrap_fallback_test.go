@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/1set/starlight"
+	"github.com/1set/starlight/convert"
 )
 
 // Regression tests for dynamic values the unwrapping cannot convert: after
@@ -90,6 +91,22 @@ t = type(m["inner"])`), globals, nil)
 	}
 	if s, ok := res["t"].(string); !ok || !strings.HasPrefix(s, "starlight_") {
 		t.Fatalf("expected opaque wrapper for nested unsupported collection, got %v", res["t"])
+	}
+}
+
+// TestStaticUnsupportedStillErrors pins the boundary of the degradation:
+// the wrapper fallback applies only to values hidden behind interface{}
+// (unknowable at wrap time). Collections whose static key/element type is
+// unsupported keep failing the conversion up front.
+func TestStaticUnsupportedStillErrors(t *testing.T) {
+	if _, err := convert.MakeDict(map[string]complex128{"b": 3 + 4i}); err == nil {
+		t.Fatal("expected error for statically unsupported value type")
+	}
+	if _, err := convert.MakeDict(map[complex64]string{3i: "b"}); err == nil {
+		t.Fatal("expected error for statically unsupported key type")
+	}
+	if _, err := convert.ToValue(map[string]chan int{}); err == nil {
+		t.Fatal("expected error from the static element pre-check")
 	}
 }
 
