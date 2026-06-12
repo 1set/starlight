@@ -337,6 +337,11 @@ func dict_pop(fnname string, g *GoMap, args starlark.Tuple, _ []starlark.Tuple) 
 }
 
 // https://github.com/google/starlark-go/blob/master/doc/spec.md#dict·popitem
+//
+// Note: the spec's popitem removes the last-inserted item (LIFO), but a Go
+// map has no insertion order to honor. To stay deterministic this pops the
+// smallest key under the same ordering Keys()/Items() use (type rank, then
+// value), not the last-inserted one.
 func dict_popitem(fnname string, g *GoMap, args starlark.Tuple, _ []starlark.Tuple) (starlark.Value, error) {
 	if len(args) > 0 {
 		return nil, fmt.Errorf("%s: wanted 0 args, got %d", fnname, len(args))

@@ -57,8 +57,9 @@ func TestGoStructSelfRefString(t *testing.T) {
 }
 
 // TestScriptStrSelfRef verifies str() in a script cannot crash the host on
-// self-referential values, including the GoInterface wrapping that map
-// element access produces.
+// self-referential values. m["self"] unwraps to the GoMap itself (empty
+// interfaces are unwrapped to their dynamic value), so both str(m) and
+// str(m["self"]) format the cyclic map safely.
 func TestScriptStrSelfRef(t *testing.T) {
 	m := map[string]interface{}{}
 	m["self"] = m
