@@ -252,3 +252,99 @@ func TestConvertElemStarlarkValueBranchReachable(t *testing.T) {
 		t.Fatalf("expected error to mention the custom type, got %v", err)
 	}
 }
+
+// TestToValueTypedNilStarlarkPointer: a typed-nil pointer that satisfies the
+// starlark.Value interface (e.g. (*starlark.List)(nil)) passed the assertion
+// in ToValue and was returned as-is, panicking later when the interpreter
+// dereferenced it. It must become None, like other nil-ish inputs.
+func TestToValueTypedNilStarlarkPointer(t *testing.T) {
+	var l *starlark.List
+	var d *starlark.Dict
+	for _, v := range []interface{}{l, d} {
+		got, err := convert.ToValue(v)
+		if err != nil {
+			t.Fatalf("ToValue(%T) errored: %v", v, err)
+		}
+		if got != starlark.None {
+			t.Fatalf("ToValue(%T nil) = %v, want None", v, got)
+		}
+	}
+}
+
+type boxNilErr struct{}
+
+func (e *boxNilErr) Error() string { return "should-not-raise" }
+
+// TestMakeOutBoxedNilError: a func declaring (T, error) that returns a
+// typed-nil pointer boxed in the error interface (a common Go idiom) must
+// not raise — the boxed nil is "no error".
+func TestMakeOutBoxedNilError(t *testing.T) {
+	globals := map[string]interface{}{
+		"fn": func() (int, error) {
+			var e *boxNilErr // typed nil
+			return 42, e
+		},
+	}
+	res, err := starlight.Eval([]byte(`x = fn()`), globals, nil)
+	if err != nil {
+		t.Fatalf("boxed typed-nil error must not raise, got %v", err)
+	}
+	if res["x"] != int64(42) {
+		t.Fatalf("expected 42, got %v", res["x"])
+	}
+	// a real error still raises
+	globals["fn2"] = func() (int, error) { return 0, &boxNilErr{} }
+	if _, err := starlight.Eval([]byte(`x = fn2()`), globals, nil); err == nil {
+		t.Fatal("a non-nil error should still raise")
+	}
+}
+
+// TestPointerToTimeTime: a *time.Time reached the struct case still as a
+// pointer and was wrapped as a GoStruct instead of the Starlark time type.
+func TestPointerToTimeTime(t *testing.T) {
+	now := time.Date(2026, 6, 12, 1, 2, 3, 0, time.UTC)
+	v, err := convert.ToValue(&now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := v.(startime.Time); !ok {
+		t.Fatalf("expected startime.Time for *time.Time, got %T", v)
+	}
+	globals := map[string]interface{}{
+		"assert": &assert{t: t},
+		"t":      &now,
+	}
+	if _, err := starlight.Eval([]byte(`
+assert.Eq(type(t), "time.time")
+assert.Eq(t.year, 2026)
+`), globals, nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestNewStructNilMessage: NewStruct/NewStructWithTag formatted their panic
+// with val.Interface(), which panics again on a nil (Invalid) arg. The panic
+// must carry a clean "<nil>".
+func TestNewStructNilMessage(t *testing.T) {
+	for _, fn := range []func(){
+		func() { convert.NewStruct(nil) },
+		func() { convert.NewStructWithTag(nil, "tag") },
+	} {
+		func() {
+			defer func() {
+				r := recover()
+				if r == nil {
+					t.Fatal("expected panic for nil arg")
+				}
+				msg := fmt.Sprint(r)
+				if strings.Contains(msg, "zero Value") {
+					t.Fatalf("panic-message formatting itself panicked: %v", r)
+				}
+				if !strings.Contains(msg, "<nil>") {
+					t.Fatalf("expected '<nil>' in panic, got %v", r)
+				}
+			}()
+			fn()
+		}()
+	}
+}
