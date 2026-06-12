@@ -341,6 +341,15 @@ func dict_popitem(fnname string, g *GoMap, args starlark.Tuple, _ []starlark.Tup
 	if len(args) > 0 {
 		return nil, fmt.Errorf("%s: wanted 0 args, got %d", fnname, len(args))
 	}
+	// popitem mutates, so it must honor the same guards as the other
+	// mutators; it calls the internal unguarded g.delete below, so the
+	// checks have to be here (frozen first, matching Delete/pop)
+	if g.frozen {
+		return nil, fmt.Errorf("cannot delete from frozen map")
+	}
+	if atomic.LoadInt32(&g.numIt) > 0 {
+		return nil, fmt.Errorf("cannot delete from map during iteration")
+	}
 	keys := sortedMapKeys(g.v)
 	if len(keys) == 0 {
 		return nil, fmt.Errorf("popitem: empty dict")
