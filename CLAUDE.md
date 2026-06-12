@@ -96,6 +96,20 @@ When you add or edit any type switch: walk it against **both tables above plus t
 - **Changing observable behavior?** Update the test that pins the old behavior and say so in the commit; document any host-visible semantic change in the relevant godoc.
 - Keep godoc accurate — comments here state *why* and the *boundary/fall-through behavior* of a type switch, not what the next line does.
 
+## Test organization — do NOT create one file per feature
+
+Keep the test-file count small. **Do not add a new `*_test.go` file per bugfix, feature, or section** — that is the failure mode to avoid.
+
+- The test files that mirror a Go source file are the canonical homes — `conv_test.go`, `map_test.go`, `slice_test.go`, `struct_test.go`, `interface_test.go`, `value_test.go`, `call_test.go`, `func_test.go`, `extern_test.go`, `util_test.go`. Leave these as-is; add source-shaped tests to the matching one.
+- All other (feature/regression) tests live in a **few** thematic files, grouped by functional goal, each opened with a commented list of its sections:
+  - `keys_test.go` — map-key conversion + deterministic ordering
+  - `conversion_test.go` — value conversion correctness/safety (checked numeric, None, unwrapping, type-mapping edges, typed-nil)
+  - `robustness_test.go` — host never panics + bridge contracts + freeze/concurrency/cycles
+  - `internal_test.go` — white-box (`package convert`) tests of internal helpers (caches, `comparableByValue`, `stableKeyString`, panic sentinel)
+  - `bench_test.go` — benchmarks
+  - root package: `starlight_test.go` (original) and `starlight_features_test.go` (dialect, `WithGlobals`)
+- A new test belongs in the file whose theme it matches — add a **section** (with a header comment), not a new file. Prefer a longer, well-sectioned file over another tiny one. Only create a new test file if a genuinely new functional theme appears.
+
 ## Reply marker
 
 End every reply with the 🌟 emoji to confirm this file was read and is being followed.
