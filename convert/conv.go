@@ -842,6 +842,19 @@ func convertSlice(val reflect.Value, argT reflect.Type) (reflect.Value, error) {
 	for i := 0; i < valLen; i++ {
 		elem := val.Index(i)
 
+		// a None element arrives as a nil interface value; apply the same
+		// policy as scalar arguments before any elem.Elem() access (which
+		// panics on a zero Value)
+		if (elem.Kind() == reflect.Interface || elem.Kind() == reflect.Ptr) && elem.IsNil() {
+			switch argElem.Kind() {
+			case reflect.Ptr, reflect.Slice, reflect.Map, reflect.Interface, reflect.Func:
+				// the zero element is already the nil of the target type
+				continue
+			default:
+				return reflect.Value{}, fmt.Errorf("slice element %d: value of type None cannot be converted to non-nullable type %s", i, argElem)
+			}
+		}
+
 		if elem.Type().AssignableTo(argElem) {
 			newSlice.Index(i).Set(elem)
 		} else if elem.Type().ConvertibleTo(argElem) {
@@ -892,7 +905,14 @@ func convertElemValue(val reflect.Value, targetType reflect.Type) (reflect.Value
 		return checkedConvert(val, targetType)
 	} else if val.Kind() == reflect.Ptr || val.Kind() == reflect.Interface {
 		if val.IsNil() {
-			return reflect.Value{}, fmt.Errorf("nil value cannot be converted to type %v", targetType)
+			// same None policy as the other entry points: nullable target
+			// types accept it as their zero value
+			switch targetType.Kind() {
+			case reflect.Ptr, reflect.Slice, reflect.Map, reflect.Interface, reflect.Func:
+				return reflect.Zero(targetType), nil
+			default:
+				return reflect.Value{}, fmt.Errorf("value of type None cannot be converted to non-nullable type %s", targetType)
+			}
 		}
 		if val.Elem().Type().ConvertibleTo(targetType) {
 			return checkedConvert(val.Elem(), targetType)
