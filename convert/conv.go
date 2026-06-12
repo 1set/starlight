@@ -35,7 +35,7 @@ func (e *PanicError) Error() string {
 // Any starlark.Value is passed through as-is.
 func ToValue(v interface{}) (starlark.Value, error) {
 	if val, ok := v.(starlark.Value); ok {
-		return val, nil
+		return passThroughOrNone(val), nil
 	}
 	return toValue(reflect.ValueOf(v), emptyStr)
 }
@@ -44,9 +44,19 @@ func ToValue(v interface{}) (starlark.Value, error) {
 // It works like ToValue, but also accepts a tag name to use for all nested struct fields.
 func ToValueWithTag(v interface{}, tagName string) (starlark.Value, error) {
 	if val, ok := v.(starlark.Value); ok {
-		return val, nil
+		return passThroughOrNone(val), nil
 	}
 	return toValue(reflect.ValueOf(v), tagName)
+}
+
+// passThroughOrNone returns v unchanged, except a typed-nil pointer that
+// merely satisfies the starlark.Value interface becomes None: returning it
+// as-is would panic later when the interpreter dereferenced it.
+func passThroughOrNone(v starlark.Value) starlark.Value {
+	if rv := reflect.ValueOf(v); rv.Kind() == reflect.Ptr && rv.IsNil() {
+		return starlark.None
+	}
+	return v
 }
 
 func hasMethods(val reflect.Value) bool {
@@ -67,9 +77,10 @@ func toValue(val reflect.Value, tagName string) (result starlark.Value, err erro
 	}()
 
 	if val.IsValid() {
-		if _, ok := val.Interface().(starlark.Value); ok {
-			// let Starlark values pass through, no conversion needed
-			return val.Interface().(starlark.Value), nil
+		if sv, ok := val.Interface().(starlark.Value); ok {
+			// let Starlark values pass through, no conversion needed (a
+			// typed-nil pointer satisfying the interface becomes None)
+			return passThroughOrNone(sv), nil
 		}
 		// time.Duration maps to the standard Starlark time.duration, the
 		// mirror of the FromValue case below; without this it would be
@@ -849,8 +860,17 @@ func makeOut(out []reflect.Value, tagName string) (starlark.Value, error) {
 	if last.Type() == errType || last.Type().Implements(errType) {
 		isNil := false
 		switch last.Kind() {
-		case reflect.Ptr, reflect.Interface, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan:
+		case reflect.Ptr, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan:
 			isNil = last.IsNil()
+		case reflect.Interface:
+			// a nil interface is "no error"; so is a non-nil interface that
+			// boxes a typed-nil pointer (the common func() (T, error) {
+			// return v, nilPtr } idiom) — peel one layer to detect it
+			if last.IsNil() {
+				isNil = true
+			} else if e := last.Elem(); e.Kind() == reflect.Ptr || e.Kind() == reflect.Map || e.Kind() == reflect.Slice || e.Kind() == reflect.Func || e.Kind() == reflect.Chan {
+				isNil = e.IsNil()
+			}
 		}
 		if !isNil {
 			err = last.Interface().(error)
