@@ -144,6 +144,11 @@ func toValue(val reflect.Value, tagName string) (result starlark.Value, err erro
 		// since the opaque wrapper supports no comparison or arithmetic
 		// (m["a"] == 1 was False, m["a"] + 1 failed). Interfaces with
 		// methods keep the wrapper, which exposes those methods.
+		//
+		// Caveat: unwrapping routes the value through Starlark, so a sized
+		// numeric (int16, float32, ...) stored in an interface collection
+		// round-trips through the FromValue ladder and comes back widened
+		// (int64 / float64), not its exact original Go type.
 		if val.Type().NumMethod() == 0 {
 			if val.IsNil() {
 				return starlark.None, nil
@@ -777,7 +782,13 @@ func makeOut(out []reflect.Value, tagName string) (starlark.Value, error) {
 	var err error
 	// the error-return convention matches any type implementing error, not
 	// just the error interface itself: a concrete error type in the last
-	// position used to leak through as a regular value instead of raising
+	// position used to leak through as a regular value instead of raising.
+	//
+	// Edge case: a value (non-pointer) type whose Error() has a value
+	// receiver can never be nil, so the isNil guard below cannot treat its
+	// zero value as "no error" — such a return always raises. Idiomatic Go
+	// errors are pointer/interface types (nilable), so this is rare; use a
+	// nilable error type if a zero-value "no error" sentinel is needed.
 	if last.Type() == errType || last.Type().Implements(errType) {
 		isNil := false
 		switch last.Kind() {

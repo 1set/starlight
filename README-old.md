@@ -81,8 +81,11 @@ script as-is (this is useful if you need custom behavior).
 
 You can pass go functions that the script can call by passing your function in
 with the rest of the globals. Positional args are passed to your function and
-converted to their appropriate go type if possible. Kwargs passed from starlark
-scripts are currently ignored.
+converted to their appropriate go type if possible.
+
+(Note: this fork no longer silently ignores keyword arguments — calling a
+wrapped Go function with a kwarg now raises an "unexpected keyword argument"
+error, since wrapped functions accept positional arguments only.)
 
 ## Caching
 
