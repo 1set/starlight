@@ -38,12 +38,24 @@ func Eval(src interface{}, globals map[string]interface{}, load LoadFunc) (map[s
 	if ok {
 		dict, err = starlark.ExecFileOptions(dialectOptions, thread, filename, nil, dict)
 	} else {
-		dict, err = starlark.ExecFileOptions(dialectOptions, thread, "eval.sky", src, dict)
+		dict, err = execNonFileSource(thread, src, dict)
 	}
 	if err != nil {
 		return nil, err
 	}
 	return convert.FromStringDict(dict), nil
+}
+
+// execNonFileSource runs a non-filename source ([]byte or io.Reader). It
+// recovers panics from the interpreter's source reader — e.g. a host passing
+// a typed-nil io.Reader — and returns them as a clean error.
+func execNonFileSource(thread *starlark.Thread, src interface{}, dict starlark.StringDict) (out starlark.StringDict, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			out, err = nil, fmt.Errorf("starlight: cannot read source: %v", r)
+		}
+	}()
+	return starlark.ExecFileOptions(dialectOptions, thread, "eval.sky", src, dict)
 }
 
 // Cache is a cache of scripts to avoid re-reading files and re-parsing them.
