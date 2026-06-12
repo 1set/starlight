@@ -937,7 +937,9 @@ func convertSlice(val reflect.Value, argT reflect.Type) (reflect.Value, error) {
 				return reflect.Value{}, fmt.Errorf("slice element %d: %v", i, err)
 			}
 			newSlice.Index(i).Set(cv)
-		} else if elem.Elem().Type().ConvertibleTo(argElem) {
+		} else if (elem.Kind() == reflect.Interface || elem.Kind() == reflect.Ptr) && elem.Elem().Type().ConvertibleTo(argElem) {
+			// only unwrap interface/pointer elements; elem.Elem() panics on a
+			// concrete-kind element (e.g. an int8 from a wrapped []int8)
 			cv, err := checkedConvert(elem.Elem(), argElem)
 			if err != nil {
 				return reflect.Value{}, fmt.Errorf("slice element %d: %v", i, err)
@@ -998,50 +1000,18 @@ func convertElemValue(val reflect.Value, targetType reflect.Type) (reflect.Value
 				// reached when a host passes a custom starlark.Value inside a
 				// collection argument (e.g. map[string]interface{}{"k":
 				// myStarlarkValue}) to a typed Go parameter: FromValue leaves
-				// such values as-is, so we unwrap and re-narrow here
-				goVal := FromValue(sv)
-				goVal = convertNumericTypes(goVal, targetType)
-				if reflect.TypeOf(goVal) != targetType {
-					return reflect.Value{}, fmt.Errorf("expected type %v got %v", targetType, reflect.TypeOf(goVal))
+				// such values as-is, so we unwrap and re-narrow here. Route
+				// through checkedConvert so out-of-range narrowing errors
+				// instead of silently wrapping around.
+				gv := reflect.ValueOf(FromValue(sv))
+				if !gv.IsValid() {
+					return reflect.Value{}, fmt.Errorf("nil value cannot be converted to type %v", targetType)
 				}
-				return reflect.ValueOf(goVal), nil
+				return checkedConvert(gv, targetType)
 			}
 		}
 	}
 	return reflect.Value{}, fmt.Errorf("expected type %v got %v", targetType, val.Type())
-}
-
-func convertNumericTypes(value interface{}, targetType reflect.Type) interface{} {
-	// If the value is an integer, convert it to the appropriate integer type.
-	switch st := value.(type) {
-	case int64:
-		switch targetType.Kind() {
-		case reflect.Int:
-			return int(st)
-		case reflect.Int32:
-			return int32(st)
-		case reflect.Int16:
-			return int16(st)
-		case reflect.Int8:
-			return int8(st)
-		case reflect.Uint:
-			return uint(st)
-		case reflect.Uint64:
-			return uint64(st)
-		case reflect.Uint32:
-			return uint32(st)
-		case reflect.Uint16:
-			return uint16(st)
-		case reflect.Uint8:
-			return uint8(st)
-		}
-	// If the value is a float, convert it to the appropriate float type.
-	case float64:
-		if targetType.Kind() == reflect.Float32 {
-			return float32(st)
-		}
-	}
-	return value
 }
 
 // tryConv tries to convert starlark.Value v to Go t if v is not assignable to t.
