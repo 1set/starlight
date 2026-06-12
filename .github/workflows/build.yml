@@ -41,13 +41,15 @@ jobs:
           cache: true
       - name: Go Build
         run: |
-          export
-          git status
           go version
           go mod download
       - name: Test
         run: |
           go test -v -race -cover -covermode=atomic -coverprofile=coverage.txt -count 1 ./...
+      # The coverage GATE is the codecov/project and codecov/patch commit
+      # statuses set by the Codecov app after this upload; continue-on-error
+      # here only tolerates upload-channel outages, it does not bypass the
+      # gate.
       - name: Upload Coverage Reports to Codecov
         if: ${{ fromJSON(env.CI_REPORT) }}
         continue-on-error: true
