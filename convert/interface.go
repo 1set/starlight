@@ -136,8 +136,11 @@ func (g *GoInterface) Truth() starlark.Bool {
 		return g.v.Float() != 0
 	case reflect.String:
 		return g.v.String() != ""
+	case reflect.Chan, reflect.Map, reflect.Func, reflect.Slice, reflect.Interface:
+		// nilable kinds: a nil value is falsy, like the Ptr case above
+		return starlark.Bool(!g.v.IsNil())
 	}
-	// otherwise... I dunno man, sure.
+	// otherwise: assume truthy (e.g. structs, arrays, complex)
 	return true
 }
 
@@ -162,7 +165,7 @@ func (g *GoInterface) ToInt() (int64, error) {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return v.Int(), nil
 	}
-	return 0, fmt.Errorf("can't convert type %T to int64", v.Interface())
+	return 0, fmt.Errorf("can't convert type %s to int64", g.v.Type())
 }
 
 // ToBool converts the interface value into a starlark bool.  This will fail if
@@ -176,7 +179,7 @@ func (g *GoInterface) ToBool() (bool, error) {
 	case reflect.Bool:
 		return v.Bool(), nil
 	}
-	return false, fmt.Errorf("can't convert type %T to bool", v.Interface())
+	return false, fmt.Errorf("can't convert type %s to bool", g.v.Type())
 }
 
 // ToUint converts the interface value into a starlark int.  This will fail if
@@ -190,7 +193,7 @@ func (g *GoInterface) ToUint() (uint64, error) {
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		return v.Uint(), nil
 	}
-	return 0, fmt.Errorf("can't convert type %T to uint64", v.Interface())
+	return 0, fmt.Errorf("can't convert type %s to uint64", g.v.Type())
 }
 
 // ToString converts the interface value into a starlark string.  This will fail if
