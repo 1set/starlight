@@ -3,6 +3,7 @@ package starlight
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -14,6 +15,7 @@ import (
 //   2. WithGlobals constructor (load()-module globals)
 //   3. Golden end-to-end .star scripts (testdata/golden/*.star) that exercise
 //      the conversion behaviors through the real interpreter
+//   4. Cache-key isolation by predeclared name set
 
 // Importing starlight (and, transitively, convert) must not mutate any
 // process-global state: the dialect is passed explicitly to every
@@ -226,5 +228,52 @@ func TestGoldenDialect(t *testing.T) {
 		if res[k] != want {
 			t.Errorf("dialect.star %s = %#v, want %#v", k, res[k], want)
 		}
+	}
+}
+
+// ---- Section 4: cache-key isolation by predeclared name set ----
+
+// TestCachePredeclaredNameSet pins the compiled-program cache key to the
+// predeclared name set, not the filename alone. The same file run first with
+// a global and then without it must recompile cleanly instead of reusing a
+// program that resolved the name as predeclared — which failed at run time
+// with "internal error: predeclared variable x is uninitialized".
+func TestCachePredeclaredNameSet(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "p.star"), []byte("out = x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c := New(dir)
+
+	res, err := c.Run("p.star", map[string]interface{}{"x": 1})
+	if err != nil {
+		t.Fatalf("first run: %v", err)
+	}
+	if res["out"] != int64(1) {
+		t.Fatalf("first run out = %v (%T), want 1", res["out"], res["out"])
+	}
+
+	// Same file, but x is no longer a predeclared name. The old filename-only
+	// key reused the stale program and failed with an internal error; now it
+	// recompiles and reports the honest resolve error.
+	_, err = c.Run("p.star", nil)
+	if err == nil {
+		t.Fatal("second run with no globals: expected an error, got nil")
+	}
+	if strings.Contains(err.Error(), "internal error") {
+		t.Fatalf("second run leaked a stale-program internal error: %v", err)
+	}
+	if !strings.Contains(err.Error(), "undefined: x") {
+		t.Fatalf("second run error = %q, want an 'undefined: x' resolve error", err)
+	}
+
+	// Re-running with the global again must still work (its own cached
+	// program for that name set).
+	res, err = c.Run("p.star", map[string]interface{}{"x": 5})
+	if err != nil {
+		t.Fatalf("third run: %v", err)
+	}
+	if res["out"] != int64(5) {
+		t.Fatalf("third run out = %v, want 5", res["out"])
 	}
 }

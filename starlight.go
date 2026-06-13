@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 
 	"github.com/1set/starlight/convert"
@@ -126,8 +128,9 @@ func (c *Cache) Run(filename string, globals map[string]interface{}) (map[string
 	if err != nil {
 		return nil, err
 	}
+	key := scriptCacheKey(filename, dict)
 	c.mu.Lock()
-	if p, ok := c.scripts[filename]; ok {
+	if p, ok := c.scripts[key]; ok {
 		c.mu.Unlock()
 		return run(p, globals, c.Load)
 	}
@@ -142,9 +145,27 @@ func (c *Cache) Run(filename string, globals map[string]interface{}) (map[string
 		return nil, err
 	}
 	c.mu.Lock()
-	c.scripts[filename] = p
+	c.scripts[key] = p
 	c.mu.Unlock()
 	return run(p, globals, c.Load)
+}
+
+// scriptCacheKey composes the key under which a compiled program is cached.
+// Compilation resolves each identifier as predeclared vs global via the
+// predeclared name set (dict.Has), so the same file compiled under a
+// different set of global names is a different program: keying on the
+// filename alone returned a stale program that failed at run time with
+// "internal error: predeclared variable X is uninitialized" — or silently
+// reused a program resolved under the wrong name set. The dialect is fixed
+// (dialectOptions) for every compile here, so only the filename and the
+// sorted predeclared names need to participate.
+func scriptCacheKey(filename string, dict starlark.StringDict) string {
+	names := make([]string, 0, len(dict))
+	for n := range dict {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return filename + "\x00" + strings.Join(names, "\x00")
 }
 
 // Load loads a module using the cache's configured directories.
@@ -178,6 +199,15 @@ func (c *Cache) Reset() {
 func (c *Cache) Forget(filename string) {
 	c.mu.Lock()
 	c.cache.remove(filename)
-	delete(c.scripts, filename)
+	// Run keys c.scripts by filename + predeclared name set (see
+	// scriptCacheKey), so a single file may have several entries — one per
+	// distinct global-name set it was run under. Every such key begins with
+	// "filename\x00"; drop them all.
+	prefix := filename + "\x00"
+	for k := range c.scripts {
+		if strings.HasPrefix(k, prefix) {
+			delete(c.scripts, k)
+		}
+	}
 	c.mu.Unlock()
 }
