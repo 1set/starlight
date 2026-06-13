@@ -31,11 +31,19 @@ var (
 )
 
 // NewGoMap wraps the given map m in a new GoMap.
-// This function will panic if m is nil or not a map.
+// This function will panic if m is nil or not a map, or if its key or element
+// type cannot be converted to Starlark (e.g. a chan or complex element) — the
+// same static check ToValue applies. Without it the wrapper constructs fine
+// but later panics inside Items/Keys/iteration, which cannot return an error;
+// rejecting at construction keeps those methods panic-free (invariant: methods
+// that can't return errors must never reach panic).
 func NewGoMap(m interface{}) *GoMap {
 	v := reflect.ValueOf(m)
 	if v.Kind() != reflect.Map {
 		panic(fmt.Errorf("NewGoMap expects a map, but got %T", m))
+	}
+	if err := checkCollectionElemTypesCached(v.Type()); err != nil {
+		panic(err)
 	}
 	return &GoMap{v: v}
 }

@@ -29,11 +29,19 @@ type GoSlice struct {
 
 // NewGoSlice wraps the given slice or array in a new GoSlice; arrays are
 // copied into a slice (see the GoSlice doc).
-// This function will panic if the argument is not a slice nor an array.
+// This function will panic if the argument is not a slice nor an array, or if
+// its element type cannot be converted to Starlark (e.g. a chan or complex
+// element) — the same static check ToValue applies. Without it the wrapper
+// constructs fine but later panics inside Index/iteration, which cannot return
+// an error; rejecting at construction keeps those methods panic-free
+// (invariant: methods that can't return errors must never reach panic).
 func NewGoSlice(slice interface{}) *GoSlice {
 	v := reflect.ValueOf(slice)
 	if v.Kind() != reflect.Slice && v.Kind() != reflect.Array {
 		panic(fmt.Errorf("NewGoSlice expects a slice or array, but got %T", slice))
+	}
+	if err := checkCollectionElemTypesCached(v.Type()); err != nil {
+		panic(err)
 	}
 	return &GoSlice{v: arrayToSlice(v)}
 }
