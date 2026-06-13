@@ -177,7 +177,20 @@ func (c *Cache) readFile(filename string) ([]byte, error) {
 	var err error
 	var b []byte
 	for _, d := range c.dirs {
-		b, err = ioutil.ReadFile(filepath.Join(d, filename))
+		full := filepath.Join(d, filename)
+		// Containment: filepath.Join cleans embedded ".." segments, so a
+		// script-controlled name like "../secret.star" (Run and the load()
+		// path both reach here) can resolve above d and read a sibling or
+		// parent file. Skip any candidate that escapes d; a name that stays
+		// within a *different* configured dir is still served from that one,
+		// and only a name that escapes every dir falls through to not-found.
+		// This is defense in depth — confinement is not a guarantee of New()
+		// (real sandboxing belongs to the host layer), but the search scope
+		// should not silently reach outside the directories it was given.
+		if !withinDir(d, full) {
+			continue
+		}
+		b, err = ioutil.ReadFile(full)
 		if err == nil {
 			return b, nil
 		}
@@ -185,6 +198,17 @@ func (c *Cache) readFile(filename string) ([]byte, error) {
 	// guaranteed to have at least one directory, so there should be at least
 	// not found error here.
 	return nil, fmt.Errorf("cannot find file %q in any of the configured directories %q", filename, c.dirs)
+}
+
+// withinDir reports whether the cleaned path full is dir itself or lives
+// under it. A path that climbs out of dir via ".." (e.g. dir/../secret) is
+// rejected. Both paths are cleaned before comparison.
+func withinDir(dir, full string) bool {
+	rel, err := filepath.Rel(filepath.Clean(dir), filepath.Clean(full))
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // Reset clears all cached scripts.

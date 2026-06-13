@@ -15,7 +15,8 @@ import (
 //   2. WithGlobals constructor (load()-module globals)
 //   3. Golden end-to-end .star scripts (testdata/golden/*.star) that exercise
 //      the conversion behaviors through the real interpreter
-//   4. Cache-key isolation by predeclared name set
+//   4. Cache-key isolation by predeclared name set; readFile path
+//      containment
 
 // Importing starlight (and, transitively, convert) must not mutate any
 // process-global state: the dialect is passed explicitly to every
@@ -275,5 +276,75 @@ func TestCachePredeclaredNameSet(t *testing.T) {
 	}
 	if res["out"] != int64(5) {
 		t.Fatalf("third run out = %v, want 5", res["out"])
+	}
+}
+
+// TestCachePathContainment verifies Run and load() cannot read a file that
+// escapes every configured directory via "..". Confinement is not a promised
+// guarantee of New(), but the directory search must not silently reach a
+// parent or sibling file a script names.
+func TestCachePathContainment(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "secret.star"), []byte("leaked = 42\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	scripts := filepath.Join(root, "scripts")
+	if err := os.MkdirAll(filepath.Join(scripts, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(scripts, "ok.star"), []byte("v = 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(scripts, "sub", "deep.star"), []byte("v = 2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(scripts, "loader.star"),
+		[]byte("load(\"../secret.star\", \"leaked\")\ngot = leaked\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	c := New(scripts)
+
+	// Direct escape via Run must fail (not read the parent's secret.star).
+	if _, err := c.Run("../secret.star", nil); err == nil {
+		t.Fatal("Run('../secret.star') escaped the configured directory")
+	}
+	// Escape via a script's load() must fail too.
+	if _, err := c.Run("loader.star", nil); err == nil {
+		t.Fatal("load('../secret.star') escaped the configured directory")
+	}
+	// Legitimate in-tree access still works, including a subdirectory.
+	if res, err := c.Run("ok.star", nil); err != nil || res["v"] != int64(1) {
+		t.Fatalf("in-tree Run('ok.star') = %v, %v; want v=1", res, err)
+	}
+	if res, err := c.Run("sub/deep.star", nil); err != nil || res["v"] != int64(2) {
+		t.Fatalf("in-tree Run('sub/deep.star') = %v, %v; want v=2", res, err)
+	}
+}
+
+// TestCacheMultiDirSiblingAccess verifies that a "..":-bearing name escaping
+// one configured dir but landing inside another configured dir is still
+// served — only names escaping every dir are rejected.
+func TestCacheMultiDirSiblingAccess(t *testing.T) {
+	root := t.TempDir()
+	a := filepath.Join(root, "a")
+	b := filepath.Join(root, "b")
+	if err := os.MkdirAll(a, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(b, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(b, "x.star"), []byte("v = 7\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c := New(a, b)
+	// "../b/x.star" escapes a but resolves within b, a configured dir.
+	res, err := c.Run("../b/x.star", nil)
+	if err != nil {
+		t.Fatalf("multi-dir sibling access: %v", err)
+	}
+	if res["v"] != int64(7) {
+		t.Fatalf("multi-dir sibling access v = %v, want 7", res["v"])
 	}
 }
