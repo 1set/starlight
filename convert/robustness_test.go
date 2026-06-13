@@ -150,6 +150,59 @@ func TestUnsupportedElemType(t *testing.T) {
 	}
 }
 
+// TestConstructorPrechecksElemTypes verifies the public NewGoMap/NewGoSlice
+// constructors run the same static element-type check ToValue runs, so an
+// unsupported element type panics at construction instead of building a
+// wrapper that panics later inside Items/Keys/Index/iteration — methods that
+// cannot return an error. This closes the gap where the safe ToValue path
+// rejected such collections but the direct constructors did not (invariant:
+// methods that can't return errors must never reach panic).
+func TestConstructorPrechecksElemTypes(t *testing.T) {
+	for _, m := range []interface{}{
+		map[string]chan int{"c": make(chan int)},
+		map[complex128]string{},
+		map[string][]chan int{},
+	} {
+		assertConstructPanics(t, fmt.Sprintf("NewGoMap(%T)", m), func() { convert.NewGoMap(m) })
+	}
+	for _, s := range []interface{}{
+		[]chan int{make(chan int)},
+		[]complex128{1i},
+		[2]chan int{},
+	} {
+		assertConstructPanics(t, fmt.Sprintf("NewGoSlice(%T)", s), func() { convert.NewGoSlice(s) })
+	}
+
+	// Supported element types (including interface{}, checked dynamically)
+	// must still construct without panicking.
+	assertNoConstructPanic(t, "NewGoMap supported", func() {
+		_ = convert.NewGoMap(map[string]interface{}{"a": 1})
+	})
+	assertNoConstructPanic(t, "NewGoSlice supported", func() {
+		_ = convert.NewGoSlice([]interface{}{1, "x"})
+	})
+}
+
+func assertConstructPanics(t *testing.T, what string, fn func()) {
+	t.Helper()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("%s: expected a panic for an unsupported element type, got none", what)
+		}
+	}()
+	fn()
+}
+
+func assertNoConstructPanic(t *testing.T, what string, fn func()) {
+	t.Helper()
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("%s: unexpected panic: %v", what, r)
+		}
+	}()
+	fn()
+}
+
 // recursiveMapType is a genuinely recursive Go TYPE definition (its element
 // type is itself), unlike recMap above whose element type is interface{}.
 // It exercises the visited-set guard in checkCollectionElemTypes: without
