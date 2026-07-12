@@ -230,10 +230,9 @@ type methodInt int
 
 func (m methodInt) Marker() {}
 
-// TestGoInterfaceNilPointerConversions: ToInt/ToBool/ToUint dereferenced a
-// nil pointer to a zero reflect.Value, then formatted the error with
-// v.Interface() — which panics on a zero Value. They must return a clean
-// error (like ToString/ToFloat, which use the reflect.Value directly).
+// TestGoInterfaceNilPointerConversions: every To* dereferences a pointer, so
+// each must return a clean error on a nil typed pointer instead of panicking
+// (a zero reflect.Value's Interface() panics; the error formats g.v.Type()).
 func TestGoInterfaceNilPointerConversions(t *testing.T) {
 	g := convert.MakeGoInterface((*methodInt)(nil))
 	if _, err := g.ToInt(); err == nil {
@@ -244,5 +243,86 @@ func TestGoInterfaceNilPointerConversions(t *testing.T) {
 	}
 	if _, err := g.ToUint(); err == nil {
 		t.Fatal("ToUint on a nil typed pointer should error, not panic")
+	}
+	// ToString/ToFloat now dereference too, so they take the same nil path
+	if _, err := g.ToString(); err == nil {
+		t.Fatal("ToString on a nil typed pointer should error, not panic")
+	}
+	if _, err := g.ToFloat(); err == nil {
+		t.Fatal("ToFloat on a nil typed pointer should error, not panic")
+	}
+}
+
+// TestGoInterfacePointerConversions: ToString/ToFloat rejected a pointer to a
+// string/float while ToInt/ToBool/ToUint dereferenced their pointer variants
+// — an asymmetry. All five now dereference one pointer level.
+func TestGoInterfacePointerConversions(t *testing.T) {
+	name := Name("hi")
+	if got, err := convert.MakeGoInterface(&name).ToString(); err != nil || got != "hi" {
+		t.Errorf(`(*Name).ToString() = %q, %v; want "hi", nil`, got, err)
+	}
+	f := FFloat(2.5)
+	if got, err := convert.MakeGoInterface(&f).ToFloat(); err != nil || got != 2.5 {
+		t.Errorf("(*FFloat).ToFloat() = %v, %v; want 2.5, nil", got, err)
+	}
+	// the error message names the concrete Go type, not "reflect.Value"
+	if _, err := convert.MakeGoInterface(&f).ToString(); err == nil || !strings.Contains(err.Error(), "FFloat") {
+		t.Errorf("ToString on *FFloat should name the type, got %v", err)
+	}
+}
+
+type taggedChild struct {
+	Name string `custom:"nick"`
+}
+
+type childID int
+
+func (childID) Child() taggedChild { return taggedChild{Name: "x"} }
+
+// TestMethodResultPreservesTag: a slice/map/struct child that is a
+// method-bearing named scalar became a GoInterface whose tag was dropped, so
+// a struct returned by one of its methods exposed its fields under the default
+// tag instead of the one the parent used. The tag must flow through both the
+// child wrapper and (after slicing) the sliced copy.
+func TestMethodResultPreservesTag(t *testing.T) {
+	items, err := convert.ToValueWithTag([]childID{1, 2}, "custom")
+	if err != nil {
+		t.Fatal(err)
+	}
+	globals := map[string]interface{}{
+		"assert": &assert{t: t},
+		"items":  items,
+	}
+	code := []byte(`
+assert.Eq(items[0].Child().nick, "x")      # element is a method-bearing scalar
+assert.Eq(items[0:2][0].Child().nick, "x") # tag survives Slice, then the method result
+`)
+	if _, err := starlight.Eval(code, globals, nil); err != nil {
+		t.Fatalf("method result lost the struct-field tag: %v", err)
+	}
+}
+
+type nilSafe struct{}
+
+// Tagged has a pointer receiver but does not dereference it, so it is callable
+// on a nil *nilSafe.
+func (*nilSafe) Tagged() taggedChild { return taggedChild{Name: "y"} }
+
+// TestNilPtrReceiverChildPreservesTag: a nil pointer with a method set still
+// goes through makeGoInterface (hasMethods is true for *T with pointer-receiver
+// methods), so the tag fix must hold for a nil receiver too — a nil-safe method
+// returning a struct exposes its fields under the parent's tag.
+func TestNilPtrReceiverChildPreservesTag(t *testing.T) {
+	items, err := convert.ToValueWithTag([]*nilSafe{nil}, "custom")
+	if err != nil {
+		t.Fatal(err)
+	}
+	globals := map[string]interface{}{
+		"assert": &assert{t: t},
+		"items":  items,
+	}
+	code := []byte(`assert.Eq(items[0].Tagged().nick, "y")`)
+	if _, err := starlight.Eval(code, globals, nil); err != nil {
+		t.Fatalf("nil pointer-receiver child lost the struct-field tag: %v", err)
 	}
 }

@@ -90,7 +90,7 @@ func toValue(val reflect.Value, tagName string) (result starlark.Value, err erro
 		}
 		if hasMethods(val) {
 			// this handles all basic types with methods (numbers, strings, booleans)
-			ifc, ok := makeGoInterface(val)
+			ifc, ok := makeGoInterface(val, tagName)
 			if ok {
 				return ifc, nil
 			}
