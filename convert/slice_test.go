@@ -68,6 +68,33 @@ assert.Eq(abc[2], "c")
 	expectFails(t, tests, globals)
 }
 
+// TestSliceSlicePreservesTag: GoSlice.Slice built new *GoSlice wrappers
+// without carrying over the struct-field tag, so slicing a tagged slice of
+// structs silently dropped the field-name mapping — sub[i].tagField stopped
+// resolving, while GoSlice.Index kept working. Both slice branches (step==1
+// and the stepped loop) must preserve the tag.
+func TestSliceSlicePreservesTag(t *testing.T) {
+	type item struct {
+		Name string `custom:"nick"`
+	}
+	tagged, err := convert.ToValueWithTag([]item{{"a"}, {"b"}, {"c"}, {"d"}}, "custom")
+	if err != nil {
+		t.Fatal(err)
+	}
+	globals := map[string]interface{}{
+		"assert": &assert{t: t},
+		"items":  tagged,
+	}
+	code := []byte(`
+assert.Eq(items[0].nick, "a")        # Index already preserved the tag
+assert.Eq(items[1:3][0].nick, "b")   # step==1 slice branch
+assert.Eq(items[0:4:2][1].nick, "c") # stepped slice branch
+`)
+	if _, err := starlight.Eval(code, globals, nil); err != nil {
+		t.Fatalf("script failed — GoSlice.Slice likely dropped the field tag: %v", err)
+	}
+}
+
 func intSlice(vals []interface{}) ([]int, error) {
 	ret := make([]int, len(vals))
 	for i, v := range vals {

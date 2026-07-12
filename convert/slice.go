@@ -126,18 +126,21 @@ func (g *GoSlice) SetIndex(index int, v starlark.Value) error {
 }
 
 func (g *GoSlice) Slice(start, end, step int) starlark.Value {
-	// python slices are copies, so we don't just use .Slice here
+	// python slices are copies, so we don't just use .Slice here.
+	// carry g.tag onto the copy so element conversion keeps the same
+	// struct-field-name mapping Index uses (dropping it silently changed
+	// how struct elements of the sliced result expose their fields).
 	if step == 1 {
 		cp := reflect.MakeSlice(g.v.Type(), end-start, end-start)
 		reflect.Copy(cp, g.v.Slice(start, end))
-		return &GoSlice{v: cp}
+		return &GoSlice{v: cp, tag: g.tag}
 	}
 	cp := reflect.MakeSlice(g.v.Type(), 0, 0)
 	sign := signOf(step)
 	for i := start; signOf(end-i) == sign; i += step {
 		cp = reflect.Append(cp, g.v.Index(i))
 	}
-	return &GoSlice{v: cp}
+	return &GoSlice{v: cp, tag: g.tag}
 }
 
 func signOf(i int) int {
