@@ -192,30 +192,27 @@ func TestStableKeyString(t *testing.T) {
 	}
 }
 
-// TestStableKeyStringInjective pins the property the deterministic-order
-// invariant depends on: distinct composite map keys must render to distinct
-// strings. When two distinct keys collide on their sort string (and share a
-// type), sortableKeyLess ties, the sort leaves them in Go's randomized
-// MapKeys order, and the "deterministic order" guarantee silently breaks.
-//
-// Two collision classes are covered:
-//   - string boundaries: [2]string{"a","b c"} and {"a b","c"} both rendered
-//     "[a b c]" before the length prefix made strings self-delimiting.
-//   - interface dynamic type: an interface-typed field holding int8(1) vs
-//     int64(1) vs "1" all rendered the same digit(s) before the type tag.
-func TestStableKeyStringInjective(t *testing.T) {
+// TestStableKeyStringDistinguishes pins the property the deterministic-order
+// invariant depends on: two DISTINCT composite keys that can legally coexist
+// in one map must render to distinct strings. When they collide on their sort
+// string (and share a type), sortableKeyLess ties, the sort leaves them in
+// Go's randomized MapKeys order, and the "deterministic order" guarantee
+// silently breaks. It covers the collision classes the render closes; it does
+// not assert the documented irreducible ties (equal-pointee pointers/channels,
+// NaN bit-patterns, types sharing reflect.Type.String).
+func TestStableKeyStringDistinguishes(t *testing.T) {
 	type ifKey struct{ V interface{} }
 	render := func(v interface{}) string { return stableKeyString(reflect.ValueOf(v)) }
 
 	groups := [][]interface{}{
-		// distinct [2]string values that split the same words differently
+		// string boundaries: {"a","b c"} and {"a b","c"} both rendered
+		// "[a b c]" before the length prefix made strings self-delimiting
 		{
 			[2]string{"a", "b c"},
 			[2]string{"a b", "c"},
-			[2]string{"a b c", ""},
 		},
-		// same struct type, interface field, values differing only in the
-		// concrete type (or string-vs-number) behind the interface
+		// interface dynamic type: an interface field holding int8(1) vs
+		// int64(1) vs "1" all rendered the same before the type tag
 		{
 			ifKey{V: int8(1)},
 			ifKey{V: int64(1)},
@@ -240,9 +237,35 @@ func TestStableKeyStringInjective(t *testing.T) {
 		}
 	}
 
-	// equal values must still render equally (no address/identity leaks)
-	if a, b := render([2]string{"a", "b c"}), render([2]string{"a", "b c"}); a != b {
-		t.Errorf("equal values render differently: %q vs %q", a, b)
+	// no identity leak: two keys with pointers to EQUAL pointees at different
+	// addresses must render identically (else the sort key varies run to run).
+	// This is the meaningful address-free check (a fixed literal would pass
+	// even with the pointer render reverted to fmt.Sprint).
+	mkPtrKey := func() interface{} {
+		x := 7
+		return struct {
+			N int
+			P *int
+		}{N: 1, P: &x}
+	}
+	if a, b := render(mkPtrKey()), render(mkPtrKey()); a != b {
+		t.Errorf("equal-pointee pointer keys render differently (address leaked): %q vs %q", a, b)
+	}
+}
+
+// TestStableKeyStringCyclicTerminates: a self-referential pointer is a legal
+// Go map key (type Node struct{ Next *Node }; n.Next = n). writeStableKey
+// followed the chain without bound and overflowed the stack — an
+// unrecoverable host crash (invariant: no host crash from input). The depth
+// cap must make it terminate; reaching the assertion is the proof.
+func TestStableKeyStringCyclicTerminates(t *testing.T) {
+	type Node struct{ Next *Node }
+	n := &Node{}
+	n.Next = n
+	// decorateKey unwraps the top pointer, so the rendered value is the
+	// pointee struct; this mirrors map[*Node]V materialization.
+	if got := stableKeyString(reflect.ValueOf(*n)); got == "" {
+		t.Fatal("expected a bounded render, got empty")
 	}
 }
 

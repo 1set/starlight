@@ -164,27 +164,49 @@ func decorateKey(v reflect.Value) sortableKey {
 	return k
 }
 
+// maxStableKeyDepth bounds writeStableKey's recursion. A legal map key can be
+// a self-referential pointer (type Node struct{ Next *Node }; n.Next = n),
+// which the renderer would otherwise follow forever and overflow the stack
+// (an unrecoverable host crash — invariant: no host panic/crash from input).
+// The cap terminates such keys; any two keys that only differ past the cap
+// tie, which is acceptable for these pathological shapes.
+const maxStableKeyDepth = 100
+
 // stableKeyString renders a map key to an address-free, value-stable string
-// for deterministic sorting. It reads values through reflect accessors (so
-// it works on unexported struct fields) and renders pointers by their
-// pointee, never by address. Slices/maps/funcs cannot be map keys, so they
-// do not appear here; channels (comparable by identity) render as a kind
-// marker.
+// used as the same-rank tie-break in sortedMapKeys. It reads values through
+// reflect accessors (so it works on unexported struct fields) and renders
+// pointers by their pointee, never by address. Slices/maps/funcs cannot be
+// map keys, so they do not appear here; channels (comparable by identity)
+// render as a kind marker.
 //
-// The render is injective: distinct composite keys must produce distinct
-// strings, or they tie in the sort and fall back to Go's randomized MapKeys
-// order — silently breaking the deterministic-order invariant. Two things
-// make it injective: strings are length-prefixed so they are self-delimiting
-// (otherwise [2]string{"a","b c"} and {"a b","c"} both render "[a b c]"),
-// and interface descents are tagged with the dynamic type (otherwise an
-// interface field holding int8(1), int64(1), and "1" all render the same).
+// The render is collision-resistant, not a perfect injection: it separates
+// the practically-distinct composite keys so their order stays deterministic
+// (strings are length-prefixed and self-delimiting, so [2]string{"a","b c"}
+// and {"a b","c"} no longer both render "[a b c]"; interface descents are
+// tagged with the dynamic type so int8(1), int64(1), and "1" differ). Some
+// legal keys still tie deliberately or irreducibly, leaving their relative
+// order unspecified (never crashing, never leaking identity):
+//   - address-free by design: two different pointers/channels to equal values,
+//     and two keys differing only in pointer nil-depth (a nil **T vs a non-nil
+//     **T reaching a nil *T), tie — sorting by address would vary run to run
+//     (the tradeoff kept from #68), and decorateKey unwraps a top-level key's
+//     leading non-nil pointers before this renderer sees them;
+//   - value-indistinguishable: distinct NaN bit-patterns both render "NaN";
+//   - reflect.Type.String is not guaranteed unique across packages, so two
+//     types sharing it (e.g. html/template vs text/template) tag the same —
+//     the same limit the keyTypeName tie-break already carries;
+//   - anything nested past maxStableKeyDepth.
 func stableKeyString(v reflect.Value) string {
 	var b strings.Builder
-	writeStableKey(&b, v)
+	writeStableKey(&b, v, 0)
 	return b.String()
 }
 
-func writeStableKey(b *strings.Builder, v reflect.Value) {
+func writeStableKey(b *strings.Builder, v reflect.Value, depth int) {
+	if depth > maxStableKeyDepth {
+		b.WriteString("<deep>")
+		return
+	}
 	switch v.Kind() {
 	case reflect.Bool:
 		fmt.Fprintf(b, "%t", v.Bool())
@@ -204,10 +226,12 @@ func writeStableKey(b *strings.Builder, v reflect.Value) {
 		fmt.Fprintf(b, "%d:", len(s))
 		b.WriteString(s)
 	case reflect.Ptr:
+		// render by pointee, never by address (deterministic across runs);
+		// depth+1 lets the cap terminate a self-referential pointer key.
 		if v.IsNil() {
 			b.WriteString("<nil>")
 		} else {
-			writeStableKey(b, v.Elem())
+			writeStableKey(b, v.Elem(), depth+1)
 		}
 	case reflect.Interface:
 		if v.IsNil() {
@@ -219,7 +243,7 @@ func writeStableKey(b *strings.Builder, v reflect.Value) {
 			e := v.Elem()
 			b.WriteString(e.Type().String())
 			b.WriteByte(':')
-			writeStableKey(b, e)
+			writeStableKey(b, e, depth+1)
 		}
 	case reflect.Struct:
 		b.WriteByte('{')
@@ -227,7 +251,7 @@ func writeStableKey(b *strings.Builder, v reflect.Value) {
 			if i > 0 {
 				b.WriteByte(' ')
 			}
-			writeStableKey(b, v.Field(i))
+			writeStableKey(b, v.Field(i), depth+1)
 		}
 		b.WriteByte('}')
 	case reflect.Array:
@@ -236,7 +260,7 @@ func writeStableKey(b *strings.Builder, v reflect.Value) {
 			if i > 0 {
 				b.WriteByte(' ')
 			}
-			writeStableKey(b, v.Index(i))
+			writeStableKey(b, v.Index(i), depth+1)
 		}
 		b.WriteByte(']')
 	default:
