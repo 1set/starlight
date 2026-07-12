@@ -217,9 +217,18 @@ x9["a"] = 3
 	_, err = starlight.Eval(code, map[string]interface{}{"x9": v}, nil)
 	expectErr(t, err, `cannot insert into frozen map`)
 
+	// a Starlark list converts element-wise into a []int map value (previously
+	// errored: []interface{} vs []int). See tryConv's composite fallback.
 	code = []byte(`y9["a"] = [1, 2, 3]`)
 	_, err = starlight.Eval(code, globals, nil)
-	expectErr(t, err, `setkey value: value of type []interface {} cannot be converted to type []int`)
+	if err != nil {
+		t.Fatalf("list should convert element-wise to []int on assignment: %v", err)
+	}
+	if m, ok := globals["y9"].(map[string][]int); !ok {
+		t.Fatalf("expected map[string][]int, got %T", globals["y9"])
+	} else if got := m["a"]; len(got) != 3 || got[0] != 1 || got[1] != 2 || got[2] != 3 {
+		t.Fatalf("expected a=[1 2 3], got %v", got)
+	}
 
 	code = []byte(`y9["b"] = None`)
 	_, err = starlight.Eval(code, globals, nil)
@@ -228,8 +237,8 @@ x9["a"] = 3
 	}
 	if m, ok := globals["y9"].(map[string][]int); !ok {
 		t.Fatalf("expected map[string][]int, got %T", globals["y9"])
-	} else if len(m) != 1 {
-		t.Fatalf("expected 1 entry, got %d", len(m))
+	} else if len(m) != 2 { // "a" (converted above) + "b" (None)
+		t.Fatalf("expected 2 entries, got %d", len(m))
 	} else if m["b"] != nil {
 		t.Fatalf("expected nil value, got %v", m["b"])
 	}

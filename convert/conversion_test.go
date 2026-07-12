@@ -229,6 +229,47 @@ func TestCheckedConvertMapSlice(t *testing.T) {
 	}
 }
 
+// TestCompositeCollectionWrites verifies the assignment direction accepts the
+// same composite shapes as the argument direction: assigning a Starlark list
+// into a Go []T element, or a dict into a map[K]V element, converts it
+// element-wise. tryConv routed only through checkedConvert before, so
+// m["k"] = [1,2] on a map[string][]int errored even though fn([1,2]) to a
+// []int parameter worked — an asymmetry between the two directions. The
+// element-level checks still apply through the composite path.
+func TestCompositeCollectionWrites(t *testing.T) {
+	type rec struct{ Tags []string }
+	m := map[string][]int{}
+	mm := map[string]map[string]int{}
+	r := &rec{}
+	nested := [][]int{{0}}
+	globals := map[string]interface{}{
+		"m":      m,
+		"mm":     mm,
+		"r":      r,
+		"nested": nested,
+	}
+	evalOK(t, `m["k"] = [1, 2, 3]`, globals)         // map value: list -> []int
+	evalOK(t, `mm["k"] = {"a": 1, "b": 2}`, globals) // map value: dict -> map[string]int
+	evalOK(t, `r.Tags = ["x", "y"]`, globals)        // struct field: list -> []string
+	evalOK(t, `nested[0] = [9, 8]`, globals)         // slice element: list -> []int
+
+	if got := m["k"]; len(got) != 3 || got[0] != 1 || got[2] != 3 {
+		t.Fatalf("map value not converted: %v", m)
+	}
+	if got := mm["k"]; got["a"] != 1 || got["b"] != 2 {
+		t.Fatalf("map-of-map value not converted: %v", mm)
+	}
+	if len(r.Tags) != 2 || r.Tags[0] != "x" || r.Tags[1] != "y" {
+		t.Fatalf("struct field not converted: %v", r.Tags)
+	}
+	if len(nested[0]) != 2 || nested[0][0] != 9 || nested[0][1] != 8 {
+		t.Fatalf("slice element not converted: %v", nested)
+	}
+
+	// element-level checks still apply through the composite path
+	evalErr(t, `m8["a"] = [1000]`, map[string]interface{}{"m8": map[string][]int8{}}, "out of range")
+}
+
 // TestTryConvIntactForSafeConversions pins behaviors that must not change:
 // identical types, named types, and string/bytes conversions.
 func TestTryConvIntactForSafeConversions(t *testing.T) {

@@ -13,14 +13,19 @@ import (
 // This will panic if the value is nil or the type is not a bool, string, float kind, int kind, or uint kind.
 func MakeGoInterface(v interface{}) *GoInterface {
 	val := reflect.ValueOf(v)
-	ifc, ok := makeGoInterface(val)
+	ifc, ok := makeGoInterface(val, emptyStr)
 	if !ok {
 		panic(fmt.Errorf("value of type %T is not supported by GoInterface", val.Interface()))
 	}
 	return ifc
 }
 
-func makeGoInterface(val reflect.Value) (*GoInterface, bool) {
+// makeGoInterface wraps a method-bearing scalar/pointer in a GoInterface.
+// tagName is the struct-field tag name in effect at the conversion site; it
+// must be carried so a method that returns a struct exposes its fields under
+// the same tag the parent used (dropping it silently reverted the child to
+// the default tag).
+func makeGoInterface(val reflect.Value, tagName string) (*GoInterface, bool) {
 	// we accept pointers to anything except structs, which should go through GoStruct.
 	if val.Kind() == reflect.Ptr && val.Elem().Kind() == reflect.Struct {
 		return nil, false
@@ -32,7 +37,7 @@ func makeGoInterface(val reflect.Value) (*GoInterface, bool) {
 		reflect.Float32, reflect.Float64,
 		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return &GoInterface{v: val}, true
+		return &GoInterface{v: val, tag: tagName}, true
 	}
 	return nil, false
 }
@@ -196,24 +201,30 @@ func (g *GoInterface) ToUint() (uint64, error) {
 	return 0, fmt.Errorf("can't convert type %s to uint64", g.v.Type())
 }
 
-// ToString converts the interface value into a starlark string.  This will fail if
-// the underlying type is not a string (including if the underlying type is a
-// pointer to a string).
+// ToString converts the interface value into a starlark string.  This will fail
+// if the underlying type is not a string or pointer to a string.
 func (g *GoInterface) ToString() (string, error) {
-	switch g.v.Kind() {
-	case reflect.String:
-		return g.v.String(), nil
+	v := g.v
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
 	}
-	return "", fmt.Errorf("can't convert type %T to string", g.v)
+	switch v.Kind() {
+	case reflect.String:
+		return v.String(), nil
+	}
+	return "", fmt.Errorf("can't convert type %s to string", g.v.Type())
 }
 
 // ToFloat converts the interface value into a starlark float.  This will fail
-// if the underlying type is not a float type (including if the underlying type
-// is a pointer to a float).
+// if the underlying type is not a float type or pointer to a float type.
 func (g *GoInterface) ToFloat() (float64, error) {
-	switch g.v.Kind() {
-	case reflect.Float32, reflect.Float64:
-		return g.v.Float(), nil
+	v := g.v
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
 	}
-	return 0, fmt.Errorf("can't convert type %T to float64", g.v)
+	switch v.Kind() {
+	case reflect.Float32, reflect.Float64:
+		return v.Float(), nil
+	}
+	return 0, fmt.Errorf("can't convert type %s to float64", g.v.Type())
 }

@@ -90,7 +90,7 @@ func toValue(val reflect.Value, tagName string) (result starlark.Value, err erro
 		}
 		if hasMethods(val) {
 			// this handles all basic types with methods (numbers, strings, booleans)
-			ifc, ok := makeGoInterface(val)
+			ifc, ok := makeGoInterface(val, tagName)
 			if ok {
 				return ifc, nil
 			}
@@ -1041,6 +1041,13 @@ func convertElemValue(val reflect.Value, targetType reflect.Type) (reflect.Value
 }
 
 // tryConv tries to convert starlark.Value v to Go t if v is not assignable to t.
+// It routes through convertReflectValue so element/key assignment (map SetKey,
+// slice SetIndex/append/insert, struct field set) accepts the same shapes as a
+// typed Go function parameter would: besides the checked scalar conversions, a
+// Starlark list converts to []T and a dict to map[K]V element-wise. Without
+// this, m['k']=[1,2] on a Go map[string][]int (and the like) errored even
+// though the same value passes fine as a function argument — an asymmetry
+// between the two directions.
 func tryConv(v starlark.Value, t reflect.Type) (reflect.Value, error) {
 	if v == starlark.None {
 		switch t.Kind() {
@@ -1051,6 +1058,18 @@ func tryConv(v starlark.Value, t reflect.Type) (reflect.Value, error) {
 		}
 	}
 	out := reflect.ValueOf(FromValue(v))
+	// list -> []T and dict -> map[K]V convert element-wise, the same shapes a
+	// typed Go parameter accepts (convertReflectValue). Take this path only
+	// when a direct checkedConvert would not apply, so scalar conversions keep
+	// their checks and their error messages unchanged.
+	if out.IsValid() && !out.Type().AssignableTo(t) && !out.Type().ConvertibleTo(t) {
+		if out.Kind() == reflect.Slice && t.Kind() == reflect.Slice {
+			return convertSlice(out, t)
+		}
+		if out.Kind() == reflect.Map && t.Kind() == reflect.Map {
+			return convertMap(out, t)
+		}
+	}
 	return checkedConvert(out, t)
 }
 
