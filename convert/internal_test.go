@@ -212,13 +212,15 @@ func TestStableKeyStringDistinguishes(t *testing.T) {
 			[2]string{"a b", "c"},
 		},
 		// interface dynamic type: an interface field holding int8(1) vs
-		// int64(1) vs "1" all rendered the same before the type tag
+		// int64(1) vs "1" all rendered the same before the type tag; a nil
+		// interface renders "<nil>", distinct from any of them
 		{
 			ifKey{V: int8(1)},
 			ifKey{V: int64(1)},
 			ifKey{V: uint8(1)},
 			ifKey{V: "1"},
 			ifKey{V: float64(1)},
+			ifKey{V: nil},
 		},
 		// nested array of strings inside a struct
 		{
