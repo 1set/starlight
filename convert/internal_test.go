@@ -192,6 +192,60 @@ func TestStableKeyString(t *testing.T) {
 	}
 }
 
+// TestStableKeyStringInjective pins the property the deterministic-order
+// invariant depends on: distinct composite map keys must render to distinct
+// strings. When two distinct keys collide on their sort string (and share a
+// type), sortableKeyLess ties, the sort leaves them in Go's randomized
+// MapKeys order, and the "deterministic order" guarantee silently breaks.
+//
+// Two collision classes are covered:
+//   - string boundaries: [2]string{"a","b c"} and {"a b","c"} both rendered
+//     "[a b c]" before the length prefix made strings self-delimiting.
+//   - interface dynamic type: an interface-typed field holding int8(1) vs
+//     int64(1) vs "1" all rendered the same digit(s) before the type tag.
+func TestStableKeyStringInjective(t *testing.T) {
+	type ifKey struct{ V interface{} }
+	render := func(v interface{}) string { return stableKeyString(reflect.ValueOf(v)) }
+
+	groups := [][]interface{}{
+		// distinct [2]string values that split the same words differently
+		{
+			[2]string{"a", "b c"},
+			[2]string{"a b", "c"},
+			[2]string{"a b c", ""},
+		},
+		// same struct type, interface field, values differing only in the
+		// concrete type (or string-vs-number) behind the interface
+		{
+			ifKey{V: int8(1)},
+			ifKey{V: int64(1)},
+			ifKey{V: uint8(1)},
+			ifKey{V: "1"},
+			ifKey{V: float64(1)},
+		},
+		// nested array of strings inside a struct
+		{
+			struct{ A [2]string }{A: [2]string{"x", "y z"}},
+			struct{ A [2]string }{A: [2]string{"x y", "z"}},
+		},
+	}
+	for gi, g := range groups {
+		seen := map[string]int{}
+		for vi, v := range g {
+			s := render(v)
+			if prev, ok := seen[s]; ok {
+				t.Errorf("group %d: values %d and %d render the same key %q (collision breaks deterministic order)", gi, prev, vi, s)
+			}
+			seen[s] = vi
+		}
+	}
+
+	// equal values must still render equally (no address/identity leaks)
+	if a, b := render([2]string{"a", "b c"}), render([2]string{"a", "b c"}); a != b {
+		t.Errorf("equal values render differently: %q vs %q", a, b)
+	}
+}
+
 // TestGoInterfaceTruthNilable: Truth returned a blanket true for kinds it
 // didn't enumerate, so a nil chan/map/func/slice wrapped in a GoInterface
 // reported truthy. Nilable kinds should reflect their nil-ness.

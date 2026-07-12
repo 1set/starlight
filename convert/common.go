@@ -170,6 +170,14 @@ func decorateKey(v reflect.Value) sortableKey {
 // pointee, never by address. Slices/maps/funcs cannot be map keys, so they
 // do not appear here; channels (comparable by identity) render as a kind
 // marker.
+//
+// The render is injective: distinct composite keys must produce distinct
+// strings, or they tie in the sort and fall back to Go's randomized MapKeys
+// order — silently breaking the deterministic-order invariant. Two things
+// make it injective: strings are length-prefixed so they are self-delimiting
+// (otherwise [2]string{"a","b c"} and {"a b","c"} both render "[a b c]"),
+// and interface descents are tagged with the dynamic type (otherwise an
+// interface field holding int8(1), int64(1), and "1" all render the same).
 func stableKeyString(v reflect.Value) string {
 	var b strings.Builder
 	writeStableKey(&b, v)
@@ -189,12 +197,29 @@ func writeStableKey(b *strings.Builder, v reflect.Value) {
 	case reflect.Complex64, reflect.Complex128:
 		fmt.Fprintf(b, "%v", v.Complex())
 	case reflect.String:
-		b.WriteString(v.String())
-	case reflect.Ptr, reflect.Interface:
+		// length-prefix so the string is self-delimiting: without it a space
+		// or brace inside the value shifts the element boundaries and two
+		// distinct composite keys collide on one sort string.
+		s := v.String()
+		fmt.Fprintf(b, "%d:", len(s))
+		b.WriteString(s)
+	case reflect.Ptr:
 		if v.IsNil() {
 			b.WriteString("<nil>")
 		} else {
 			writeStableKey(b, v.Elem())
+		}
+	case reflect.Interface:
+		if v.IsNil() {
+			b.WriteString("<nil>")
+		} else {
+			// tag the dynamic type: an interface-typed field can hold values
+			// of different concrete types that render identically otherwise
+			// (int8(1) vs int64(1) vs "1"), which would collide as keys.
+			e := v.Elem()
+			b.WriteString(e.Type().String())
+			b.WriteByte(':')
+			writeStableKey(b, e)
 		}
 	case reflect.Struct:
 		b.WriteByte('{')

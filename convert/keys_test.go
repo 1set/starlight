@@ -579,3 +579,33 @@ func TestPointerBearingStructKeyDeterministic(t *testing.T) {
 		}
 	}
 }
+
+// TestStringBearingCompositeKeyDeterministic: distinct [2]string keys that
+// split the same words at different boundaries ({"a","b c d"} vs {"a b","c d"}
+// vs {"a b c","d"}) all rendered "[a b c d]" under the space-joined sort key.
+// Colliding sort keys of the same type tie in the sort, leaving the entries
+// in Go's randomized MapKeys order — the deterministic-order guarantee broke
+// for any composite key containing a string. A self-delimiting render keeps
+// the order stable across runs.
+func TestStringBearingCompositeKeyDeterministic(t *testing.T) {
+	mk := func() map[[2]string]string {
+		return map[[2]string]string{
+			{"a", "b c d"}: "x",
+			{"a b", "c d"}: "y",
+			{"a b c", "d"}: "z",
+		}
+	}
+	var want []string
+	for run := 0; run < 40; run++ {
+		got := valueOrder(mk())
+		if run == 0 {
+			want = got
+			continue
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Fatalf("run %d: string-composite-key order changed: %v vs %v", run, got, want)
+			}
+		}
+	}
+}
