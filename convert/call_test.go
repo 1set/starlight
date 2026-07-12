@@ -953,10 +953,17 @@ func TestCustomStructInStarlark(t *testing.T) {
 			checkEqual:  getStringCompare("foo", "tag2"),
 		},
 		{
-			name:        "set slice of string for wrong type", // It fails for []interface{} vs []string
+			// a Starlark list now converts element-wise into a []string field
+			// (previously errored: []interface{} vs []string). See tryConv's
+			// composite fallback.
+			name:        "set slice of string converts element-wise",
 			codeSnippet: `pn.tags = ["foo", "bar"]; out = pn`,
-			checkEqual:  noCheck,
-			wantErrExec: true,
+			checkEqual: func(p *personStruct, _ map[string]interface{}) error {
+				if len(p.Labels) != 2 || p.Labels[0] != "foo" || p.Labels[1] != "bar" {
+					return fmt.Errorf("expected tags [foo bar], got %v", p.Labels)
+				}
+				return nil
+			},
 		},
 		{
 			name:        "set slice of interface",
@@ -1156,10 +1163,18 @@ out = pn
 			},
 		},
 		{
-			name:        "set nested map field for wrong type",
+			// a Starlark list of ints now converts element-wise into a
+			// []float32 nested value (previously errored). int -> float32 is a
+			// checked, whole-number conversion.
+			name:        "set nested map field converts element-wise",
 			codeSnippet: `pn.nested_values["foo"][1] = [1, 2, 3]; out = pn`,
-			checkEqual:  noCheck,
-			wantErrExec: true,
+			checkEqual: func(p *personStruct, _ map[string]interface{}) error {
+				got := p.NestedValues["foo"][1]
+				if len(got) != 3 || got[0] != 1 || got[1] != 2 || got[2] != 3 {
+					return fmt.Errorf("expected [1 2 3], got %v", got)
+				}
+				return nil
+			},
 		},
 		{
 			name:        "read nested struct",
