@@ -192,6 +192,85 @@ func TestStableKeyString(t *testing.T) {
 	}
 }
 
+// TestStableKeyStringDistinguishes pins the property the deterministic-order
+// invariant depends on: two DISTINCT composite keys that can legally coexist
+// in one map must render to distinct strings. When they collide on their sort
+// string (and share a type), sortableKeyLess ties, the sort leaves them in
+// Go's randomized MapKeys order, and the "deterministic order" guarantee
+// silently breaks. It covers the collision classes the render closes; it does
+// not assert the documented irreducible ties (equal-pointee pointers/channels,
+// NaN bit-patterns, types sharing reflect.Type.String).
+func TestStableKeyStringDistinguishes(t *testing.T) {
+	type ifKey struct{ V interface{} }
+	render := func(v interface{}) string { return stableKeyString(reflect.ValueOf(v)) }
+
+	groups := [][]interface{}{
+		// string boundaries: {"a","b c"} and {"a b","c"} both rendered
+		// "[a b c]" before the length prefix made strings self-delimiting
+		{
+			[2]string{"a", "b c"},
+			[2]string{"a b", "c"},
+		},
+		// interface dynamic type: an interface field holding int8(1) vs
+		// int64(1) vs "1" all rendered the same before the type tag; a nil
+		// interface renders "<nil>", distinct from any of them
+		{
+			ifKey{V: int8(1)},
+			ifKey{V: int64(1)},
+			ifKey{V: uint8(1)},
+			ifKey{V: "1"},
+			ifKey{V: float64(1)},
+			ifKey{V: nil},
+		},
+		// nested array of strings inside a struct
+		{
+			struct{ A [2]string }{A: [2]string{"x", "y z"}},
+			struct{ A [2]string }{A: [2]string{"x y", "z"}},
+		},
+	}
+	for gi, g := range groups {
+		seen := map[string]int{}
+		for vi, v := range g {
+			s := render(v)
+			if prev, ok := seen[s]; ok {
+				t.Errorf("group %d: values %d and %d render the same key %q (collision breaks deterministic order)", gi, prev, vi, s)
+			}
+			seen[s] = vi
+		}
+	}
+
+	// no identity leak: two keys with pointers to EQUAL pointees at different
+	// addresses must render identically (else the sort key varies run to run).
+	// This is the meaningful address-free check (a fixed literal would pass
+	// even with the pointer render reverted to fmt.Sprint).
+	mkPtrKey := func() interface{} {
+		x := 7
+		return struct {
+			N int
+			P *int
+		}{N: 1, P: &x}
+	}
+	if a, b := render(mkPtrKey()), render(mkPtrKey()); a != b {
+		t.Errorf("equal-pointee pointer keys render differently (address leaked): %q vs %q", a, b)
+	}
+}
+
+// TestStableKeyStringCyclicTerminates: a self-referential pointer is a legal
+// Go map key (type Node struct{ Next *Node }; n.Next = n). writeStableKey
+// followed the chain without bound and overflowed the stack — an
+// unrecoverable host crash (invariant: no host crash from input). The depth
+// cap must make it terminate; reaching the assertion is the proof.
+func TestStableKeyStringCyclicTerminates(t *testing.T) {
+	type Node struct{ Next *Node }
+	n := &Node{}
+	n.Next = n
+	// decorateKey unwraps the top pointer, so the rendered value is the
+	// pointee struct; this mirrors map[*Node]V materialization.
+	if got := stableKeyString(reflect.ValueOf(*n)); got == "" {
+		t.Fatal("expected a bounded render, got empty")
+	}
+}
+
 // TestGoInterfaceTruthNilable: Truth returned a blanket true for kinds it
 // didn't enumerate, so a nil chan/map/func/slice wrapped in a GoInterface
 // reported truthy. Nilable kinds should reflect their nil-ness.

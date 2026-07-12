@@ -579,3 +579,35 @@ func TestPointerBearingStructKeyDeterministic(t *testing.T) {
 		}
 	}
 }
+
+// TestStringBearingCompositeKeyDeterministic: distinct [2]string keys that
+// split the same words at different boundaries ({"a","b c d"} vs {"a b","c d"}
+// vs {"a b c","d"}) all rendered "[a b c d]" under the space-joined sort key.
+// Colliding sort keys of the same type tie in the sort, leaving the entries
+// in Go's randomized MapKeys order — the deterministic-order guarantee broke
+// for any composite key containing a string. The self-delimiting render sorts
+// by the length-prefixed encoding: "[1:a 5:b c d]" < "[3:a b 3:c d]" <
+// "[5:a b c 1:d]", i.e. x < y < z. Asserting the exact order (not merely
+// cross-run stability) removes the probabilistic false-green that a stability
+// check allows when the tie happens to resolve the same way each run.
+func TestStringBearingCompositeKeyDeterministic(t *testing.T) {
+	mk := func() map[[2]string]string {
+		return map[[2]string]string{
+			{"a", "b c d"}: "x",
+			{"a b", "c d"}: "y",
+			{"a b c", "d"}: "z",
+		}
+	}
+	want := []string{"x", "y", "z"}
+	for run := 0; run < 40; run++ {
+		got := valueOrder(mk())
+		if len(got) != len(want) {
+			t.Fatalf("run %d: got %v, want %v", run, got, want)
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Fatalf("run %d: string-composite-key order = %v, want %v", run, got, want)
+			}
+		}
+	}
+}
