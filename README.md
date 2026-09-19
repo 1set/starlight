@@ -38,6 +38,13 @@ The [`Eval`](https://pkg.go.dev/github.com/1set/starlight#Eval) function encapsu
 
 ## Installation
 
+Go **1.25.0 or newer** is required by the pinned interpreter. Production builds
+should use a currently supported Go release with security fixes (Go 1.27.1 was
+used for this upgrade). The interpreter now rejects excessively nested source
+with a parse error before evaluation; this applies to direct input, files and
+loaded modules. Existing versions supporting Go 1.19 do not include this parser
+protection.
+
 To install *Starlight Enhanced*, use the following Go command under your project directory:
 
 ```bash

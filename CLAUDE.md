@@ -4,7 +4,7 @@ Guidance for Claude Code (claude.ai/code) working in this repository.
 
 ## What this is
 
-`starlight` is a Go⇄Starlark value bridge: it wraps Go values so [Starlark](https://github.com/google/starlark-go) scripts can use them, and converts script results back to Go. Pure library, no main. Module floor is **Go 1.19**.
+`starlight` is a Go⇄Starlark value bridge: it wraps Go values so [Starlark](https://github.com/google/starlark-go) scripts can use them, and converts script results back to Go. Pure library, no main. Module floor is **Go 1.25.0**, required by the parser-security pin `5395d018f003`.
 
 ## Commands
 
@@ -15,13 +15,13 @@ go test ./convert/ -run TestGoMapBigIntKey    # a single test
 go test ./convert/ -run xxx -bench . -count 3 # benchmarks (convert/bench_test.go)
 go vet ./... && gofmt -l . convert/           # must be clean before commit
 
-# Verify on the Go floor: the local toolchain is newer than go 1.19, and the
-# pinned go.starlark.net uses maphash.String (needs >=1.19), so check behavior
-# in a container before trusting it.
-docker run --rm -v "$PWD":/src -v "$HOME/go/pkg/mod":/go/pkg/mod -w /src golang:1.19 go test -race -count=1 ./...
+# Verify the parser-security baseline on its declared minimum toolchain.
+docker run --rm --platform linux/amd64 -v "$PWD":/src -v "$HOME/go/pkg/mod":/go/pkg/mod -w /src golang:1.25.0 go test -race -count=1 ./...
 ```
 
-CI (`.github/workflows/build.yml`): Go `1.19.x`/`1.25.x` × ubuntu-22.04 / macos-14 / windows-2022, plus CodeQL and the Codecov/Codacy coverage gate. The gate is the `codecov/project`+`codecov/patch` commit statuses, not the upload step (its `continue-on-error` only tolerates upload outages).
+CI (`.github/workflows/build.yml`): Go `1.25.x`/`1.27.x` × ubuntu-22.04 / macos-14 / windows-2022, plus CodeQL and the Codecov/Codacy coverage gate. The gate is the `codecov/project`+`codecov/patch` commit statuses, not the upload step (its `continue-on-error` only tolerates upload outages).
+
+> For the security-floor migration, retain the baseline at each downstream's old floor, test the candidate at its new declared floor, and additionally compare both legs on Go 1.27.1. The older commands below document the pre-migration matrix.
 
 ## Downstream compatibility — a release gate
 
@@ -30,10 +30,10 @@ starlight is the L1 foundation; `starlet` (via `dataconv`), `starbox`, and the `
 ```bash
 # clone the downstream fresh to /tmp, then:
 #  baseline leg — its existing pins:
-docker run --rm -v <dst>:/src -v $HOME/go/pkg/mod:/go/pkg/mod -w /src golang:1.19 sh -c 'go build ./... && go test ./...'
+docker run --rm --platform linux/amd64 -v <dst>:/src -v $HOME/go/pkg/mod:/go/pkg/mod -w /src golang:1.19 sh -c 'go build ./... && go test ./...'
 #  upgrade leg — point it at this starlight and re-tidy:
 ( cd <dst> && go mod edit -replace github.com/1set/starlight=<this-repo> )
-docker run --rm -v <dst>:/src -v <this-repo>:/starlight-new -v $HOME/go/pkg/mod:/go/pkg/mod -w /src golang:1.19 \
+docker run --rm --platform linux/amd64 -v <dst>:/src -v <this-repo>:/starlight-new -v $HOME/go/pkg/mod:/go/pkg/mod -w /src golang:1.19 \
   sh -c 'go mod tidy && go build ./... && go test ./...'
 ```
 
@@ -113,7 +113,7 @@ When you add or edit any type switch: walk it against **both tables above plus t
 ## Contribution standard
 
 - **Test-first, one fix per PR.** Write the failing/repro test, then the fix; keep them in the same PR.
-- **Pass the full bar before commit:** `go test -race -count=2 ./...`, `go vet`, `gofmt -l` clean, and the Docker go1.19 run above.
+- **Pass the full bar before commit:** `go test -race -count=2 ./...`, `go vet`, `gofmt -l` clean, and the Docker Go 1.25.0 run above.
 - **Touching a hot path?** Run `convert/bench_test.go` and confirm no regression.
 - **Changing observable behavior?** Update the test that pins the old behavior and say so in the commit; document any host-visible semantic change in the relevant godoc.
 - Keep godoc accurate — comments here state *why* and the *boundary/fall-through behavior* of a type switch, not what the next line does.

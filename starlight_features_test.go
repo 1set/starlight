@@ -17,6 +17,7 @@ import (
 //      the conversion behaviors through the real interpreter
 //   4. Cache-key isolation by predeclared name set; readFile path
 //      containment
+//   5. Parser depth limits through every source and cache entry point
 
 // Importing starlight (and, transitively, convert) must not mutate any
 // process-global state: the dialect is passed explicitly to every
@@ -346,5 +347,57 @@ func TestCacheMultiDirSiblingAccess(t *testing.T) {
 	}
 	if res["v"] != int64(7) {
 		t.Fatalf("multi-dir sibling access v = %v, want 7", res["v"])
+	}
+}
+
+// TestParserDepthLimits locks the upstream safety fix across the source forms
+// accepted by this package. Inputs stay bounded; no process crash is needed to
+// demonstrate that the old interpreter accepted excessive nesting.
+func TestParserDepthLimits(t *testing.T) {
+	forms := []struct {
+		name string
+		expr func(int) string
+	}{
+		{"parentheses", func(n int) string { return strings.Repeat("(", n) + "1" + strings.Repeat(")", n) }},
+		{"unary", func(n int) string { return strings.Repeat("-", n) + "1" }},
+		{"not", func(n int) string { return strings.Repeat("not ", n) + "True" }},
+		{"conditional", func(n int) string { return strings.Repeat("1 if True else ", n) + "1" }},
+		{"lambda", func(n int) string { return strings.Repeat("lambda: ", n) + "1" }},
+	}
+	for _, form := range forms {
+		t.Run(form.name, func(t *testing.T) {
+			for _, depth := range []int{8, 1100} {
+				source := "value = " + form.expr(depth) + "\n"
+				dir := t.TempDir()
+				file := filepath.Join(dir, "nested.star")
+				if err := os.WriteFile(file, []byte(source), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, "entry.star"), []byte(`load("nested.star", "value")`), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				cache := New(dir)
+				entries := []struct {
+					name string
+					run  func() error
+				}{
+					{"bytes", func() error { _, err := Eval([]byte(source), nil, nil); return err }},
+					{"reader", func() error { _, err := Eval(strings.NewReader(source), nil, nil); return err }},
+					{"file", func() error { _, err := Eval(file, nil, nil); return err }},
+					{"cache run", func() error { _, err := cache.Run("nested.star", nil); return err }},
+					{"cache load", func() error { _, err := cache.Load(nil, "nested.star"); return err }},
+					{"nested load", func() error { _, err := cache.Run("entry.star", nil); return err }},
+				}
+				for _, entry := range entries {
+					err := entry.run()
+					if depth == 8 && err != nil {
+						t.Errorf("%s: ordinary nesting rejected: %v", entry.name, err)
+					}
+					if depth == 1100 && (err == nil || !strings.Contains(err.Error(), "excessive nesting")) {
+						t.Errorf("%s: excessive nesting was not rejected by the parser: %v", entry.name, err)
+					}
+				}
+			}
+		})
 	}
 }
