@@ -5,13 +5,15 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
 	"go.starlark.net/starlark"
 )
 
 // Consolidated white-box (package convert) tests for internal helpers:
-// the bounded type-check cache and the conversion-boundary panic sentinel.
+// the bounded type-check cache (including concurrent capacity), key rendering,
+// interface truth, and the conversion-boundary panic sentinel.
 
 // TestTypeCacheBounded verifies the type-check caches cannot grow without
 // bound. hashableGoValue mints a fresh reflect.ArrayOf(N, ...) type per
@@ -291,6 +293,113 @@ func TestGoInterfaceTruthNilable(t *testing.T) {
 		gi := &GoInterface{v: reflect.ValueOf(c.v)}
 		if got := bool(gi.Truth()); got != c.want {
 			t.Errorf("Truth(%T nil=%v) = %v, want %v", c.v, reflect.ValueOf(c.v).IsNil(), got, c.want)
+		}
+	}
+}
+
+// TestBoundedCacheConcurrentCapacity pins both caches at zero, one, and
+// several entries even when distinct types race to fill the last slot.
+func TestBoundedCacheConcurrentCapacity(t *testing.T) {
+	types := make([]reflect.Type, 128)
+	for i := range types {
+		types[i] = reflect.ArrayOf(i+1, emptyIfaceType)
+	}
+	for _, boolean := range []bool{false, true} {
+		for _, capacity := range []int{0, 1, 8} {
+			t.Run(fmt.Sprintf("bool=%t/cap=%d", boolean, capacity), func(t *testing.T) {
+				for round := 0; round < 20; round++ {
+					c := newBoundedTypeCache(capacity)
+					start := make(chan struct{})
+					var wg sync.WaitGroup
+					for _, typ := range types {
+						wg.Add(1)
+						go func(typ reflect.Type) {
+							defer wg.Done()
+							<-start
+							if boolean {
+								if !c.loadOrStoreBool(typ, true) {
+									t.Error("lost computed bool")
+								}
+							} else if err := c.loadOrStore(typ, nil); err != nil {
+								t.Errorf("lost nil error: %v", err)
+							}
+						}(typ)
+					}
+					close(start)
+					wg.Wait()
+					if n := c.size(); n != capacity {
+						t.Fatalf("round %d: size = %d, want %d", round, n, capacity)
+					}
+				}
+			})
+		}
+	}
+}
+
+// TestBoundedCacheConcurrentSameType pins shared-key counting and cached
+// values for both value domains, including a full cache and uncached misses.
+func TestBoundedCacheConcurrentSameType(t *testing.T) {
+	typ, other := reflect.TypeOf(0), reflect.TypeOf("")
+	sentinel := errors.New("cached error")
+	for _, boolean := range []bool{false, true} {
+		t.Run(fmt.Sprintf("bool=%t", boolean), func(t *testing.T) {
+			c := newBoundedTypeCache(1)
+			var wg sync.WaitGroup
+			for i := 0; i < 128; i++ {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					if boolean {
+						if c.loadOrStoreBool(typ, false) {
+							t.Error("lost cached false")
+						}
+					} else if c.loadOrStore(typ, sentinel) != sentinel {
+						t.Error("lost cached error")
+					}
+				}()
+			}
+			wg.Wait()
+			if c.size() != 1 {
+				t.Fatalf("shared key counted %d times", c.size())
+			}
+			if boolean {
+				if c.loadOrStoreBool(typ, true) {
+					t.Error("replaced cached false")
+				}
+				if !c.loadOrStoreBool(other, true) {
+					t.Error("lost uncached true")
+				}
+				if c.loadOrStoreBool(other, false) {
+					t.Error("stored beyond capacity")
+				}
+			} else {
+				if c.loadOrStore(typ, nil) != sentinel {
+					t.Error("replaced cached error")
+				}
+				if c.loadOrStore(other, nil) != nil {
+					t.Error("lost uncached nil")
+				}
+				if c.loadOrStore(other, sentinel) != sentinel {
+					t.Error("stored beyond capacity")
+				}
+			}
+			if c.size() != 1 {
+				t.Fatal("cache grew beyond capacity")
+			}
+		})
+	}
+}
+
+// TestBoundedCacheStoreRetainsFirst pins duplicate stores before capacity is
+// reached; the error and bool caches must preserve even nil and false values.
+func TestBoundedCacheStoreRetainsFirst(t *testing.T) {
+	typ := reflect.TypeOf(0)
+	for _, first := range []interface{}{nil, errors.New("first"), false, true} {
+		c := newBoundedTypeCache(2)
+		c.store(typ, first)
+		c.store(typ, "replacement")
+		if c.m[typ] != first || c.size() != 1 {
+			t.Fatalf("duplicate store replaced %v or grew the cache", first)
 		}
 	}
 }

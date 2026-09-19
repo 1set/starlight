@@ -7,7 +7,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -31,31 +30,34 @@ var (
 // realistic small-and-fixed set of host types stays cached while untrusted
 // input cannot pin unbounded memory.
 type boundedTypeCache struct {
-	m   sync.Map // reflect.Type -> stored value (error or bool)
-	cap int64    // max distinct types to retain
-	n   int64    // current entry count, accessed atomically
+	mu  sync.RWMutex
+	m   map[reflect.Type]interface{} // stored value (error or bool)
+	cap int                          // max distinct types to retain
 }
 
 func newBoundedTypeCache(cap int) *boundedTypeCache {
-	return &boundedTypeCache{cap: int64(cap)}
+	return &boundedTypeCache{m: make(map[reflect.Type]interface{}), cap: cap}
 }
 
-// store records v for t unless the cache is already at capacity.
+// store checks capacity and inserts under the same lock. Concurrent misses
+// must not overshoot the cap or replace an already cached result.
 func (c *boundedTypeCache) store(t reflect.Type, v interface{}) {
-	if atomic.LoadInt64(&c.n) >= c.cap {
-		return
-	}
-	// only bump the counter when this call actually inserted the entry, so
-	// concurrent misses on the same type do not double-count
-	if _, loaded := c.m.LoadOrStore(t, v); !loaded {
-		atomic.AddInt64(&c.n, 1)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.m) < c.cap {
+		if _, exists := c.m[t]; !exists {
+			c.m[t] = v
+		}
 	}
 }
 
 // loadOrStore returns the cached error for t if present; otherwise it stores
 // (subject to the cap) and returns compute.
 func (c *boundedTypeCache) loadOrStore(t reflect.Type, compute error) error {
-	if v, ok := c.m.Load(t); ok {
+	c.mu.RLock()
+	v, ok := c.m[t]
+	c.mu.RUnlock()
+	if ok {
 		if v == nil {
 			return nil
 		}
@@ -67,7 +69,10 @@ func (c *boundedTypeCache) loadOrStore(t reflect.Type, compute error) error {
 
 // loadOrStoreBool is the bool-valued analogue used by the cycle cache.
 func (c *boundedTypeCache) loadOrStoreBool(t reflect.Type, compute bool) bool {
-	if v, ok := c.m.Load(t); ok {
+	c.mu.RLock()
+	v, ok := c.m[t]
+	c.mu.RUnlock()
+	if ok {
 		return v.(bool)
 	}
 	c.store(t, compute)
@@ -75,7 +80,11 @@ func (c *boundedTypeCache) loadOrStoreBool(t reflect.Type, compute bool) bool {
 }
 
 // size reports the number of retained entries (for tests).
-func (c *boundedTypeCache) size() int { return int(atomic.LoadInt64(&c.n)) }
+func (c *boundedTypeCache) size() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return len(c.m)
+}
 
 // sortedMapKeys returns the keys of the given map value in a deterministic
 // order: keys are sorted by type rank (nil < bool < int < uint < float <
