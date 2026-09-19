@@ -4,7 +4,7 @@ Guidance for Claude Code (claude.ai/code) working in this repository.
 
 ## What this is
 
-`starlight` is a Go⇄Starlark value bridge: it wraps Go values so [Starlark](https://github.com/google/starlark-go) scripts can use them, and converts script results back to Go. Pure library, no main. Module floor is **Go 1.25.14.0**, required by the parser-security pin `5395d018f003`.
+`starlight` is a Go⇄Starlark value bridge: it wraps Go values so [Starlark](https://github.com/google/starlark-go) scripts can use them, and converts script results back to Go. Pure library, no main. Module floor is **Go 1.25.14**, the security patch baseline used with parser pin `5395d018f003`.
 
 ## Commands
 
@@ -113,7 +113,7 @@ When you add or edit any type switch: walk it against **both tables above plus t
 ## Contribution standard
 
 - **Test-first, one fix per PR.** Write the failing/repro test, then the fix; keep them in the same PR.
-- **Pass the full bar before commit:** `go test -race -count=2 ./...`, `go vet`, `gofmt -l` clean, and the Docker Go 1.25.14.0 run above.
+- **Pass the full bar before commit:** `go test -race -count=2 ./...`, `go vet`, `gofmt -l` clean, and the Docker Go 1.25.14 run above.
 - **Touching a hot path?** Run `convert/bench_test.go` and confirm no regression.
 - **Changing observable behavior?** Update the test that pins the old behavior and say so in the commit; document any host-visible semantic change in the relevant godoc.
 - Keep godoc accurate — comments here state *why* and the *boundary/fall-through behavior* of a type switch, not what the next line does.
