@@ -257,12 +257,12 @@ func TestMakeStarFnCustomTag(t *testing.T) {
 	}
 	fn := func(n, s string) (*contact, *profile) {
 		return &contact{
-				Name:   n,
-				Street: s,
-			}, &profile{
-				NickName: n,
-				Location: s,
-			}
+			Name:   n,
+			Street: s,
+		}, &profile{
+			NickName: n,
+			Location: s,
+		}
 	}
 	tag := "sl"
 	skyf, err := convert.ToValueWithTag(fn, tag)
