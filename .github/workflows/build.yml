@@ -46,6 +46,9 @@ jobs:
       - name: Test
         run: |
           go test -v -race -cover -covermode=atomic -coverprofile=coverage.txt -count 1 ./...
+      - name: Repeat cache concurrency regression on Windows
+        if: ${{ runner.os == 'Windows' }}
+        run: go test -race -run '^TestBoundedCache' -count=25 ./convert
       # The coverage GATE is the codecov/project and codecov/patch commit
       # statuses set by the Codecov app after this upload; continue-on-error
       # here only tolerates upload-channel outages, it does not bypass the
