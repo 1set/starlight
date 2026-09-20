@@ -38,12 +38,14 @@ The [`Eval`](https://pkg.go.dev/github.com/1set/starlight#Eval) function encapsu
 
 ## Installation
 
-Go **1.25.14 or newer** is required by this security patch. Production builds
-should use a currently supported Go release with security fixes (Go 1.27.1 was
-used for this upgrade). The interpreter now rejects excessively nested source
-with a parse error before evaluation; this applies to direct input, files and
-loaded modules. Existing versions supporting Go 1.19 do not include this parser
-protection.
+Go **1.19 or newer** is supported. The interpreter remains pinned to
+`go.starlark.net v0.0.0-20260324133313-ffb3f39dd27a`. The compatibility
+floor is separate from the toolchain used to build production applications;
+use a currently supported Go release with security fixes.
+
+This interpreter baseline does **not** include the upstream parser recursion
+limit. Only parse host-selected, reviewed source and modules in the host
+process. See [SECURITY.md](SECURITY.md) for the known risk and deployment boundary.
 
 To install *Starlight Enhanced*, use the following Go command under your project directory:
 
