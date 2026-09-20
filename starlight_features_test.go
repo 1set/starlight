@@ -17,7 +17,7 @@ import (
 //      the conversion behaviors through the real interpreter
 //   4. Cache-key isolation by predeclared name set; readFile path
 //      containment
-//   5. Parser depth limits through every source and cache entry point
+//   5. Source parsing through every source and cache entry point
 
 // Importing starlight (and, transitively, convert) must not mutate any
 // process-global state: the dialect is passed explicitly to every
@@ -350,10 +350,10 @@ func TestCacheMultiDirSiblingAccess(t *testing.T) {
 	}
 }
 
-// TestParserDepthLimits locks the upstream safety fix across the source forms
-// accepted by this package. Inputs stay bounded; no process crash is needed to
-// demonstrate that the old interpreter accepted excessive nesting.
-func TestParserDepthLimits(t *testing.T) {
+// TestSourceEntrypointParsing covers valid and malformed input through every
+// source form. The compatibility pin does not bound parser recursion; see
+// SECURITY.md before accepting source from outside the host's trust boundary.
+func TestSourceEntrypointParsing(t *testing.T) {
 	forms := []struct {
 		name string
 		expr func(int) string
@@ -366,8 +366,11 @@ func TestParserDepthLimits(t *testing.T) {
 	}
 	for _, form := range forms {
 		t.Run(form.name, func(t *testing.T) {
-			for _, depth := range []int{8, 1100} {
-				source := "value = " + form.expr(depth) + "\n"
+			for _, malformed := range []bool{false, true} {
+				source := "value = " + form.expr(8) + "\n"
+				if malformed {
+					source += "broken = (\n"
+				}
 				dir := t.TempDir()
 				file := filepath.Join(dir, "nested.star")
 				if err := os.WriteFile(file, []byte(source), 0o600); err != nil {
@@ -390,11 +393,11 @@ func TestParserDepthLimits(t *testing.T) {
 				}
 				for _, entry := range entries {
 					err := entry.run()
-					if depth == 8 && err != nil {
+					if !malformed && err != nil {
 						t.Errorf("%s: ordinary nesting rejected: %v", entry.name, err)
 					}
-					if depth == 1100 && (err == nil || !strings.Contains(err.Error(), "excessive nesting")) {
-						t.Errorf("%s: excessive nesting was not rejected by the parser: %v", entry.name, err)
+					if malformed && err == nil {
+						t.Errorf("%s: malformed source was accepted", entry.name)
 					}
 				}
 			}
