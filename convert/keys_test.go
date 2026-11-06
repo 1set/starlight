@@ -24,6 +24,133 @@ import (
 //   4. Deterministic key order (sortedMapKeys: type rank, then value)
 //   5. Pointer and pointer-bearing keys sort address-free
 //   6. Non-reflexive keys retain their paired values during materialization
+//   7. Non-reflexive map mutation errors preserve host maps
+
+func callMapPopitem(t *testing.T, g *convert.GoMap) (starlark.Value, error) {
+	t.Helper()
+	pop, err := g.Attr("popitem")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return starlark.Call(&starlark.Thread{Name: t.Name()}, pop, nil, nil)
+}
+
+func TestGoMapNonReflexiveMutationErrors(t *testing.T) {
+	n := math.NaN()
+	for _, tc := range []struct {
+		name string
+		key  interface{}
+	}{
+		{"float32", float32(n)},
+		{"float64", n},
+		{"complex64", complex(float32(n), float32(0))},
+		{"complex128", complex(0, n)},
+		{"struct", struct{ f float64 }{n}},
+		{"array", [1]float64{n}},
+		{"interface-field", struct{ K interface{} }{n}},
+		{"nested-complex", [1]struct{ K interface{} }{{complex(n, 0)}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Go already guarantees map keys (including dynamic interface
+			// keys) are comparable. Equality must still detect NaN nested
+			// inside composites; it must not depend on newer reflect APIs.
+			m := map[interface{}]int{tc.key: 7, "ordinary": 11}
+			alias := m
+			g := convert.NewGoMap(m)
+			if err := g.Clear(); err == nil || !strings.Contains(err.Error(), "non-reflexive") {
+				t.Fatalf("Clear: want explicit non-reflexive error, got %v", err)
+			}
+			if len(alias) != 2 || alias["ordinary"] != 11 {
+				t.Fatalf("Clear partially mutated the host map: %v", alias)
+			}
+			var total int
+			for _, v := range alias {
+				total += v
+			}
+			if total != 18 {
+				t.Fatalf("Clear changed a paired value: total=%d", total)
+			}
+
+			// A single entry forces popitem to select the non-reflexive key.
+			m = map[interface{}]int{tc.key: 7}
+			g = convert.NewGoMap(m)
+			v, err := callMapPopitem(t, g)
+			if err == nil || !strings.Contains(err.Error(), "cannot delete") || v != nil {
+				t.Fatalf("popitem: want explicit deletion error and no pair, got (%v, %v)", v, err)
+			}
+			if len(m) != 1 {
+				t.Fatalf("popitem changed the map: %v", m)
+			}
+			for _, v := range m {
+				if v != 7 {
+					t.Fatalf("popitem changed value to %d", v)
+				}
+			}
+		})
+	}
+	// In a mixed float map NaN sorts first, so popitem must reject it
+	// without deleting the ordinary entry either.
+	m := map[float64]int{n: 7, 1: 11}
+	if _, err := callMapPopitem(t, convert.NewGoMap(m)); err == nil || len(m) != 2 || m[1] != 11 {
+		t.Fatalf("mixed popitem must preserve all entries: map=%v error=%v", m, err)
+	}
+	for _, code := range []string{`m.clear()`, `m.popitem()`} {
+		m := map[float64]int{n: 7}
+		evalErr(t, code, map[string]interface{}{"m": m}, "cannot")
+		if len(m) != 1 {
+			t.Fatalf("%s mutated the host map", code)
+		}
+	}
+}
+
+func TestGoMapMutationGuardsAndAlias(t *testing.T) {
+	for _, state := range []string{"iteration", "frozen", "frozen-and-iteration"} {
+		t.Run(state, func(t *testing.T) {
+			m := map[float64]int{math.NaN(): 7}
+			g := convert.NewGoMap(m)
+			want := "during iteration"
+			if state != "frozen" {
+				it := g.Iterate()
+				defer it.Done()
+			}
+			if state != "iteration" {
+				g.Freeze()
+				want = "frozen map"
+			}
+			if err := g.Clear(); err == nil || !strings.Contains(err.Error(), want) {
+				t.Fatalf("Clear precedence: want %s, got %v", want, err)
+			}
+			if _, err := callMapPopitem(t, g); err == nil || !strings.Contains(err.Error(), want) {
+				t.Fatalf("popitem precedence: want %s, got %v", want, err)
+			}
+			if len(m) != 1 {
+				t.Fatal("guard failure mutated the map")
+			}
+		})
+	}
+	// A pointer to NaN is itself reflexive. Ordinary and composite keys,
+	// nil interface keys and infinities also keep their normal behavior.
+	n := math.NaN()
+	m := map[interface{}]int{nil: 1, &n: 2, math.Inf(1): 3, struct{ N int }{4}: 4, [1]int{5}: 5, complex(1, 2): 6}
+	alias := m
+	g := convert.NewGoMap(m)
+	if err := g.Clear(); err != nil || len(alias) != 0 {
+		t.Fatalf("ordinary Clear: map=%v error=%v", alias, err)
+	}
+	m["host"] = 7
+	if g.Len() != 1 || alias["host"] != 7 {
+		t.Fatal("Clear replaced the host map instead of preserving aliases")
+	}
+	if v, err := callMapPopitem(t, g); err != nil || len(alias) != 0 || v.(starlark.Tuple)[1] != starlark.MakeInt(7) {
+		t.Fatalf("ordinary popitem: value=%v error=%v map=%v", v, err, alias)
+	}
+	// Empty and nil maps continue to clear successfully.
+	for _, empty := range []map[string]int{nil, {}} {
+		if err := convert.NewGoMap(empty).Clear(); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
 
 // Regression tests for unhashable dict/set keys: a Starlark value whose Go
 // form is not comparable (e.g. dict, list, set, or a tuple converted to
