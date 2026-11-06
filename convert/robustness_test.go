@@ -1,11 +1,17 @@
 package convert_test
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"os/exec"
+	"reflect"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/1set/starlight"
 	"github.com/1set/starlight/convert"
@@ -22,6 +28,156 @@ import (
 //   3. Bridge contracts (kwargs, error convention, MakeDict key, pointer
 //      methods, dir())
 //   4. Freeze semantics, conversion concurrency, and reference cycles
+//   5. Accepted pointer elements: opaque materialization and interface cycles
+
+// Accepted pointer elements may have no direct Starlark representation. The
+// no-error collection APIs must preserve them as opaque values, rather than
+// panic or broaden the direct ToValue conversion contract.
+func TestCollectionPointerMaterialization(t *testing.T) {
+	n := 7
+	p := &n
+	var nilInt *int
+	for _, tc := range []struct {
+		name  string
+		value interface{}
+		slice interface{}
+		m     interface{}
+		keys  interface{}
+	}{
+		{"nil", nilInt, []*int{nil}, map[string]*int{"p": nil}, map[*int]string{nil: "p"}},
+		{"deep", &p, []**int{&p}, map[string]**int{"p": &p}, map[**int]string{&p: "p"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			check := func(v starlark.Value) {
+				t.Helper()
+				g, ok := v.(*convert.GoInterface)
+				if !ok || g.Value().Interface() != tc.value {
+					t.Fatalf("got %T, want opaque original %T", v, tc.value)
+				}
+				_ = g.String()
+				g.Freeze()
+				if _, err := g.Hash(); err == nil {
+					t.Fatal("opaque pointer must remain unhashable")
+				}
+			}
+			for _, direct := range []bool{false, true} {
+				var s *convert.GoSlice
+				var m, keys *convert.GoMap
+				if direct {
+					s = convert.NewGoSlice(tc.slice)
+					m = convert.NewGoMap(tc.m)
+					keys = convert.NewGoMap(tc.keys)
+				} else {
+					sv, err := convert.ToValue(tc.slice)
+					if err != nil {
+						t.Fatal(err)
+					}
+					mv, err := convert.ToValue(tc.m)
+					if err != nil {
+						t.Fatal(err)
+					}
+					kv, err := convert.ToValue(tc.keys)
+					if err != nil {
+						t.Fatal(err)
+					}
+					s, m, keys = sv.(*convert.GoSlice), mv.(*convert.GoMap), kv.(*convert.GoMap)
+				}
+				check(s.Index(0))
+				check(m.Items()[0][1])
+				check(keys.Items()[0][0])
+				check(keys.Keys()[0])
+				for _, it := range []starlark.Iterator{s.Iterate(), keys.Iterate()} {
+					var v starlark.Value
+					if !it.Next(&v) {
+						t.Fatal("missing pointer element")
+					}
+					check(v)
+					if it.Next(&v) {
+						t.Fatal("extra pointer element")
+					}
+					it.Done()
+				}
+				// Error-returning APIs retain their regular conversion errors.
+				if _, _, err := m.Get(starlark.String("p")); err == nil {
+					t.Fatal("Get must preserve the direct conversion error")
+				}
+			}
+			evalOK(t, `a = l[0]
+b = [v for v in l]
+c = m.items()
+d = m.values()
+e = k.keys()
+f = [v for v in k]`, map[string]interface{}{"l": tc.slice, "m": tc.m, "k": tc.keys})
+		})
+	}
+}
+
+type recursivePointer *recursivePointer
+
+// Run cyclic conversion in a bounded subprocess: a regression must fail the
+// test instead of overflowing the test process's stack or hanging the suite.
+func TestCollectionPointerCycles(t *testing.T) {
+	if os.Getenv("STARLIGHT_POINTER_CYCLE_CHILD") != "1" {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestCollectionPointerCycles$", "-test.v")
+		cmd.Env = append(os.Environ(), "STARLIGHT_POINTER_CYCLE_CHILD=1")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("bounded pointer-cycle process: %v (%v)\n%s", err, ctx.Err(), out)
+		}
+		return
+	}
+	debug.SetMaxStack(256 << 10)
+	var self interface{}
+	self = &self
+	var left, right interface{}
+	left, right = &right, &left
+	var recursive recursivePointer
+	recursive = &recursive
+	for _, p := range []interface{}{&self, &left, recursive} {
+		// Recursive pointer types remain unsupported directly; mixed
+		// pointer/interface cycles use the existing interface fallback.
+		if _, err := convert.ToValue(p); err != nil && reflect.TypeOf(p) != reflect.TypeOf(recursive) {
+			t.Fatal(err)
+		}
+		for _, input := range []interface{}{[]interface{}{p}, map[string]interface{}{"p": p}} {
+			v, err := convert.ToValue(input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got starlark.Value
+			switch v := v.(type) {
+			case *convert.GoSlice:
+				got = v.Index(0)
+				it := v.Iterate()
+				if !it.Next(&got) {
+					t.Fatal("missing cyclic pointer")
+				}
+				it.Done()
+			case *convert.GoMap:
+				got = v.Items()[0][1]
+			}
+			if _, ok := got.(*convert.GoInterface); !ok {
+				t.Fatalf("cyclic %T: got %T, want opaque value", p, got)
+			}
+			_ = got.String()
+		}
+	}
+	// These types are statically accepted too, without an interface slot
+	// around the pointer element.
+	for _, input := range []interface{}{[]*interface{}{&self}, []recursivePointer{recursive}, map[string]*interface{}{"p": &left}, map[string]recursivePointer{"p": recursive}} {
+		v, err := convert.ToValue(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		switch v := v.(type) {
+		case *convert.GoSlice:
+			_ = v.Index(0)
+		case *convert.GoMap:
+			_ = v.Items()
+		}
+	}
+}
 
 // Regression tests for the four script-reachable panics:
 //  1. strided slicing (l[::2]) passed the element type to MakeSlice and

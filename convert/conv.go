@@ -37,6 +37,10 @@ func (e *PanicError) Error() string {
 //
 // Existing starlark.Value objects pass through unchanged, except typed-nil
 // pointers become None.
+//
+// Collection elements without a direct Starlark representation remain opaque
+// GoInterface values when accessed through no-error indexing/iteration APIs.
+// Cyclic pointer/interface unwrapping also stops at an opaque GoInterface.
 func ToValue(v interface{}) (starlark.Value, error) {
 	if val, ok := v.(starlark.Value); ok {
 		return passThroughOrNone(val), nil
@@ -73,7 +77,26 @@ func hasMethods(val reflect.Value) bool {
 	return false
 }
 
-func toValue(val reflect.Value, tagName string) (result starlark.Value, err error) {
+func toValue(val reflect.Value, tagName string) (starlark.Value, error) {
+	return toValueSeen(val, tagName, nil)
+}
+
+// toValueOrOpaque is for collection APIs that cannot return a conversion
+// error. Static unsupported types are still rejected at construction; values
+// of accepted types that have no direct representation (nil scalar pointers,
+// for example) retain their original Go value in an opaque wrapper.
+func toValueOrOpaque(val reflect.Value, tagName string) starlark.Value {
+	if v, err := toValue(val, tagName); err == nil {
+		return v
+	}
+	return &GoInterface{v: val, tag: tagName}
+}
+
+// seen is local to one conversion and only allocated when unwrapping a
+// pointer to an interface. Collection wrapping is lazy, so only that path can
+// revisit a pointer during this conversion; ordinary scalar paths allocate
+// no cycle detector.
+func toValueSeen(val reflect.Value, tagName string, seen map[uintptr]bool) (result starlark.Value, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = &PanicError{Value: r, Stack: debug.Stack()}
@@ -177,7 +200,20 @@ func toValue(val reflect.Value, tagName string) (result starlark.Value, err erro
 			if val.IsNil() {
 				return starlark.None, nil
 			}
-			if uv, err := toValue(val.Elem(), tagName); err == nil {
+			// A *interface{} arrives here still as a pointer. Its dynamic
+			// value may lead back to this pointer, even through other
+			// interfaces; stop before recursively unwrapping it again.
+			if val.Kind() == reflect.Ptr {
+				p := val.Pointer()
+				if seen[p] {
+					return &GoInterface{v: val, tag: tagName}, nil
+				}
+				if seen == nil {
+					seen = make(map[uintptr]bool)
+				}
+				seen[p] = true
+			}
+			if uv, err := toValueSeen(val.Elem(), tagName, seen); err == nil {
 				return uv, nil
 			}
 			// the dynamic value has no Starlark form (e.g. a chan, or a
@@ -211,11 +247,11 @@ func checkCollectionElemTypesCached(t reflect.Type) error {
 	return elemTypeCheckCache.loadOrStore(t, checkCollectionElemTypes(t, nil))
 }
 
-// checkCollectionElemTypes verifies that the key and element types of a map,
-// or the element type of a slice or array, are convertible by toValue,
-// recursing through nested collection and pointer types. Without this
-// pre-check, a collection like map[string]chan int converted fine and blew
-// up with a panic only later, when items() or iteration touched a value of
+// checkCollectionElemTypes rejects unsupported static key/element types,
+// recursing through nested collection and pointer types. Accepted pointer
+// values that toValue cannot represent use toValueOrOpaque in no-error APIs.
+// Without this pre-check, a map[string]chan int converted fine and panicked
+// only later, when items() or iteration touched a value of
 // the unsupported type. Struct types are not descended into: their fields
 // are reached through GoStruct.Attr, which reports a regular error. The
 // visited set guards against recursive Go types (e.g. type M map[string]M);

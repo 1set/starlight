@@ -173,32 +173,25 @@ func (g *GoMap) delete(key reflect.Value) (v starlark.Value, found bool, err err
 	return ret, true, nil
 }
 
+// Items returns key/value pairs, preserving values without a direct Starlark
+// representation as opaque GoInterface values.
 func (g *GoMap) Items() []starlark.Tuple {
 	tuples := make([]starlark.Tuple, 0, g.v.Len())
-	var err error
 	for _, k := range sortedMapKeys(g.v) {
 		tuple := make(starlark.Tuple, 2)
-		tuple[0], err = toValue(k, g.tag)
-		if err != nil {
-			panic(err)
-		}
-		tuple[1], err = toValue(g.v.MapIndex(k), g.tag)
-		if err != nil {
-			panic(err)
-		}
+		tuple[0] = toValueOrOpaque(k, g.tag)
+		tuple[1] = toValueOrOpaque(g.v.MapIndex(k), g.tag)
 		tuples = append(tuples, tuple)
 	}
 	return tuples
 }
 
+// Keys returns keys in deterministic order, using opaque GoInterface values
+// for keys without a direct Starlark representation.
 func (g *GoMap) Keys() []starlark.Value {
 	keys := make([]starlark.Value, 0, g.v.Len())
 	for _, k := range sortedMapKeys(g.v) {
-		key, err := toValue(k, g.tag)
-		if err != nil {
-			panic(err)
-		}
-		keys = append(keys, key)
+		keys = append(keys, toValueOrOpaque(k, g.tag))
 	}
 	return keys
 }
@@ -268,11 +261,7 @@ type mapIterator struct {
 
 func (it *mapIterator) Next(p *starlark.Value) bool {
 	if it.i < len(it.keys) {
-		v, err := toValue(it.keys[it.i], it.g.tag)
-		if err != nil {
-			panic(err)
-		}
-		*p = v
+		*p = toValueOrOpaque(it.keys[it.i], it.g.tag)
 		it.i++
 		return true
 	}
