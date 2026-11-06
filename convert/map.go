@@ -173,14 +173,17 @@ func (g *GoMap) delete(key reflect.Value) (v starlark.Value, found bool, err err
 	return ret, true, nil
 }
 
-// Items returns key/value pairs, preserving values without a direct Starlark
-// representation as opaque GoInterface values.
+// Items returns a key-sorted snapshot, preserving values without a direct
+// Starlark representation as opaque GoInterface values. Every key keeps its
+// original paired value, including non-reflexive NaN keys; no entries are
+// dropped. Keys tied under the documented ordering have unspecified relative
+// order.
 func (g *GoMap) Items() []starlark.Tuple {
 	tuples := make([]starlark.Tuple, 0, g.v.Len())
-	for _, k := range sortedMapKeys(g.v) {
+	for _, entry := range sortedMapEntries(g.v) {
 		tuple := make(starlark.Tuple, 2)
-		tuple[0] = toValueOrOpaque(k, g.tag)
-		tuple[1] = toValueOrOpaque(g.v.MapIndex(k), g.tag)
+		tuple[0] = toValueOrOpaque(entry.key.orig, g.tag)
+		tuple[1] = toValueOrOpaque(entry.value, g.tag)
 		tuples = append(tuples, tuple)
 	}
 	return tuples
