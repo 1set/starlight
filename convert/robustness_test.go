@@ -114,8 +114,9 @@ f = [v for v in k]`, map[string]interface{}{"l": tc.slice, "m": tc.m, "k": tc.ke
 
 type recursivePointer *recursivePointer
 
-// Run cyclic conversion in a bounded subprocess: a regression must fail the
-// test instead of overflowing the test process's stack or hanging the suite.
+// Probe cyclic conversion in a bounded subprocess before repeating the same
+// public fixture in the parent for coverage. A failed child stops the parent
+// before it reaches the dangerous path.
 func TestCollectionPointerCycles(t *testing.T) {
 	if os.Getenv("STARLIGHT_POINTER_CYCLE_CHILD") != "1" {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -125,9 +126,10 @@ func TestCollectionPointerCycles(t *testing.T) {
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("bounded pointer-cycle process: %v (%v)\n%s", err, ctx.Err(), out)
 		}
-		return
+	} else {
+		// Only the isolated probe changes the process-wide stack limit.
+		debug.SetMaxStack(256 << 10)
 	}
-	debug.SetMaxStack(256 << 10)
 	var self interface{}
 	self = &self
 	var left, right interface{}
