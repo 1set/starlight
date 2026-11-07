@@ -422,7 +422,8 @@ func TestRecursivePointerMapKeyTerminates(t *testing.T) {
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("recursive pointer-key subprocess failed (deadline: %v): %v\n%s", ctx.Err(), err, out)
 		}
-		return
+		// The same binary completed under the watchdog. Repeat the public
+		// fixture below so the parent process also covers the depth guard.
 	}
 
 	type pointer *pointer
