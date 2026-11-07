@@ -6,8 +6,6 @@ import (
 	"testing"
 
 	"github.com/1set/starlight"
-	"github.com/1set/starlight/convert"
-	"go.starlark.net/starlark"
 )
 
 type ID int
@@ -304,49 +302,6 @@ out = contacts[1].Name
 
 type Named interface {
 	Name() string
-}
-
-type foo struct {
-	name string
-}
-
-func (f *foo) Name() string {
-	return f.name
-}
-
-var resultFuncCall starlark.StringDict
-var result string
-
-func BenchmarkFuncCall(b *testing.B) {
-	fn := func(s string) {
-		result = s
-	}
-
-	globals := map[string]interface{}{
-		"fn":  fn,
-		"foo": &foo{name: "bob"},
-	}
-	dict, err := convert.MakeStringDict(globals)
-	if err != nil {
-		b.Fatal(err)
-	}
-	code := []byte(`fn(foo.Name())`)
-	// precompile
-	_, p, err := starlark.SourceProgram("foo.star", code, dict.Has)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	for n := 0; n < b.N; n++ {
-		dict, err := convert.MakeStringDict(globals)
-		if err != nil {
-			b.Fatal(err)
-		}
-		resultFuncCall, err = p.Init(new(starlark.Thread), dict)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
 }
 
 func TestInterfaceAssignment(t *testing.T) {

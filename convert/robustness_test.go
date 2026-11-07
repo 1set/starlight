@@ -136,7 +136,24 @@ func TestCollectionPointerCycles(t *testing.T) {
 	left, right = &right, &left
 	var recursive recursivePointer
 	recursive = &recursive
-	for _, p := range []interface{}{&self, &left, recursive} {
+	var entry, middle, tail interface{}
+	entry, middle, tail = &middle, &tail, &middle
+	// Preserve the exact repeated-node identity, including a non-cyclic
+	// prefix before a two-node loop. These assertions run only after the
+	// bounded child fixture above has returned successfully.
+	for _, tc := range []struct{ input, repeated interface{} }{
+		{&self, &self}, {&left, &left}, {&entry, &middle},
+	} {
+		v, err := convert.ToValue(tc.input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		g, ok := v.(*convert.GoInterface)
+		if !ok || g.Value().Interface() != tc.repeated || convert.FromValue(g) != tc.repeated {
+			t.Fatalf("cycle identity: got %T, want repeated node %p", v, tc.repeated)
+		}
+	}
+	for _, p := range []interface{}{&self, &left, &entry, recursive} {
 		// Recursive pointer types remain unsupported directly; mixed
 		// pointer/interface cycles use the existing interface fallback.
 		if _, err := convert.ToValue(p); err != nil && reflect.TypeOf(p) != reflect.TypeOf(recursive) {
@@ -177,6 +194,132 @@ func TestCollectionPointerCycles(t *testing.T) {
 			_ = v.Index(0)
 		case *convert.GoMap:
 			_ = v.Items()
+		}
+	}
+}
+
+// Acyclic pointer-to-interface values retain their ordinary conversion,
+// including scalars, nil, and pointers. Both direct and no-error collection
+// APIs must produce the same values.
+func TestCollectionPointerInterfaceValues(t *testing.T) {
+	n := 7
+	var empty interface{}
+	scalar := interface{}(n)
+	pointer := interface{}(&n)
+	var nilInt *int
+	nilPointer := interface{}(nilInt)
+	for _, tc := range []struct {
+		name  string
+		input *interface{}
+		want  starlark.Value
+	}{
+		{"scalar", &scalar, starlark.MakeInt(7)},
+		{"pointer", &pointer, starlark.MakeInt(7)},
+		{"nil-interface", &empty, starlark.None},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			v, err := convert.ToValue(tc.input)
+			if err != nil || v != tc.want {
+				t.Fatalf("direct: value=%v err=%v", v, err)
+			}
+			if got := convert.NewGoSlice([]*interface{}{tc.input}).Index(0); got != tc.want {
+				t.Fatalf("Index: value=%v", got)
+			}
+			m := convert.NewGoMap(map[string]*interface{}{"value": tc.input})
+			if got := m.Items()[0][1]; got != tc.want {
+				t.Fatalf("Items: value=%v", got)
+			}
+		})
+	}
+	// An unsupported nil scalar pointer behind an interface remains opaque,
+	// just as before the cycle detector was introduced.
+	v, err := convert.ToValue(&nilPointer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := v.(*convert.GoInterface); !ok {
+		t.Fatalf("nil scalar: got %T", v)
+	}
+	// A failed dynamic conversion preserves the innermost interface slot,
+	// rather than the entry pointer, and FromValue keeps its host value.
+	ch := make(chan int)
+	unsupported := interface{}(ch)
+	middle := interface{}(&unsupported)
+	entry := interface{}(&middle)
+	v, err = convert.ToValue(&entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, ok := v.(*convert.GoInterface)
+	if !ok || g.Value().Kind() != reflect.Interface || !g.Value().CanAddr() ||
+		g.Value().Addr().Interface() != &unsupported || convert.FromValue(g) != ch {
+		t.Fatalf("unsupported dynamic identity: got %T", v)
+	}
+	// Index and Iterator preserve fallback identity and element order,
+	// including consecutive failures and a successful element between them.
+	other := 8
+	first, second := &n, &other
+	for _, tc := range []struct {
+		input interface{}
+		want  []interface{}
+	}{
+		{[]*int{nil, &n, nil}, []interface{}{nilInt, starlark.MakeInt(7), nilInt}},
+		{[]**int{&first, &second, nil}, []interface{}{&first, &second, (**int)(nil)}},
+		{[]interface{}{ch, 7, ch}, []interface{}{ch, starlark.MakeInt(7), ch}},
+	} {
+		slice := convert.NewGoSlice(tc.input)
+		check := func(index int, got starlark.Value) {
+			t.Helper()
+			if want, ok := tc.want[index].(starlark.Value); ok {
+				if got != want {
+					t.Fatalf("element %d: got %v, want %v", index, got, want)
+				}
+			} else if g, ok := got.(*convert.GoInterface); !ok || convert.FromValue(g) != tc.want[index] {
+				t.Fatalf("element %d: lost opaque identity (%T)", index, got)
+			}
+		}
+		for i := range tc.want {
+			check(i, slice.Index(i))
+		}
+		it := slice.Iterate()
+		for i := range tc.want {
+			var got starlark.Value
+			if !it.Next(&got) {
+				t.Fatalf("missing element %d", i)
+			}
+			check(i, got)
+		}
+		var extra starlark.Value
+		if it.Next(&extra) {
+			t.Fatal("extra iterator element")
+		}
+		it.Done()
+	}
+	// Method-bearing interface pointers stop at the usual GoInterface;
+	// Starlark values and typed-nil Starlark pointers retain precedence.
+	var method error = wrappedError{msg: "method"}
+	methodBox := interface{}(&method)
+	methodEntry := interface{}(&methodBox)
+	v, err = convert.ToValue(&methodEntry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g, ok := v.(*convert.GoInterface); !ok || g.Value().Interface() != &method {
+		t.Fatalf("method interface precedence: got %T", v)
+	}
+	list := starlark.NewList(nil)
+	var nilList *starlark.List
+	for _, tc := range []struct {
+		input interface{}
+		want  starlark.Value
+	}{
+		{list, list}, {nilList, starlark.None},
+	} {
+		box := tc.input
+		outer := interface{}(&box)
+		got, err := convert.ToValue(&outer)
+		if err != nil || got != tc.want {
+			t.Fatalf("Starlark precedence: value=%v err=%v", got, err)
 		}
 	}
 }

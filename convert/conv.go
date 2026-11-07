@@ -77,26 +77,19 @@ func hasMethods(val reflect.Value) bool {
 	return false
 }
 
-func toValue(val reflect.Value, tagName string) (starlark.Value, error) {
-	return toValueSeen(val, tagName, nil)
-}
-
 // toValueOrOpaque is for collection APIs that cannot return a conversion
 // error. Static unsupported types are still rejected at construction; values
 // of accepted types that have no direct representation (nil scalar pointers,
 // for example) retain their original Go value in an opaque wrapper.
-func toValueOrOpaque(val reflect.Value, tagName string) starlark.Value {
-	if v, err := toValue(val, tagName); err == nil {
-		return v
+func toValueOrOpaque(val reflect.Value, tagName string) (v starlark.Value) {
+	v, err := toValue(val, tagName)
+	if err != nil {
+		v = &GoInterface{v: val, tag: tagName}
 	}
-	return &GoInterface{v: val, tag: tagName}
+	return
 }
 
-// seen is local to one conversion and only allocated when unwrapping a
-// pointer to an interface. Collection wrapping is lazy, so only that path can
-// revisit a pointer during this conversion; ordinary scalar paths allocate
-// no cycle detector.
-func toValueSeen(val reflect.Value, tagName string, seen map[uintptr]bool) (result starlark.Value, err error) {
+func toValue(val reflect.Value, tagName string) (result starlark.Value, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = &PanicError{Value: r, Stack: debug.Stack()}
@@ -200,20 +193,10 @@ func toValueSeen(val reflect.Value, tagName string, seen map[uintptr]bool) (resu
 			if val.IsNil() {
 				return starlark.None, nil
 			}
-			// A *interface{} arrives here still as a pointer. Its dynamic
-			// value may lead back to this pointer, even through other
-			// interfaces; stop before recursively unwrapping it again.
 			if val.Kind() == reflect.Ptr {
-				p := val.Pointer()
-				if seen[p] {
-					return &GoInterface{v: val, tag: tagName}, nil
-				}
-				if seen == nil {
-					seen = make(map[uintptr]bool)
-				}
-				seen[p] = true
+				return toInterfacePointerValue(val, tagName), nil
 			}
-			if uv, err := toValueSeen(val.Elem(), tagName, seen); err == nil {
+			if uv, err := toValue(val.Elem(), tagName); err == nil {
 				return uv, nil
 			}
 			// the dynamic value has no Starlark form (e.g. a chan, or a
@@ -230,6 +213,40 @@ func toValueSeen(val reflect.Value, tagName string, seen map[uintptr]bool) (resu
 	}
 
 	return nil, fmt.Errorf("type %T is not a supported starlark type", val.Interface())
+}
+
+// toInterfacePointerValue unwraps a pointer to an empty interface. Only
+// pointer/interface chains can recur while collection wrapping remains lazy;
+// keep their cycle state off the ordinary scalar conversion path.
+func toInterfacePointerValue(val reflect.Value, tagName string) starlark.Value {
+	var seen map[uintptr]bool
+	for {
+		inner := val.Elem()
+		if inner.IsNil() {
+			return starlark.None
+		}
+		dynamic := inner.Elem()
+		if dynamic.Kind() == reflect.Ptr && !dynamic.IsNil() &&
+			dynamic.Elem().Kind() == reflect.Interface && !hasMethods(dynamic) {
+			p := val.Pointer()
+			if seen[p] {
+				return &GoInterface{v: val, tag: tagName}
+			}
+			if seen == nil {
+				seen = make(map[uintptr]bool)
+			}
+			seen[p] = true
+			val = dynamic
+			continue
+		}
+		// Ordinary values, methods and Starlark values retain the common
+		// dispatch's precedence. A failed conversion belongs to this innermost
+		// interface slot, exactly as for recursive interface unwrapping.
+		if v, err := toValue(dynamic, tagName); err == nil {
+			return v
+		}
+		return &GoInterface{v: inner, tag: tagName}
+	}
 }
 
 // elemTypeCacheCap bounds elemTypeCheckCache. checkCollectionElemTypes is
