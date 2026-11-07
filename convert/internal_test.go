@@ -1,14 +1,19 @@
 package convert
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"os"
+	"os/exec"
 	"reflect"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"go.starlark.net/starlark"
+	"go.starlark.net/syntax"
 )
 
 // Consolidated white-box (package convert) tests for internal helpers:
@@ -400,6 +405,86 @@ func TestBoundedCacheStoreRetainsFirst(t *testing.T) {
 		c.store(typ, "replacement")
 		if c.m[typ] != first || c.size() != 1 {
 			t.Fatalf("duplicate store replaced %v or grew the cache", first)
+		}
+	}
+}
+
+// TestRecursivePointerMapKeyTerminates covers leading pointer cycles, which
+// must terminate before the bounded stable-key renderer can handle the key.
+// A subprocess keeps a regression in the pointer-unwrapping loop bounded.
+func TestRecursivePointerMapKeyTerminates(t *testing.T) {
+	const childEnv = "STARLIGHT_TEST_RECURSIVE_POINTER_KEY"
+	if os.Getenv(childEnv) != "1" {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestRecursivePointerMapKeyTerminates$", "-test.v")
+		cmd.Env = append(os.Environ(), childEnv+"=1")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("recursive pointer-key subprocess failed (deadline: %v): %v\n%s", ctx.Err(), err, out)
+		}
+		// The same binary completed under the watchdog. Repeat the public
+		// fixture below so the parent process also covers the depth guard.
+	}
+
+	type pointer *pointer
+	var p pointer
+	p = &p
+	// The interface key exercises the normal opaque fallback for a dynamic
+	// value without a Starlark scalar form. A statically typed pointer key
+	// has a separate unsupported-conversion boundary, outside this test.
+	m := map[interface{}]int{p: 7}
+	converted, err := ToValue(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, g := range []*GoMap{converted.(*GoMap), NewGoMap(m)} {
+		if got := len(g.Keys()); got != 1 {
+			t.Fatalf("Keys returned %d keys, want 1", got)
+		}
+		items := g.Items()
+		if len(items) != 1 || items[0][1] != starlark.MakeInt(7) {
+			t.Fatalf("Items lost the mapped value: %v", items)
+		}
+		iter := g.Iterate()
+		var key starlark.Value
+		if !iter.Next(&key) || iter.Next(&key) {
+			iter.Done()
+			t.Fatal("iteration did not yield exactly one key")
+		}
+		iter.Done()
+	}
+	_, err = starlark.ExecFileOptions(&syntax.FileOptions{Set: true}, &starlark.Thread{}, "pointer-key.star", `
+keys = m.keys()
+items = m.items()
+iterated = [k for k in m]
+def check():
+    if len(keys) != 1 or len(items) != 1 or len(iterated) != 1:
+        fail("pointer key lost during materialization")
+check()
+`, starlark.StringDict{"m": converted})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Eager conversion must reach its ordinary unhashable-key error, rather
+	// than getting stuck while sorting before conversion begins.
+	if _, err := MakeDict(m); err == nil || !strings.Contains(err.Error(), "not hashable") {
+		t.Fatalf("MakeDict returned %v, want an unhashable-key error", err)
+	}
+}
+
+// TestPointerChainMapKeyOrder keeps ordinary multi-level scalar pointers on
+// their value-based ordering path when leading pointer traversal is bounded.
+func TestPointerChainMapKeyOrder(t *testing.T) {
+	a, b, c := 7, -2, 3
+	pa, pb, pc := &a, &b, &c
+	ppa, ppb, ppc := &pa, &pb, &pc
+	m := map[***int]int{&ppa: a, &ppb: b, &ppc: c}
+	want := []int{-2, 3, 7}
+	for run := 0; run < 20; run++ {
+		for i, key := range sortedMapKeys(reflect.ValueOf(m)) {
+			if got := m[key.Interface().(***int)]; got != want[i] {
+				t.Fatalf("run %d: key %d has value %d, want %d", run, i, got, want[i])
+			}
 		}
 	}
 }

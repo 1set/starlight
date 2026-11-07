@@ -141,9 +141,11 @@ func decorateKey(v reflect.Value) sortableKey {
 		}
 		u = u.Elem()
 	}
-	// unwrap pointers so a *scalar key classifies and sorts by its pointee
-	// value, not by its (run-varying) address
-	for u.Kind() == reflect.Ptr && !u.IsNil() {
+	// Unwrap pointers so a *scalar key sorts by its pointee value, not its
+	// address. Bound leading pointer chains too: a recursive named pointer
+	// (type P *P; p = &p) can cycle before stableKeyString sees the key.
+	// Deep/cyclic chains fall through to that bounded, address-free renderer.
+	for depth := 0; u.Kind() == reflect.Ptr && !u.IsNil() && depth < maxStableKeyDepth; depth++ {
 		u = u.Elem()
 	}
 	switch u.Kind() {
@@ -173,7 +175,8 @@ func decorateKey(v reflect.Value) sortableKey {
 	return k
 }
 
-// maxStableKeyDepth bounds writeStableKey's recursion. A legal map key can be
+// maxStableKeyDepth bounds leading pointer traversal and writeStableKey's
+// recursion. A legal map key can be
 // a self-referential pointer (type Node struct{ Next *Node }; n.Next = n),
 // which the renderer would otherwise follow forever and overflow the stack
 // (an unrecoverable host crash — invariant: no host panic/crash from input).
