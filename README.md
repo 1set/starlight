@@ -23,6 +23,18 @@ a newer interpreter; check your application's selection with
 `go list -m go.starlark.net`. Build production applications with a supported Go
 toolchain containing current security fixes.
 
+This README and [usage examples](USAGE.md) describe this checkout. The
+[published API reference](https://pkg.go.dev/github.com/1set/starlight) may show a
+different released version; the current [runner](starlight.go) and
+[conversion](convert/conv.go) APIs are in this source tree. In your application
+module, inspect the selected version and its local documentation with:
+
+```sh
+go list -m github.com/1set/starlight
+go doc github.com/1set/starlight
+go doc github.com/1set/starlight/convert
+```
+
 Use host-selected, reviewed source and modules. The retained interpreter has a
 known parser recursion limitation, and this package does not provide process or
 resource isolation. See [SECURITY.md](SECURITY.md) for the deployment boundary.
@@ -109,20 +121,26 @@ refresh the whole cache. For one-off execution with the same loader, pass
 [`WithGlobals(moduleGlobals, dirs...)`](https://pkg.go.dev/github.com/1set/starlight#WithGlobals)
 returns a cache with predeclared values for **loaded modules**. They are separate
 from the per-call globals supplied to `Run`; pass values to both when needed.
-Unlike `New`, it returns an error for an empty directory list.
+Unlike `New`, it returns an error for an empty directory list. See the complete
+[file and module example](USAGE.md#files-and-modules), including both script files.
 
 ## Conversion and host data
 
 `convert.ToValue` returns `(starlark.Value, error)`;
 `convert.ToValueWithTag` also selects the struct-field tag name.
-`convert.FromValue` returns the corresponding Go value:
+The [direct conversion example](USAGE.md#direct-conversion) shows custom field
+tags and a callable Go method. `convert.FromValue` returns the corresponding Go
+value:
 
 | Starlark value | Go result |
 | --- | --- |
 | `None`, bool, float, string | `nil`, `bool`, `float64`, `string` |
 | Integer | `int64`, then `uint64`, then `*big.Int`, by magnitude |
 | List / tuple | `[]interface{}` |
+| Bytes | `[]byte` |
 | Dict | `map[interface{}]interface{}` |
+| Set | `map[interface{}]bool` (`FromSetToSlice` returns an insertion-ordered slice) |
+| `time.time` / `time.duration` | `time.Time` / `time.Duration` |
 | Go wrapper | Its underlying Go value |
 
 Conversion is not a JSON encoding or a guarantee of identical round-trip types.
@@ -131,6 +149,10 @@ data where it is writable. Pass a struct pointer to allow exported-field writes;
 Go arrays are copied to slices. A Go `[]byte` is a slice wrapper, not native
 Starlark `bytes`. Wrapper `Freeze` is shallow; it neither copies host data nor
 synchronizes host access. The host must coordinate concurrent access.
+
+Exported Go methods are callable from scripts. Field tags rename or hide fields;
+they do not hide methods. Neither tags nor wrapper `Freeze` restrict the effects
+of a Go method, which may still change host state.
 
 Channels, complex numbers, `unsafe.Pointer` and `uintptr` have no direct
 conversion. Statically unsupported collection element types are rejected;
