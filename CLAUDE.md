@@ -19,7 +19,7 @@ go vet ./... && gofmt -l . convert/           # must be clean before commit
 docker run --rm --platform linux/amd64 -v "$PWD":/src -v "$HOME/go/pkg/mod":/go/pkg/mod -w /src golang:1.19 go test -race -count=1 ./...
 ```
 
-CI (`.github/workflows/build.yml`): Go `1.19.x`/`1.27.x` × ubuntu-22.04 / macos-14 / windows-2022, plus CodeQL and the Codecov/Codacy coverage gate. The gate is the `codecov/project`+`codecov/patch` commit statuses, not the upload step (its `continue-on-error` only tolerates upload outages).
+CI (`.github/workflows/build.yml`): Go `1.19.x`/`1.27.x` × ubuntu-22.04 / macos-15 / windows-2022, plus CodeQL and the Codecov/Codacy coverage gate. The gate is the `codecov/project`+`codecov/patch` commit statuses, not the upload step (its `continue-on-error` only tolerates upload outages).
 
 > The compatibility baseline is Go 1.19 with interpreter pin `ffb3f39dd27a`. Compare each downstream on its existing floor and additionally on the supported release toolchain. Do not upgrade the interpreter or library floor as a side effect of security scanning; record and review that compatibility decision separately.
 
@@ -27,17 +27,27 @@ CI (`.github/workflows/build.yml`): Go `1.19.x`/`1.27.x` × ubuntu-22.04 / macos
 
 starlight is the L1 foundation; `starlet` (via `dataconv`), `starbox`, and the `starpkg/*` modules all depend on it. A change can be locally green yet break a consumer. **Before tagging a release, run the two-leg matrix** — for each downstream (at least `starlet`, then `starbox` / `starpkg/base` / `starpkg/sqlite`):
 
+Use each downstream module's declared Go floor; do not assume all consumers
+share this library's Go 1.19 floor. In the following commands, substitute
+`<floor>` and absolute paths for `<consumer>` and `<starlight>`:
+
 ```bash
-# clone the downstream fresh to /tmp, then:
-#  baseline leg — its existing pins:
-docker run --rm --platform linux/amd64 -v <dst>:/src -v $HOME/go/pkg/mod:/go/pkg/mod -w /src golang:1.19 sh -c 'go build ./... && go test ./...'
-#  upgrade leg — point it at this starlight and re-tidy:
-( cd <dst> && go mod edit -replace github.com/1set/starlight=<this-repo> )
-docker run --rm --platform linux/amd64 -v <dst>:/src -v <this-repo>:/starlight-new -v $HOME/go/pkg/mod:/go/pkg/mod -w /src golang:1.19 \
-  sh -c 'go mod tidy && go build ./... && go test ./...'
+# Baseline: a clean consumer checkout with its existing dependencies.
+docker run --rm --platform linux/amd64 -v "<consumer>:/src" \
+  -v "$HOME/go/pkg/mod":/go/pkg/mod -w /src "golang:<floor>" \
+  sh -c 'go build ./... && go test ./...'
+# Candidate: use the source path as mounted INSIDE the container.
+docker run --rm --platform linux/amd64 -v "<consumer>:/src" \
+  -v "<starlight>:/starlight-new:ro" -v "$HOME/go/pkg/mod":/go/pkg/mod \
+  -w /src "golang:<floor>" sh -c \
+  'go mod edit -replace github.com/1set/starlight=/starlight-new && go mod tidy && go build ./... && go test ./...'
 ```
 
-Only failures that appear in the **upgrade leg but not the baseline** are regressions. Known pre-existing (not regressions): `starlet` `lib/file`/`lib/path` (need `/etc/sudoers` / a permission barrier absent under Docker-root); `starcli` build (goldmark needs go1.22). The replace also bumps `go.starlark.net` transitively via MVS — L0-caused breaks count too, and predict what the downstream's own pin-upgrade will face. `dataconv`/`dataconv/types` are the most load-bearing consumers — they must stay green.
+Only failures new to the candidate leg are regressions. Preserve baseline
+failures and classify platform, permission and optional-service skips. Record
+`go list -m all` in both legs: a replacement can change transitive selections,
+but do not assume the interpreter necessarily changes. `dataconv` and
+`dataconv/types` are load-bearing consumers and must remain compatible.
 
 The `.star` module-test corpus lives at `starpkg/test/` (run via each module's harness, not from here).
 

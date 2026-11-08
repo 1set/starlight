@@ -26,8 +26,14 @@ var dialectOptions = &syntax.FileOptions{Set: true}
 // using the load() function.  If you don't use load() in your scripts, you can pass in nil.
 type LoadFunc func(thread *starlark.Thread, module string) (starlark.StringDict, error)
 
-// Eval evaluates the starlark source with the given global variables. The type
-// of the argument for the src parameter must be string (filename), []byte, or io.Reader.
+// Eval executes a Starlark script with globals as its predeclared inputs.
+// A string src is a filename; use []byte or io.Reader for source text. A nil
+// load function leaves load() unavailable. Each call compiles the script anew.
+//
+// The result contains script-defined bindings converted through
+// convert.FromValue; predeclared inputs are not automatically included.
+// Conversion, compilation, loading and execution errors are returned without
+// rolling back changes already made to host values.
 func Eval(src interface{}, globals map[string]interface{}, load LoadFunc) (map[string]interface{}, error) {
 	dict, err := convert.MakeStringDict(globals)
 	if err != nil {
@@ -120,9 +126,13 @@ func newCache(dirs []string, globals starlark.StringDict) *Cache {
 	return c
 }
 
-// Run looks for a file with the given filename, and runs it with the given globals
-// passed to the script's global namespace. The return value is all convertible
-// global variables from the script, which may include the passed-in globals.
+// Run finds filename in the configured directories and executes it with globals
+// as predeclared inputs. It caches compiled code by filename and input-name set,
+// but executes that code on every call with the current values. File changes
+// require Forget or Reset to take effect.
+//
+// The result contains script-defined bindings converted through
+// convert.FromValue; predeclared inputs are not automatically included.
 func (c *Cache) Run(filename string, globals map[string]interface{}) (map[string]interface{}, error) {
 	dict, err := convert.MakeStringDict(globals)
 	if err != nil {

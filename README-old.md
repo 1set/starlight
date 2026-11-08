@@ -1,3 +1,7 @@
+> Historical upstream documentation. API, security and performance statements
+> below describe the original project and are not current guarantees. Use the
+> current [README](README.md) and [security guidance](SECURITY.md).
+
 # <img src="https://user-images.githubusercontent.com/3185864/49534746-5b90de80-f890-11e8-9fd6-5417cf915c67.png"/> Starlight [![GoDoc](https://godoc.org/github.com/starlight-go/starlight?status.svg)](https://godoc.org/github.com/starlight-go/starlight) [![Build Status](https://travis-ci.org/starlight-go/starlight.svg?branch=master)](https://travis-ci.org/starlight-go/starlight)
 
 

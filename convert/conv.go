@@ -29,10 +29,14 @@ func (e *PanicError) Error() string {
 	return fmt.Sprintf("panic recovered: %v\n%s", e.Value, e.Stack)
 }
 
-// ToValue attempts to convert the given value to a starlark.Value.
-// It supports all int, uint, and float numeric types, plus strings and booleans.
-// It supports structs, maps, slices, and functions that use the aforementioned.
-// Any starlark.Value is passed through as-is.
+// ToValue converts a Go value to a native Starlark value or a Go-backed wrapper.
+// Supported types include booleans, signed and unsigned
+// integers (except uintptr), floats, strings, structs, maps, slices, arrays and
+// functions. Wrappers can retain references to mutable host data; conversion
+// does not create an isolated snapshot.
+//
+// Existing starlark.Value objects pass through unchanged, except typed-nil
+// pointers become None.
 func ToValue(v interface{}) (starlark.Value, error) {
 	if val, ok := v.(starlark.Value); ok {
 		return passThroughOrNone(val), nil
@@ -337,7 +341,8 @@ func makeStringDictTag(m map[string]interface{}, tagName string) (starlark.Strin
 	return dict, nil
 }
 
-// FromStringDict makes a map[string]interface{} from the given arg. Any inconvertible values are ignored.
+// FromStringDict converts every binding in m using FromValue, preserving its key.
+// Values without a native Go conversion remain starlark.Value objects.
 func FromStringDict(m starlark.StringDict) map[string]interface{} {
 	ret := make(map[string]interface{}, len(m))
 	for k, v := range m {
@@ -741,12 +746,11 @@ func FromKwargs(kwargs []starlark.Tuple) ([]Kwarg, error) {
 	return args, nil
 }
 
-// MakeStarFn creates a wrapper around the given function that can be called from a starlark script. Argument support is the same as ToValue.
-// If the last value the function returns is an error, it will cause an error to be returned from the starlark function.
-// If there are no other errors, the function will return None.
-// If there's exactly one other value, the function will return the starlark equivalent of that value.
-// If there is more than one return value, they'll be returned as a tuple.
-// MakeStarFn will panic if you pass it something other than a function, like nil or a non-function.
+// MakeStarFn wraps a Go function as a Starlark builtin with positional arguments.
+// A non-nil final error result becomes a script error. After removing the error
+// result, zero, one or multiple results become None, one value or a tuple.
+// Values use the same conversions as ToValue. MakeStarFn panics if gofn is not
+// a function.
 func MakeStarFn(name string, gofn interface{}) *starlark.Builtin {
 	v := reflect.ValueOf(gofn)
 	if v.Kind() != reflect.Func {
