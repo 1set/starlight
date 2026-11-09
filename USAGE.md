@@ -63,6 +63,66 @@ Tags affect fields, while exported methods such as `Greet` remain callable.
 A method can have host effects even when its wrapper has been frozen. Pass only
 host data and methods that the script is allowed to use.
 
+## Slice updates
+
+Element writes can change the shared backing array, but length-changing
+operations update the wrapper's slice header, not the original Go variable.
+Return the updated wrapper under a script-defined name and assign the result
+back when the host needs the new slice:
+
+```go
+package main
+
+import (
+	"fmt"
+	"log"
+
+	"github.com/1set/starlight"
+)
+
+func main() {
+	items := []int{1, 2}
+	result, err := starlight.Eval([]byte(`
+items[0] = 10
+items.append(3)
+updated = items
+`), map[string]interface{}{"items": items}, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(items)
+	items = result["updated"].([]int)
+	fmt.Println(items)
+}
+```
+
+Output:
+
+```text
+[10 2]
+[10 2 3]
+```
+
+The returned wrapper retains its Go `[]int` type. A native Starlark list instead
+converts to `[]interface{}`. Slicing a wrapped slice, such as `items[:]`, copies
+its elements; nested values can still be shared.
+
+## Results and conversion errors
+
+`Eval` and `Cache.Run` automatically use `convert.FromValue` for each returned
+binding. `FromValue` has no error return and is not a lossless graph copy. During
+native list/dictionary conversion, a reference back to a list/dictionary already
+on that conversion path becomes a nil slice/map.
+
+Native dictionary keys and set members need comparable Go forms: tuples become
+fixed-size arrays, bytes become byte arrays, and integers outside the
+`int64`/`uint64` ranges use an internal comparable key type. A key/member without
+a stable comparable form falls back to its printed string, which can collide
+with another converted key/member.
+For direct conversion of a native `*starlark.Dict` or `*starlark.Set`, use
+`convert.TryFromDict` or `convert.TryFromSet` to return an error instead of this
+fallback. These check the immediate keys/members, not every nested value.
+
 ## Files and modules
 
 Create these three files in the example directory:
@@ -121,6 +181,8 @@ Hello, Lin!
 `WithGlobals`; `name` is a per-call input to `main.star` from `Run`. A `Run` input
 is not automatically available inside a loaded module. Both calls reuse the
 compiled main script and initialized module but use the current `name` value.
+A load name is searched from the configured directories, not from the importing
+file's directory.
 
 After editing script files, call `cache.Reset()` before the next `Run` to reload
 all scripts and modules. `cache.Forget("greetings.star")` only removes that

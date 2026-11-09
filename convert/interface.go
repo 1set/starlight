@@ -9,8 +9,8 @@ import (
 	"go.starlark.net/starlark"
 )
 
-// MakeGoInterface converts the given value into a GoInterface.
-// This will panic if the value is nil or the type is not a bool, string, float kind, int kind, or uint kind.
+// MakeGoInterface wraps a supported scalar or pointer as a GoInterface.
+// It panics for unsupported input; use ToValue for error-returning conversion.
 func MakeGoInterface(v interface{}) *GoInterface {
 	val := reflect.ValueOf(v)
 	ifc, ok := makeGoInterface(val, emptyStr)
@@ -51,7 +51,7 @@ type GoInterface struct {
 	tag string
 }
 
-// Attr returns a starlark value that wraps the method or field with the given name.
+// Attr resolves an exported Go method or a synthetic to* conversion method.
 func (g *GoInterface) Attr(name string) (starlark.Value, error) {
 	switch name {
 	case "toInt":

@@ -96,9 +96,11 @@ executes a whole script, including statements and function definitions.
 The returned `map[string]interface{}` contains bindings defined by the script,
 converted through `convert.FromValue`. Input names are not automatically copied
 into the result. Functions and custom values without a native Go conversion
-remain `starlark.Value` objects. Conversion, parsing, loading and execution
+remain `starlark.Value` objects. Input conversion, parsing, loading and execution
 failures return an `error`; host changes made before an error are not rolled
 back. `Eval` compiles on every call and does not use `Cache` automatically.
+See [result-conversion policies](USAGE.md#results-and-conversion-errors) for
+conversions that have no error return.
 
 ## Files, modules and caching
 
@@ -149,10 +151,14 @@ data where it is writable. Pass a struct pointer to allow exported-field writes;
 Go arrays are copied to slices. A Go `[]byte` is a slice wrapper, not native
 Starlark `bytes`. Wrapper `Freeze` is shallow; it neither copies host data nor
 synchronizes host access. The host must coordinate concurrent access.
+See the [slice update example](USAGE.md#slice-updates) for explicit write-back
+when the host needs the new length.
 
-Exported Go methods are callable from scripts. Field tags rename or hide fields;
-they do not hide methods. Neither tags nor wrapper `Freeze` restrict the effects
-of a Go method, which may still change host state.
+`GoStruct` and `GoInterface` expose the Go methods available on the wrapped
+value; `GoMap` and `GoSlice` expose their mapping/sequence builtins instead.
+Field tags rename or hide fields; they do not hide methods. Neither tags nor
+wrapper `Freeze` restrict the effects of a Go method, which may still change
+host state.
 
 Channels, complex numbers, `unsafe.Pointer` and `uintptr` have no direct
 conversion. Statically unsupported collection element types are rejected;
@@ -161,6 +167,8 @@ wrappers. Existing `starlark.Value` objects pass through, except typed-nil
 pointers become `None`.
 
 Wrapped Go functions accept **positional arguments only**, including variadics.
+Arguments and collection writes use checked conversions: overflow, fractional
+float-to-integer conversion and `None` for a non-nullable target are errors.
 A non-nil final `error` becomes a script error; after removing that error result,
 zero, one or multiple return values become `None`, one value or a tuple.
 

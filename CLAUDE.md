@@ -25,7 +25,7 @@ CI (`.github/workflows/build.yml`): Go `1.19.x`/`1.27.x` × ubuntu-22.04 / macos
 
 ## Downstream compatibility — a release gate
 
-starlight is the L1 foundation; `starlet` (via `dataconv`), `starbox`, and the `starpkg/*` modules all depend on it. A change can be locally green yet break a consumer. **Before tagging a release, run the two-leg matrix** — for each downstream (at least `starlet`, then `starbox` / `starpkg/base` / `starpkg/sqlite`):
+starlight is the L1 foundation. `starlet` uses it in its default bridge and `dataconv` struct helpers; `starbox` and `starpkg/*` also depend on it. A change can be locally green yet break a consumer. **Before tagging a release, run the two-leg matrix** — for each downstream (at least `starlet`, then `starbox` / `starpkg/base` / `starpkg/sqlite`):
 
 Use each downstream module's declared Go floor; do not assume all consumers
 share this library's Go 1.19 floor. In the following commands, substitute
@@ -117,6 +117,10 @@ Note the asymmetry: Go `[]byte` is a `uint8` slice → `*GoSlice`, **not** Starl
 | `Function`, `Builtin`, custom value | returned as-is (the `starlark.Value`) |
 
 **Map keys** (`hashableGoValue`) must be **comparable by value**, which is stricter than `reflect.Type.Comparable()` (pointers pass that but compare by identity): `Tuple`→`[N]interface{}`, `Bytes`→`[N]byte`, large `Int`→`bigIntKey`; other hashable values use their `FromValue` form if comparable-by-value, else **error**. `dict`/`list`/`set` keys are unhashable → error.
+
+Public `FromDict`/`FromSet` use printed-string fallback for unsupported key/member
+forms; `TryFromDict`/`TryFromSet` report immediate key/member errors instead.
+See [result-conversion policies](USAGE.md#results-and-conversion-errors).
 
 When you add or edit any type switch: walk it against **both tables above plus the full `reflect.Kind` set**, and for every unhandled type decide its behavior — error, correct fall-through, or the bug: **silently wrong / panic**.
 
