@@ -2,7 +2,9 @@ package convert_test
 
 import (
 	"fmt"
+	"math"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -21,6 +23,7 @@ import (
 //   3. TryFromDict / TryFromSet error variants
 //   4. Deterministic key order (sortedMapKeys: type rank, then value)
 //   5. Pointer and pointer-bearing keys sort address-free
+//   6. Non-reflexive keys retain their paired values during materialization
 
 // Regression tests for unhashable dict/set keys: a Starlark value whose Go
 // form is not comparable (e.g. dict, list, set, or a tuple converted to
@@ -609,5 +612,124 @@ func TestStringBearingCompositeKeyDeterministic(t *testing.T) {
 				t.Fatalf("run %d: string-composite-key order = %v, want %v", run, got, want)
 			}
 		}
+	}
+}
+
+// TestGoMapNaNEntriesPreserveValues covers non-reflexive keys: looking a
+// ranged NaN key up again cannot recover the value stored with that entry.
+// Equal-bit NaN keys may coexist; their documented sorting tie leaves relative
+// order unspecified, but values and entry multiplicity must be retained.
+func TestGoMapNaNEntriesPreserveValues(t *testing.T) {
+	n := math.NaN()
+	scalar := map[float64]int{}
+	scalar[n], scalar[n] = 7, 11
+	dynamic := map[interface{}]int{}
+	dynamic[n], dynamic[n] = 7, 11
+	composite := map[struct{ F float64 }]int{}
+	composite[struct{ F float64 }{n}], composite[struct{ F float64 }{n}] = 7, 11
+	array := map[[1]float64]int{}
+	array[[1]float64{n}], array[[1]float64{n}] = 7, 11
+	for _, tc := range []struct {
+		name  string
+		value interface{}
+	}{
+		{"scalar", scalar}, {"interface", dynamic}, {"struct", composite}, {"array", array},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			converted, err := convert.ToValue(tc.value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, g := range []*convert.GoMap{convert.NewGoMap(tc.value), converted.(*convert.GoMap)} {
+				items := g.Items()
+				if len(items) != 2 {
+					t.Fatalf("got %d entries, want two equal-bit NaN entries", len(items))
+				}
+				values := make([]int, 0, len(items))
+				for _, item := range items {
+					value, ok := item[1].(starlark.Int)
+					if !ok {
+						t.Fatalf("entry value became %s, want an integer", item[1])
+					}
+					n, _ := value.Int64()
+					values = append(values, int(n))
+				}
+				sort.Ints(values)
+				if !reflect.DeepEqual(values, []int{7, 11}) {
+					t.Fatalf("entry values=%v, want [7 11]", values)
+				}
+			}
+		})
+	}
+}
+
+// TestMakeDictNaNEntriesPreserveValues checks eager materialization. A single
+// NaN key keeps its paired value; multiple Go NaN entries must be rejected
+// because the fixed interpreter compares their converted NaN keys equal.
+func TestMakeDictNaNEntriesPreserveValues(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		second float64
+	}{
+		{"identical bits", math.NaN()},
+		{"different bits", math.Float64frombits(0x7ff8000000000002)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			n := math.NaN()
+			m := map[float64]int{n: 7}
+			value, err := convert.MakeDict(m)
+			if err != nil {
+				t.Fatal(err)
+			}
+			items := value.(*starlark.Dict).Items()
+			if len(items) != 1 || items[0][1] != starlark.MakeInt(7) {
+				t.Fatalf("single NaN entry lost its value: %v", items)
+			}
+			m[tc.second] = 11
+			if value, err := convert.MakeDict(m); err == nil || !strings.Contains(err.Error(), "NaN keys collide") || value != nil {
+				t.Fatalf("want explicit NaN collision, got value=%v error=%v", value, err)
+			}
+		})
+	}
+}
+
+func TestGoMapNaNValuesScriptAndArgument(t *testing.T) {
+	n := math.NaN()
+	m := map[float64]int{}
+	m[n], m[n] = 7, 11
+	called := false
+	globals := map[string]interface{}{
+		"m": m,
+		"accept": func(values map[float64]int64) int64 {
+			called = true
+			if len(values) != 2 {
+				t.Errorf("typed argument has %d entries, want 2", len(values))
+			}
+			var total int64
+			for _, v := range values {
+				total += v
+			}
+			return total
+		},
+	}
+	out, err := starlight.Eval([]byte("values=m.values()\nitems=m.items()\ntotal=accept(m)"), globals, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !called || out["total"] != int64(18) {
+		t.Fatalf("typed conversion lost values: called=%v total=%v", called, out["total"])
+	}
+	values := out["values"].([]interface{})
+	got := make([]int, 0, len(values))
+	for _, v := range values {
+		n, ok := v.(int64)
+		if !ok {
+			t.Fatalf("script value became %T(%v)", v, v)
+		}
+		got = append(got, int(n))
+	}
+	sort.Ints(got)
+	if !reflect.DeepEqual(got, []int{7, 11}) {
+		t.Fatalf("script values=%v, want [7 11]", got)
 	}
 }

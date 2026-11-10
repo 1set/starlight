@@ -3,6 +3,7 @@ package convert_test
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"reflect"
@@ -1096,5 +1097,33 @@ func TestDeepNestingNoStackOverflow(t *testing.T) {
 	}
 	if n != depth {
 		t.Fatalf("expected to walk %d levels, got %d", depth, n)
+	}
+}
+
+// TestGoMapNaNKeyCycleString keeps the fatal-stack regression isolated. A
+// self-reference stored behind a NaN key must be found without re-looking up
+// that non-reflexive key. A small child stack and an external watchdog bound
+// failures without risking the parent test process.
+func TestGoMapNaNKeyCycleString(t *testing.T) {
+	const childEnv = "STARLIGHT_TEST_NAN_KEY_CYCLE"
+	if os.Getenv(childEnv) != "1" {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestGoMapNaNKeyCycleString$", "-test.v")
+		cmd.Env = append(os.Environ(), childEnv+"=1")
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("NaN-key cycle subprocess failed (deadline: %v): %v\n%s", ctx.Err(), err, output)
+		}
+		return
+	}
+	debug.SetMaxStack(256 * 1024)
+	m := map[float64]interface{}{}
+	m[math.NaN()] = m
+	value, err := convert.ToValue(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := value.String(); !strings.HasPrefix(got, "<cyclic ") {
+		t.Fatalf("String()=%q, want cyclic placeholder", got)
 	}
 }

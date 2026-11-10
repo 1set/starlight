@@ -476,6 +476,10 @@ func fromList(l *starlark.List, visited map[uintptr]bool) []interface{} {
 
 // MakeDict makes a Dict from the given map. The acceptable keys and values are the same as ToValue.
 // For nil input, it returns an empty Dict. It panics if the input is not a map.
+// Entries keep their original paired values, including non-reflexive NaN keys.
+// Keys tied under the documented map ordering have unspecified relative order.
+// Multiple Go NaN keys that would merge into one Starlark key return an error:
+// the fixed interpreter considers all NaN keys equal, unlike Go maps.
 func MakeDict(v interface{}) (starlark.Value, error) {
 	return makeDictTag(reflect.ValueOf(v), emptyStr)
 }
@@ -496,14 +500,23 @@ func makeDictTag(val reflect.Value, tagName string) (starlark.Value, error) {
 		// iterate over the map and convert each key and value, in
 		// deterministic key order: Starlark dicts preserve insertion order,
 		// so the random order of MapKeys would be script-visible
-		for _, k := range sortedMapKeys(val) {
-			vk, err := toValue(k, tagName)
+		for _, entry := range sortedMapEntries(val) {
+			vk, err := toValue(entry.key.orig, tagName)
 			if err != nil {
 				return nil, err
 			}
-			vv, err := toValue(val.MapIndex(k), tagName)
+			vv, err := toValue(entry.value, tagName)
 			if err != nil {
 				return nil, err
+			}
+			// Go permits multiple NaN keys, even with identical bits. The
+			// fixed Starlark runtime compares NaN keys equal, so reject this
+			// representation conflict instead of silently overwriting a value.
+			if f, ok := vk.(starlark.Float); ok && math.IsNaN(float64(f)) {
+				// Float.Hash cannot fail, so this lookup cannot return an error.
+				if _, found, _ := dict.Get(vk); found {
+					return nil, fmt.Errorf("distinct Go NaN keys collide in a Starlark dict")
+				}
 			}
 			// SetKey fails for keys that are unhashable on the Starlark
 			// side; dropping the entry silently is data loss
@@ -1041,14 +1054,14 @@ func convertMap(val reflect.Value, argT reflect.Type) (reflect.Value, error) {
 	argElem := argT.Elem()
 	newMap := reflect.MakeMapWithSize(argT, val.Len())
 
-	for _, key := range val.MapKeys() {
-		newKey, err := convertElemValue(key, argKey)
+	iter := val.MapRange()
+	for iter.Next() {
+		newKey, err := convertElemValue(iter.Key(), argKey)
 		if err != nil {
 			return reflect.Value{}, fmt.Errorf("map key conversion failed: %v", err)
 		}
 
-		valElem := val.MapIndex(key)
-		newElem, err := convertElemValue(valElem, argElem)
+		newElem, err := convertElemValue(iter.Value(), argElem)
 		if err != nil {
 			return reflect.Value{}, fmt.Errorf("map value conversion failed: %v", err)
 		}
