@@ -1,11 +1,17 @@
 package convert_test
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"os/exec"
+	"reflect"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/1set/starlight"
 	"github.com/1set/starlight/convert"
@@ -22,6 +28,301 @@ import (
 //   3. Bridge contracts (kwargs, error convention, MakeDict key, pointer
 //      methods, dir())
 //   4. Freeze semantics, conversion concurrency, and reference cycles
+//   5. Accepted pointer elements: opaque materialization and interface cycles
+
+// Accepted pointer elements may have no direct Starlark representation. The
+// no-error collection APIs must preserve them as opaque values, rather than
+// panic or broaden the direct ToValue conversion contract.
+func TestCollectionPointerMaterialization(t *testing.T) {
+	n := 7
+	p := &n
+	var nilInt *int
+	for _, tc := range []struct {
+		name  string
+		value interface{}
+		slice interface{}
+		m     interface{}
+		keys  interface{}
+	}{
+		{"nil", nilInt, []*int{nil}, map[string]*int{"p": nil}, map[*int]string{nil: "p"}},
+		{"deep", &p, []**int{&p}, map[string]**int{"p": &p}, map[**int]string{&p: "p"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			check := func(v starlark.Value) {
+				t.Helper()
+				g, ok := v.(*convert.GoInterface)
+				if !ok || g.Value().Interface() != tc.value {
+					t.Fatalf("got %T, want opaque original %T", v, tc.value)
+				}
+				_ = g.String()
+				g.Freeze()
+				if _, err := g.Hash(); err == nil {
+					t.Fatal("opaque pointer must remain unhashable")
+				}
+			}
+			for _, direct := range []bool{false, true} {
+				var s *convert.GoSlice
+				var m, keys *convert.GoMap
+				if direct {
+					s = convert.NewGoSlice(tc.slice)
+					m = convert.NewGoMap(tc.m)
+					keys = convert.NewGoMap(tc.keys)
+				} else {
+					sv, err := convert.ToValue(tc.slice)
+					if err != nil {
+						t.Fatal(err)
+					}
+					mv, err := convert.ToValue(tc.m)
+					if err != nil {
+						t.Fatal(err)
+					}
+					kv, err := convert.ToValue(tc.keys)
+					if err != nil {
+						t.Fatal(err)
+					}
+					s, m, keys = sv.(*convert.GoSlice), mv.(*convert.GoMap), kv.(*convert.GoMap)
+				}
+				check(s.Index(0))
+				check(m.Items()[0][1])
+				check(keys.Items()[0][0])
+				check(keys.Keys()[0])
+				for _, it := range []starlark.Iterator{s.Iterate(), keys.Iterate()} {
+					var v starlark.Value
+					if !it.Next(&v) {
+						t.Fatal("missing pointer element")
+					}
+					check(v)
+					if it.Next(&v) {
+						t.Fatal("extra pointer element")
+					}
+					it.Done()
+				}
+				// Error-returning APIs retain their regular conversion errors.
+				if _, _, err := m.Get(starlark.String("p")); err == nil {
+					t.Fatal("Get must preserve the direct conversion error")
+				}
+			}
+			evalOK(t, `a = l[0]
+b = [v for v in l]
+c = m.items()
+d = m.values()
+e = k.keys()
+f = [v for v in k]`, map[string]interface{}{"l": tc.slice, "m": tc.m, "k": tc.keys})
+		})
+	}
+}
+
+type recursivePointer *recursivePointer
+
+// Probe cyclic conversion in a bounded subprocess before repeating the same
+// public fixture in the parent for coverage. A failed child stops the parent
+// before it reaches the dangerous path.
+func TestCollectionPointerCycles(t *testing.T) {
+	if os.Getenv("STARLIGHT_POINTER_CYCLE_CHILD") != "1" {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestCollectionPointerCycles$", "-test.v")
+		cmd.Env = append(os.Environ(), "STARLIGHT_POINTER_CYCLE_CHILD=1")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("bounded pointer-cycle process: %v (%v)\n%s", err, ctx.Err(), out)
+		}
+	} else {
+		// Only the isolated probe changes the process-wide stack limit.
+		debug.SetMaxStack(256 << 10)
+	}
+	var self interface{}
+	self = &self
+	var left, right interface{}
+	left, right = &right, &left
+	var recursive recursivePointer
+	recursive = &recursive
+	var entry, middle, tail interface{}
+	entry, middle, tail = &middle, &tail, &middle
+	// Preserve the exact repeated-node identity, including a non-cyclic
+	// prefix before a two-node loop. These assertions run only after the
+	// bounded child fixture above has returned successfully.
+	for _, tc := range []struct{ input, repeated interface{} }{
+		{&self, &self}, {&left, &left}, {&entry, &middle},
+	} {
+		v, err := convert.ToValue(tc.input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		g, ok := v.(*convert.GoInterface)
+		if !ok || g.Value().Interface() != tc.repeated || convert.FromValue(g) != tc.repeated {
+			t.Fatalf("cycle identity: got %T, want repeated node %p", v, tc.repeated)
+		}
+	}
+	for _, p := range []interface{}{&self, &left, &entry, recursive} {
+		// Recursive pointer types remain unsupported directly; mixed
+		// pointer/interface cycles use the existing interface fallback.
+		if _, err := convert.ToValue(p); err != nil && reflect.TypeOf(p) != reflect.TypeOf(recursive) {
+			t.Fatal(err)
+		}
+		for _, input := range []interface{}{[]interface{}{p}, map[string]interface{}{"p": p}} {
+			v, err := convert.ToValue(input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got starlark.Value
+			switch v := v.(type) {
+			case *convert.GoSlice:
+				got = v.Index(0)
+				it := v.Iterate()
+				if !it.Next(&got) {
+					t.Fatal("missing cyclic pointer")
+				}
+				it.Done()
+			case *convert.GoMap:
+				got = v.Items()[0][1]
+			}
+			if _, ok := got.(*convert.GoInterface); !ok {
+				t.Fatalf("cyclic %T: got %T, want opaque value", p, got)
+			}
+			_ = got.String()
+		}
+	}
+	// These types are statically accepted too, without an interface slot
+	// around the pointer element.
+	for _, input := range []interface{}{[]*interface{}{&self}, []recursivePointer{recursive}, map[string]*interface{}{"p": &left}, map[string]recursivePointer{"p": recursive}} {
+		v, err := convert.ToValue(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		switch v := v.(type) {
+		case *convert.GoSlice:
+			_ = v.Index(0)
+		case *convert.GoMap:
+			_ = v.Items()
+		}
+	}
+}
+
+// Acyclic pointer-to-interface values retain their ordinary conversion,
+// including scalars, nil, and pointers. Both direct and no-error collection
+// APIs must produce the same values.
+func TestCollectionPointerInterfaceValues(t *testing.T) {
+	n := 7
+	var empty interface{}
+	scalar := interface{}(n)
+	pointer := interface{}(&n)
+	var nilInt *int
+	nilPointer := interface{}(nilInt)
+	for _, tc := range []struct {
+		name  string
+		input *interface{}
+		want  starlark.Value
+	}{
+		{"scalar", &scalar, starlark.MakeInt(7)},
+		{"pointer", &pointer, starlark.MakeInt(7)},
+		{"nil-interface", &empty, starlark.None},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			v, err := convert.ToValue(tc.input)
+			if err != nil || v != tc.want {
+				t.Fatalf("direct: value=%v err=%v", v, err)
+			}
+			if got := convert.NewGoSlice([]*interface{}{tc.input}).Index(0); got != tc.want {
+				t.Fatalf("Index: value=%v", got)
+			}
+			m := convert.NewGoMap(map[string]*interface{}{"value": tc.input})
+			if got := m.Items()[0][1]; got != tc.want {
+				t.Fatalf("Items: value=%v", got)
+			}
+		})
+	}
+	// An unsupported nil scalar pointer behind an interface remains opaque,
+	// just as before the cycle detector was introduced.
+	v, err := convert.ToValue(&nilPointer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := v.(*convert.GoInterface); !ok {
+		t.Fatalf("nil scalar: got %T", v)
+	}
+	// A failed dynamic conversion preserves the innermost interface slot,
+	// rather than the entry pointer, and FromValue keeps its host value.
+	ch := make(chan int)
+	unsupported := interface{}(ch)
+	middle := interface{}(&unsupported)
+	entry := interface{}(&middle)
+	v, err = convert.ToValue(&entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, ok := v.(*convert.GoInterface)
+	if !ok || g.Value().Kind() != reflect.Interface || !g.Value().CanAddr() ||
+		g.Value().Addr().Interface() != &unsupported || convert.FromValue(g) != ch {
+		t.Fatalf("unsupported dynamic identity: got %T", v)
+	}
+	// Index and Iterator preserve fallback identity and element order,
+	// including consecutive failures and a successful element between them.
+	other := 8
+	first, second := &n, &other
+	for _, tc := range []struct {
+		input interface{}
+		want  []interface{}
+	}{
+		{[]*int{nil, &n, nil}, []interface{}{nilInt, starlark.MakeInt(7), nilInt}},
+		{[]**int{&first, &second, nil}, []interface{}{&first, &second, (**int)(nil)}},
+		{[]interface{}{ch, 7, ch}, []interface{}{ch, starlark.MakeInt(7), ch}},
+	} {
+		slice := convert.NewGoSlice(tc.input)
+		check := func(index int, got starlark.Value) {
+			t.Helper()
+			if want, ok := tc.want[index].(starlark.Value); ok {
+				if got != want {
+					t.Fatalf("element %d: got %v, want %v", index, got, want)
+				}
+			} else if g, ok := got.(*convert.GoInterface); !ok || convert.FromValue(g) != tc.want[index] {
+				t.Fatalf("element %d: lost opaque identity (%T)", index, got)
+			}
+		}
+		for i := range tc.want {
+			check(i, slice.Index(i))
+		}
+		it := slice.Iterate()
+		for i := range tc.want {
+			var got starlark.Value
+			if !it.Next(&got) {
+				t.Fatalf("missing element %d", i)
+			}
+			check(i, got)
+		}
+		var extra starlark.Value
+		if it.Next(&extra) {
+			t.Fatal("extra iterator element")
+		}
+		it.Done()
+	}
+	// Method-bearing interface pointers stop at the usual GoInterface;
+	// Starlark values and typed-nil Starlark pointers retain precedence.
+	var method error = wrappedError{msg: "method"}
+	methodBox := interface{}(&method)
+	methodEntry := interface{}(&methodBox)
+	v, err = convert.ToValue(&methodEntry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g, ok := v.(*convert.GoInterface); !ok || g.Value().Interface() != &method {
+		t.Fatalf("method interface precedence: got %T", v)
+	}
+	list := starlark.NewList(nil)
+	var nilList *starlark.List
+	for _, tc := range []struct {
+		input interface{}
+		want  starlark.Value
+	}{
+		{list, list}, {nilList, starlark.None},
+	} {
+		box := tc.input
+		outer := interface{}(&box)
+		got, err := convert.ToValue(&outer)
+		if err != nil || got != tc.want {
+			t.Fatalf("Starlark precedence: value=%v err=%v", got, err)
+		}
+	}
+}
 
 // Regression tests for the four script-reachable panics:
 //  1. strided slicing (l[::2]) passed the element type to MakeSlice and

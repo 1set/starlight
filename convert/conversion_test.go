@@ -4,9 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/1set/starlight"
 	"github.com/1set/starlight/convert"
@@ -22,6 +24,103 @@ import (
 //   3. Empty-interface unwrapping and the opaque-wrapper fallback
 //   4. Type mapping edges: time.Duration, Int ladder, *time.Time
 //   5. Typed-nil handling; kwargs; NewStruct misuse
+//   6. Pointer materialization compatibility (direct errors and precedence)
+
+type materializationNumber int
+
+func (v materializationNumber) Label() string { return "number" }
+
+func TestPointerMaterializationCompatibility(t *testing.T) {
+	n := 7
+	p := &n
+	named := materializationNumber(7)
+	namedPtr := &named
+	var nilNamed *materializationNumber
+	var nilStruct *struct{ N int }
+	var iface interface{} = n
+	var nilIface interface{}
+	var errIface error = wrappedError{msg: "method"}
+	fn := func(x int) int { return x + 1 }
+	list := starlark.NewList(nil)
+	for _, tc := range []struct {
+		name string
+		in   interface{}
+		want interface{}
+	}{
+		{"scalar-pointer", p, starlark.MakeInt(n)},
+		{"named-value", named, (*convert.GoInterface)(nil)},
+		{"named-pointer", namedPtr, (*convert.GoInterface)(nil)},
+		{"named-deep-pointer", &namedPtr, (*convert.GoInterface)(nil)},
+		{"named-nil-pointer", nilNamed, (*convert.GoInterface)(nil)},
+		{"nil-struct-pointer", nilStruct, (*convert.GoInterface)(nil)},
+		{"struct-pointer", &struct{ N int }{1}, (*convert.GoStruct)(nil)},
+		{"interface-pointer", &iface, starlark.MakeInt(n)},
+		{"nil-interface-pointer", &nilIface, starlark.None},
+		{"method-interface-pointer", &errIface, (*convert.GoInterface)(nil)},
+		{"function-pointer", &fn, (*starlark.Builtin)(nil)},
+		{"starlark-pointer", list, list},
+		{"starlark-deep-pointer", &list, (*convert.GoInterface)(nil)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			v, err := convert.ToValue(tc.in)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if reflect.TypeOf(v) != reflect.TypeOf(tc.want) {
+				t.Fatalf("%T converted to %T, want %T", tc.in, v, tc.want)
+			}
+			if want, ok := tc.want.(starlark.Value); ok && !reflect.ValueOf(want).IsZero() && reflect.TypeOf(want).Comparable() && v != want {
+				t.Fatalf("%T changed value: got %v, want %v", tc.in, v, want)
+			}
+		})
+	}
+	// Do not turn unsupported direct pointers into new native mappings.
+	var nilInt *int
+	var nilFunc *func()
+	var nilInterface *interface{}
+	var recursive recursivePointer
+	recursive = &recursive
+	for _, in := range []interface{}{nilInt, &p, nilFunc, nilInterface, recursive} {
+		if _, err := convert.ToValue(in); err == nil {
+			t.Errorf("direct %T must retain its conversion error", in)
+		}
+	}
+	// Function elements remain callable; pointer-to-function collections
+	// keep their existing static rejection, whether nil or non-nil.
+	evalOK(t, `x = fs[0](6)
+assert.Eq(x, 7)
+assert.Eq(n.Label(), "number")`, map[string]interface{}{"fs": []func(int) int{fn}, "n": namedPtr, "assert": &assert{t: t}})
+	for _, in := range []interface{}{[]*func(int) int{nil}, []*func(int) int{&fn}, map[*func(int) int]int{&fn: 1}} {
+		if _, err := convert.ToValue(in); err == nil {
+			t.Errorf("%T must retain static rejection", in)
+		}
+	}
+}
+
+// Cover every unsupported reflect.Kind, including through pointer layers.
+// The no-error fallback must not relax the static collection pre-check.
+func TestMaterializationUnsupportedKindsStayRejected(t *testing.T) {
+	for _, in := range []interface{}{make(chan int), complex64(1), complex128(1), uintptr(0), unsafe.Pointer(nil)} {
+		rv := reflect.ValueOf(in)
+		ptr := reflect.New(rv.Type())
+		ptr.Elem().Set(rv)
+		for _, value := range []reflect.Value{rv, ptr} {
+			if _, err := convert.ToValue(value.Interface()); err == nil {
+				t.Errorf("direct %s must error", value.Type())
+			}
+			s := reflect.MakeSlice(reflect.SliceOf(value.Type()), 1, 1)
+			s.Index(0).Set(value)
+			if _, err := convert.ToValue(s.Interface()); err == nil {
+				t.Errorf("static %s must error", s.Type())
+			}
+			m := reflect.MakeMap(reflect.MapOf(reflect.TypeOf(""), value.Type()))
+			m.SetMapIndex(reflect.ValueOf("p"), value)
+			if _, err := convert.ToValue(m.Interface()); err == nil {
+				t.Errorf("static %s must error", m.Type())
+			}
+		}
+	}
+}
 
 // Regression tests for checked conversions: the three conversion entry
 // points trusted reflect.ConvertibleTo blindly, which silently corrupted
