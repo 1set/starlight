@@ -37,6 +37,10 @@ func (e *PanicError) Error() string {
 //
 // Existing starlark.Value objects pass through unchanged, except typed-nil
 // pointers become None.
+//
+// Collection elements without a direct Starlark representation remain opaque
+// GoInterface values when accessed through no-error indexing/iteration APIs.
+// Cyclic pointer/interface unwrapping also stops at an opaque GoInterface.
 func ToValue(v interface{}) (starlark.Value, error) {
 	if val, ok := v.(starlark.Value); ok {
 		return passThroughOrNone(val), nil
@@ -71,6 +75,18 @@ func hasMethods(val reflect.Value) bool {
 		return true
 	}
 	return false
+}
+
+// toValueOrOpaque is for collection APIs that cannot return a conversion
+// error. Static unsupported types are still rejected at construction; values
+// of accepted types that have no direct representation (nil scalar pointers,
+// for example) retain their original Go value in an opaque wrapper.
+func toValueOrOpaque(val reflect.Value, tagName string) (v starlark.Value) {
+	v, err := toValue(val, tagName)
+	if err != nil {
+		v = &GoInterface{v: val, tag: tagName}
+	}
+	return
 }
 
 func toValue(val reflect.Value, tagName string) (result starlark.Value, err error) {
@@ -177,6 +193,9 @@ func toValue(val reflect.Value, tagName string) (result starlark.Value, err erro
 			if val.IsNil() {
 				return starlark.None, nil
 			}
+			if val.Kind() == reflect.Ptr {
+				return toInterfacePointerValue(val, tagName), nil
+			}
 			if uv, err := toValue(val.Elem(), tagName); err == nil {
 				return uv, nil
 			}
@@ -196,6 +215,40 @@ func toValue(val reflect.Value, tagName string) (result starlark.Value, err erro
 	return nil, fmt.Errorf("type %T is not a supported starlark type", val.Interface())
 }
 
+// toInterfacePointerValue unwraps a pointer to an empty interface. Only
+// pointer/interface chains can recur while collection wrapping remains lazy;
+// keep their cycle state off the ordinary scalar conversion path.
+func toInterfacePointerValue(val reflect.Value, tagName string) starlark.Value {
+	var seen map[uintptr]bool
+	for {
+		inner := val.Elem()
+		if inner.IsNil() {
+			return starlark.None
+		}
+		dynamic := inner.Elem()
+		if dynamic.Kind() == reflect.Ptr && !dynamic.IsNil() &&
+			dynamic.Elem().Kind() == reflect.Interface && !hasMethods(dynamic) {
+			p := val.Pointer()
+			if seen[p] {
+				return &GoInterface{v: val, tag: tagName}
+			}
+			if seen == nil {
+				seen = make(map[uintptr]bool)
+			}
+			seen[p] = true
+			val = dynamic
+			continue
+		}
+		// Ordinary values, methods and Starlark values retain the common
+		// dispatch's precedence. A failed conversion belongs to this innermost
+		// interface slot, exactly as for recursive interface unwrapping.
+		if v, err := toValue(dynamic, tagName); err == nil {
+			return v
+		}
+		return &GoInterface{v: inner, tag: tagName}
+	}
+}
+
 // elemTypeCacheCap bounds elemTypeCheckCache. checkCollectionElemTypes is
 // run on every collection wrap; real hosts convert a small, fixed set of
 // declared collection types, and the cap is the ceiling that keeps
@@ -211,11 +264,11 @@ func checkCollectionElemTypesCached(t reflect.Type) error {
 	return elemTypeCheckCache.loadOrStore(t, checkCollectionElemTypes(t, nil))
 }
 
-// checkCollectionElemTypes verifies that the key and element types of a map,
-// or the element type of a slice or array, are convertible by toValue,
-// recursing through nested collection and pointer types. Without this
-// pre-check, a collection like map[string]chan int converted fine and blew
-// up with a panic only later, when items() or iteration touched a value of
+// checkCollectionElemTypes rejects unsupported static key/element types,
+// recursing through nested collection and pointer types. Accepted pointer
+// values that toValue cannot represent use toValueOrOpaque in no-error APIs.
+// Without this pre-check, a map[string]chan int converted fine and panicked
+// only later, when items() or iteration touched a value of
 // the unsupported type. Struct types are not descended into: their fields
 // are reached through GoStruct.Attr, which reports a regular error. The
 // visited set guards against recursive Go types (e.g. type M map[string]M);
@@ -423,6 +476,10 @@ func fromList(l *starlark.List, visited map[uintptr]bool) []interface{} {
 
 // MakeDict makes a Dict from the given map. The acceptable keys and values are the same as ToValue.
 // For nil input, it returns an empty Dict. It panics if the input is not a map.
+// Entries keep their original paired values, including non-reflexive NaN keys.
+// Keys tied under the documented map ordering have unspecified relative order.
+// Multiple Go NaN keys that would merge into one Starlark key return an error:
+// the fixed interpreter considers all NaN keys equal, unlike Go maps.
 func MakeDict(v interface{}) (starlark.Value, error) {
 	return makeDictTag(reflect.ValueOf(v), emptyStr)
 }
@@ -443,14 +500,23 @@ func makeDictTag(val reflect.Value, tagName string) (starlark.Value, error) {
 		// iterate over the map and convert each key and value, in
 		// deterministic key order: Starlark dicts preserve insertion order,
 		// so the random order of MapKeys would be script-visible
-		for _, k := range sortedMapKeys(val) {
-			vk, err := toValue(k, tagName)
+		for _, entry := range sortedMapEntries(val) {
+			vk, err := toValue(entry.key.orig, tagName)
 			if err != nil {
 				return nil, err
 			}
-			vv, err := toValue(val.MapIndex(k), tagName)
+			vv, err := toValue(entry.value, tagName)
 			if err != nil {
 				return nil, err
+			}
+			// Go permits multiple NaN keys, even with identical bits. The
+			// fixed Starlark runtime compares NaN keys equal, so reject this
+			// representation conflict instead of silently overwriting a value.
+			if f, ok := vk.(starlark.Float); ok && math.IsNaN(float64(f)) {
+				// Float.Hash cannot fail, so this lookup cannot return an error.
+				if _, found, _ := dict.Get(vk); found {
+					return nil, fmt.Errorf("distinct Go NaN keys collide in a Starlark dict")
+				}
 			}
 			// SetKey fails for keys that are unhashable on the Starlark
 			// side; dropping the entry silently is data loss
@@ -988,14 +1054,14 @@ func convertMap(val reflect.Value, argT reflect.Type) (reflect.Value, error) {
 	argElem := argT.Elem()
 	newMap := reflect.MakeMapWithSize(argT, val.Len())
 
-	for _, key := range val.MapKeys() {
-		newKey, err := convertElemValue(key, argKey)
+	iter := val.MapRange()
+	for iter.Next() {
+		newKey, err := convertElemValue(iter.Key(), argKey)
 		if err != nil {
 			return reflect.Value{}, fmt.Errorf("map key conversion failed: %v", err)
 		}
 
-		valElem := val.MapIndex(key)
-		newElem, err := convertElemValue(valElem, argElem)
+		newElem, err := convertElemValue(iter.Value(), argElem)
 		if err != nil {
 			return reflect.Value{}, fmt.Errorf("map value conversion failed: %v", err)
 		}

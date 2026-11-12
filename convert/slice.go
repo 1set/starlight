@@ -104,11 +104,12 @@ func (g *GoSlice) Clear() error {
 	return nil
 }
 
-// Index implements starlark.Indexable.
+// Index implements starlark.Indexable. Elements without a direct Starlark
+// representation are returned as opaque GoInterface values.
 func (g *GoSlice) Index(i int) starlark.Value {
 	v, err := toValue(g.v.Index(i), g.tag)
 	if err != nil {
-		panic(err)
+		return &GoInterface{v: g.v.Index(i), tag: g.tag}
 	}
 	return v
 }
@@ -218,7 +219,7 @@ func (it *sliceIterator) Next(p *starlark.Value) bool {
 	if it.i < it.g.v.Len() {
 		v, err := toValue(it.g.v.Index(it.i), it.g.tag)
 		if err != nil {
-			panic(err)
+			v = &GoInterface{v: it.g.v.Index(it.i), tag: it.g.tag}
 		}
 		*p = v
 		it.i++

@@ -110,6 +110,35 @@ func sortedMapKeys(m reflect.Value) []reflect.Value {
 	return keys
 }
 
+// sortedMapEntries snapshots key/value pairs together, then applies the same
+// key ordering as sortedMapKeys. Values must not be re-read with MapIndex:
+// non-reflexive keys (NaN, including NaN inside structs/arrays/interfaces)
+// cannot retrieve even their own entries. Tied keys have unspecified relative
+// order, but each entry retains its original paired value and multiplicity.
+func sortedMapEntries(m reflect.Value) sortableMapEntries {
+	entries := make(sortableMapEntries, 0, m.Len())
+	iter := m.MapRange()
+	for iter.Next() {
+		entries = append(entries, sortableMapEntry{
+			key:   decorateKey(iter.Key()),
+			value: iter.Value(),
+		})
+	}
+	sort.Sort(entries)
+	return entries
+}
+
+type sortableMapEntry struct {
+	key   sortableKey
+	value reflect.Value
+}
+
+type sortableMapEntries []sortableMapEntry
+
+func (s sortableMapEntries) Len() int           { return len(s) }
+func (s sortableMapEntries) Less(i, j int) bool { return sortableKeyLess(s[i].key, s[j].key) }
+func (s sortableMapEntries) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+
 // sortableKeys implements sort.Interface with concrete methods (the
 // reflect-based swapping of sort.Slice* is measurably slower here).
 type sortableKeys []sortableKey
@@ -418,8 +447,9 @@ func hasRefCycle(v reflect.Value, visited map[uintptr]bool, depth int) bool {
 	}
 	switch v.Kind() {
 	case reflect.Map:
-		for _, k := range v.MapKeys() {
-			if hasRefCycle(k, visited, depth+1) || hasRefCycle(v.MapIndex(k), visited, depth+1) {
+		iter := v.MapRange()
+		for iter.Next() {
+			if hasRefCycle(iter.Key(), visited, depth+1) || hasRefCycle(iter.Value(), visited, depth+1) {
 				return true
 			}
 		}

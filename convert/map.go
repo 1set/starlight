@@ -132,6 +132,10 @@ func (g *GoMap) Hash() (uint32, error) {
 	return 0, errors.New("starlight_map is not hashable")
 }
 
+// Clear deletes all entries in place, preserving aliases of the host map.
+// If any key is non-reflexive (for example, it contains NaN), Clear returns
+// an error without changing the map: such keys cannot be deleted by lookup
+// on the supported Go 1.19 floor.
 func (g *GoMap) Clear() error {
 	if g.frozen {
 		return fmt.Errorf("cannot clear frozen map")
@@ -139,7 +143,17 @@ func (g *GoMap) Clear() error {
 	if atomic.LoadInt32(&g.numIt) > 0 {
 		return fmt.Errorf("cannot clear map during iteration")
 	}
-	for _, k := range g.v.MapKeys() {
+	keys := g.v.MapKeys()
+	for _, k := range keys {
+		// Every stored Go map key is comparable, including the dynamic
+		// value of an interface key. Equality detects NaN even in nested
+		// structs/arrays/interfaces/complex values, without newer APIs.
+		key := k.Interface()
+		if key != key {
+			return fmt.Errorf("cannot clear map with non-reflexive key")
+		}
+	}
+	for _, k := range keys {
 		g.v.SetMapIndex(k, reflect.Value{})
 	}
 	return nil
@@ -173,32 +187,28 @@ func (g *GoMap) delete(key reflect.Value) (v starlark.Value, found bool, err err
 	return ret, true, nil
 }
 
+// Items returns a key-sorted snapshot, preserving values without a direct
+// Starlark representation as opaque GoInterface values. Every key keeps its
+// original paired value, including non-reflexive NaN keys; no entries are
+// dropped. Keys tied under the documented ordering have unspecified relative
+// order.
 func (g *GoMap) Items() []starlark.Tuple {
 	tuples := make([]starlark.Tuple, 0, g.v.Len())
-	var err error
-	for _, k := range sortedMapKeys(g.v) {
+	for _, entry := range sortedMapEntries(g.v) {
 		tuple := make(starlark.Tuple, 2)
-		tuple[0], err = toValue(k, g.tag)
-		if err != nil {
-			panic(err)
-		}
-		tuple[1], err = toValue(g.v.MapIndex(k), g.tag)
-		if err != nil {
-			panic(err)
-		}
+		tuple[0] = toValueOrOpaque(entry.key.orig, g.tag)
+		tuple[1] = toValueOrOpaque(entry.value, g.tag)
 		tuples = append(tuples, tuple)
 	}
 	return tuples
 }
 
+// Keys returns keys in deterministic order, using opaque GoInterface values
+// for keys without a direct Starlark representation.
 func (g *GoMap) Keys() []starlark.Value {
 	keys := make([]starlark.Value, 0, g.v.Len())
 	for _, k := range sortedMapKeys(g.v) {
-		key, err := toValue(k, g.tag)
-		if err != nil {
-			panic(err)
-		}
-		keys = append(keys, key)
+		keys = append(keys, toValueOrOpaque(k, g.tag))
 	}
 	return keys
 }
@@ -268,11 +278,7 @@ type mapIterator struct {
 
 func (it *mapIterator) Next(p *starlark.Value) bool {
 	if it.i < len(it.keys) {
-		v, err := toValue(it.keys[it.i], it.g.tag)
-		if err != nil {
-			panic(err)
-		}
-		*p = v
+		*p = toValueOrOpaque(it.keys[it.i], it.g.tag)
 		it.i++
 		return true
 	}
@@ -349,7 +355,8 @@ func dict_pop(fnname string, g *GoMap, args starlark.Tuple, _ []starlark.Tuple) 
 // Note: the spec's popitem removes the last-inserted item (LIFO), but a Go
 // map has no insertion order to honor. To stay deterministic this pops the
 // smallest key under the same ordering Keys()/Items() use (type rank, then
-// value), not the last-inserted one.
+// value), not the last-inserted one. A selected non-reflexive key (e.g. NaN)
+// cannot be retrieved/deleted; popitem reports an error without changing it.
 func dict_popitem(fnname string, g *GoMap, args starlark.Tuple, _ []starlark.Tuple) (starlark.Value, error) {
 	if len(args) > 0 {
 		return nil, fmt.Errorf("%s: wanted 0 args, got %d", fnname, len(args))
@@ -368,9 +375,12 @@ func dict_popitem(fnname string, g *GoMap, args starlark.Tuple, _ []starlark.Tup
 		return nil, fmt.Errorf("popitem: empty dict")
 	}
 	k := keys[0]
-	v, _, err := g.delete(k)
+	v, found, err := g.delete(k)
 	if err != nil {
 		return nil, err
+	}
+	if !found {
+		return nil, fmt.Errorf("popitem: cannot delete selected map key")
 	}
 	key, err := toValue(k, g.tag)
 	if err != nil {
